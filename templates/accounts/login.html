@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Sign in to Electra{% endblock %}
+
+{% block body_class %}auth-page{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <h1 class="auth-title">Sign in to Electra</h1>
+    <p class="auth-subtitle">Welcome back. Enter your account or device credentials.</p>
+
+    {% if error %}
+    <div class="auth-error-box">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'accounts:login' %}" class="auth-form">
+        {% csrf_token %}
+
+        <div class="auth-field">
+            <label for="id_username" class="auth-label">Identifier</label>
+            <input type="text" id="id_username" name="username" value="{{ username }}" class="auth-input" required autofocus autocomplete="username" placeholder="Username or Device ID">
+        </div>
+
+        <div class="auth-field">
+            <label for="id_password" class="auth-label">Password</label>
+            <input type="password" id="id_password" name="password" class="auth-input" required autocomplete="current-password" placeholder="Enter password">
+        </div>
+
+        <button type="submit" class="auth-btn-submit">
+            Continue
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Force reload on browser back/forward cache navigation
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            window.location.reload();
+        }
+    });
+</script>
+{% endblock %}

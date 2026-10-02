@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}electra{% endblock %}
+
+{% block body_class %}exact-landing-body{% endblock %}
+{% block main_class %}exact-landing-main{% endblock %}
+
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<!-- Floating Header Navigation (Matched to screenshot) -->
+<header class="exact-header-nav">
+    <a href="/" class="exact-brand">electra</a>
+    <nav class="exact-nav-links">
+        <a href="#working" class="exact-nav-link">Working</a>
+        <a href="#features" class="exact-nav-link">Features</a>
+        <a href="#about" class="exact-nav-link">About</a>
+    </nav>
+</header>
+
+<!-- Center Hero Section -->
+<main class="exact-hero-section">
+    <h1 class="exact-headline">
+        <span class="exact-headline-static">Election experience for</span>
+        <span class="exact-scroller-window" aria-live="polite">
+            <span class="exact-scroller-list">
+                <span class="exact-scroller-item">students</span>
+                <span class="exact-scroller-item">children</span>
+                <span class="exact-scroller-item">teenagers</span>
+                <span class="exact-scroller-item">non-voters</span>
+                <span class="exact-scroller-item" aria-hidden="true">students</span>
+            </span>
+        </span>
+    </h1>
+
+    <p class="exact-description">
+        Authentic polling booths, physical officer check-in, and real-time election day simulation for modern institutions.
+    </p>
+
+    {% if not is_initialized %}
+    <a href="{% url 'accounts:setup' %}" class="exact-btn-start">
+        Start now
+    </a>
+    {% elif request.user.is_authenticated and request.user.role == 'ADMIN' %}
+    <a href="{% url 'elections:dashboard' %}" class="exact-btn-start">
+        Go to Dashboard
+    </a>
+    {% else %}
+    <a href="{% url 'accounts:login' %}" class="exact-btn-start">
+        Start now
+    </a>
+    {% endif %}
+</main>
+
+<!-- Bottom Peeking Device Frame (Matched to screenshot) -->
+<div class="exact-device-peek" aria-hidden="true">
+    <div class="exact-device-notch"></div>
+    <div class="exact-device-status-card">
+        <div>
+            <span class="exact-device-dot"></span>
+            <span>Booth Station 01</span>
+        </div>
+        <span style="opacity: 0.6; font-size: 11px;">Simulation Ready</span>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,181 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard — Electra{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/electra.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="admin-body">
+    <div class="app-layout">
+        <!-- Left Fixed Navigation Sidebar (Locked Aesthetic per homepage_ref.png) -->
+        <aside class="app-sidebar" aria-label="Main Navigation">
+            <div class="sidebar-top-section">
+                <!-- Brand Header -->
+                <div class="sidebar-brand">
+                    <a href="{% url 'elections:dashboard' %}" class="sidebar-brand-text">electra</a>
+                </div>
+
+                <!-- Search Input -->
+                <div class="sidebar-search-box">
+                    <svg class="sidebar-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" class="sidebar-search-input" placeholder="Search" aria-label="Search dashboard">
+                </div>
+
+                <!-- Navigation Groups -->
+                <nav class="sidebar-nav-container">
+                    <div class="nav-group">
+                        <div class="nav-group-title">Analytics</div>
+                        <a href="{% url 'elections:dashboard' %}" class="nav-item {% if active_nav == 'leaderboard' or active_nav == 'overview' %}active{% endif %}">
+                            <div class="nav-item-content">
+                                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                                </svg>
+                                <span>Leaderboard</span>
+                            </div>
+                            <span class="nav-item-dots" aria-hidden="true">&#x22EE;</span>
+                        </a>
+                        <a href="#" class="nav-item {% if active_nav == 'electoral_college' %}active{% endif %}">
+                            <div class="nav-item-content">
+                                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <rect x="3" y="3" width="7" height="9"></rect>
+                                    <rect x="14" y="3" width="7" height="5"></rect>
+                                    <rect x="14" y="12" width="7" height="9"></rect>
+                                    <rect x="3" y="16" width="7" height="5"></rect>
+                                </svg>
+                                <span>Electoral College</span>
+                            </div>
+                            <span class="nav-item-dots" aria-hidden="true">&#x22EE;</span>
+                        </a>
+                        <a href="#" class="nav-item {% if active_nav == 'insights' %}active{% endif %}">
+                            <div class="nav-item-content">
+                                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                </svg>
+                                <span>Insights</span>
+                            </div>
+                        </a>
+                    </div>
+
+                    <div class="nav-group">
+                        <div class="nav-group-title">Pipeline</div>
+                        <a href="#" class="nav-item {% if active_nav == 'voters' %}active{% endif %}">
+                            <div class="nav-item-content">
+                                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                                <span>Voter Registry</span>
+                            </div>
+                        </a>
+                        <a href="{% url 'elections:dashboard' %}" class="nav-item {% if active_nav == 'election_mgmt' %}active{% endif %}">
+                            <div class="nav-item-content">
+                                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path d="M9 11l3 3L22 4"></path>
+                                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                                </svg>
+                                <span>Election Setup</span>
+                            </div>
+                        </a>
+                        <a href="#" class="nav-item {% if active_nav == 'devices' %}active{% endif %}">
+                            <div class="nav-item-content">
+                                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                                </svg>
+                                <span>Booths & Stations</span>
+                            </div>
+                        </a>
+                        <a href="#" class="nav-item {% if active_nav == 'results' %}active{% endif %}">
+                            <div class="nav-item-content">
+                                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <circle cx="12" cy="8" r="7"></circle>
+                                    <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+                                </svg>
+                                <span>Results</span>
+                            </div>
+                        </a>
+                    </div>
+
+                    <div class="nav-group">
+                        <div class="nav-group-title">Others</div>
+                        <a href="#" class="nav-item {% if active_nav == 'settings' %}active{% endif %}">
+                            <div class="nav-item-content">
+                                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                </svg>
+                                <span>Settings</span>
+                            </div>
+                        </a>
+                        <a href="#" class="nav-item {% if active_nav == 'support' %}active{% endif %}">
+                            <div class="nav-item-content">
+                                <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                                    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                                </svg>
+                                <span>Support</span>
+                            </div>
+                        </a>
+                    </div>
+                </nav>
+            </div>
+
+            <!-- Sidebar Footer with Authenticated Identity and Logout Action -->
+            <div class="sidebar-footer">
+                <div class="sidebar-user-pill">
+                    <div class="sidebar-user-avatar">{{ request.user.username|make_list|first|upper }}</div>
+                    <div class="sidebar-user-info">
+                        <span class="sidebar-user-name">{{ request.user.username }}</span>
+                        <span class="sidebar-user-role">Administrator</span>
+                    </div>
+                </div>
+                <form method="post" action="{% url 'accounts:logout' %}" class="sidebar-logout-form">
+                    {% csrf_token %}
+                    <button type="submit" class="sidebar-logout-btn" title="Log out of Electra">
+                        <svg class="sidebar-logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span>Logout</span>
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Main Scrollable Canvas -->
+        <main class="main-canvas" role="main">
+            <!-- Toast Feedback Banner -->
+            {% if messages %}
+            <div class="toast-container" aria-live="polite">
+                {% for message in messages %}
+                <div class="toast-item {% if message.tags == 'error' %}toast-error{% else %}toast-success{% endif %}">
+                    <span>{{ message }}</span>
+                    <button type="button" class="toast-close" onclick="this.parentElement.remove()" aria-label="Close message">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block admin_content %}
+            {% endblock %}
+        </main>
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

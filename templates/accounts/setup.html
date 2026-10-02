@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Set up Electra{% endblock %}
+
+{% block body_class %}auth-page{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <h1 class="auth-title">Set up Electra</h1>
+    <p class="auth-subtitle">Configure the administrator account to initialize the election platform.</p>
+
+    {% if errors %}
+    <div class="auth-error-box">
+        {% for error in errors %}
+            <div>{{ error }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'accounts:setup' %}" class="auth-form">
+        {% csrf_token %}
+
+        <div class="auth-field">
+            <label for="id_username" class="auth-label">Administrator Username</label>
+            <input type="text" id="id_username" name="username" value="{{ username }}" class="auth-input" required autofocus autocomplete="username" placeholder="e.g. admin_officer">
+        </div>
+
+        <div class="auth-field">
+            <label for="id_email" class="auth-label">Email Address</label>
+            <input type="email" id="id_email" name="email" value="{{ email }}" class="auth-input" required autocomplete="email" placeholder="admin@institution.edu">
+        </div>
+
+        <div class="auth-field">
+            <label for="id_password" class="auth-label">Password</label>
+            <input type="password" id="id_password" name="password" class="auth-input" required autocomplete="new-password" placeholder="Minimum 8 characters">
+        </div>
+
+        <div class="auth-field">
+            <label for="id_confirm_password" class="auth-label">Confirm Password</label>
+            <input type="password" id="id_confirm_password" name="confirm_password" class="auth-input" required autocomplete="new-password" placeholder="Re-enter password">
+        </div>
+
+        <button type="submit" class="auth-btn-submit">
+            Continue
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Force reload on browser back/forward cache navigation
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            window.location.reload();
+        }
+    });
+</script>
+{% endblock %}

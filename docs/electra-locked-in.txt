@@ -1,0 +1,1801 @@
+# Electra — Revised 30-Day Implementation Plan
+
+This is the **implementation plan**, not a learning/documentation plan. The sequence is designed so that each day produces working functionality that can be exercised immediately.
+
+The plan incorporates the decisions we have now locked in: Django + PostgreSQL + Channels/Daphne, session authentication, booth-bound technical identities, WebSocket-only liveness, atomic multi-position ballots, eligibility rules, frozen election configuration, credential rotation, reconnection/resynchronization, and server-authoritative voting.
+
+The SRS establishes the three-interface architecture, Django/Channels backend, HTTP/WebSocket split, booth-bound authorization, single-use authorization, transactional voting, live turnout and result publication.  
+
+---
+
+# 1. Locked technical architecture
+
+## Deployment and Ownership Model
+
+Electra is a **self-hosted web application deployed over a Local-Area Network (LAN)** (e.g., `http://192.168.x.x:8000`).
+
+The installation itself is the ownership and isolation boundary:
+
+* **One Electra installation** represents one independent deployment for one institution/operator;
+* **One PostgreSQL database** per installation (no cross-tenant sharing or cloud multi-tenancy);
+* **One human Administrator** (`role = ADMIN`) per installation;
+* **One central voter registry** scoped to the installation and shared across elections;
+* **Multiple elections** belonging to the installation as a whole (strictly no `Election.owner` or per-user tenancy);
+* **Multiple polling booths** with paired Officer Station and Voting Kiosk technical accounts.
+
+## Backend
+
+* Python
+* Django
+* Django Channels
+* Daphne/ASGI
+* PostgreSQL
+* Django ORM
+* Django session authentication
+* Django CSRF protection
+* `transaction.atomic()`
+* `select_for_update()`
+
+Development/demo:
+
+```text
+python manage.py runserver 0.0.0.0:8000
+```
+
+Daphne's ASGI integration will serve the Channels/WebSocket functionality.
+
+No:
+
+* React
+* JWT
+* Redis for the planned deployment
+* Celery
+* Docker/Kubernetes
+* microservices
+* offline voting
+* multi-tenancy / SaaS / public registration
+
+The SRS itself specifies Django, Channels, PostgreSQL/MySQL and WebSockets, with HTTP for transactional operations. 
+
+---
+
+# 2. Application structure
+
+Use a small number of Django apps rather than splitting every feature into its own app.
+The project will be divided into four domain-specific Django applications from the beginning. Each app owns its related models, services, views, forms, URLs, WebSocket consumers, templates, and tests where applicable.
+
+electra/
+│
+├── manage.py
+│
+├── electra/
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── urls.py
+│   ├── asgi.py
+│   ├── routing.py
+│   └── wsgi.py
+│
+├── accounts/
+│   ├── migrations/
+│   ├── templates/
+│   │   └── accounts/
+│   │       ├── login.html
+│   │       └── ...
+│   ├── admin.py
+│   ├── apps.py
+│   ├── consumers.py
+│   ├── forms.py
+│   ├── models.py
+│   ├── permissions.py
+│   ├── routing.py
+│   ├── services.py
+│   ├── urls.py
+│   ├── views.py
+│   └── tests.py
+│
+├── elections/
+│   ├── migrations/
+│   ├── templates/
+│   │   └── elections/
+│   │       ├── dashboard.html
+│   │       ├── election_form.html
+│   │       ├── position_form.html
+│   │       ├── candidate_form.html
+│   │       └── ...
+│   ├── admin.py
+│   ├── apps.py
+│   ├── forms.py
+│   ├── models.py
+│   ├── services.py
+│   ├── urls.py
+│   ├── views.py
+│   └── tests.py
+│
+├── voters/
+│   ├── migrations/
+│   ├── templates/
+│   │   └── voters/
+│   │       ├── registry.html
+│   │       ├── voter_detail.html
+│   │       ├── import.html
+│   │       ├── import_preview.html
+│   │       ├── allocation.html
+│   │       └── ...
+│   ├── admin.py
+│   ├── apps.py
+│   ├── forms.py
+│   ├── importers.py
+│   ├── models.py
+│   ├── services.py
+│   ├── urls.py
+│   ├── views.py
+│   └── tests.py
+│
+└── voting/
+    ├── migrations/
+    ├── templates/
+    │   └── voting/
+    │       ├── officer/
+    │       │   ├── dashboard.html
+    │       │   ├── voter_verify.html
+    │       │   └── authorization.html
+    │       │
+    │       ├── kiosk/
+    │       │   ├── locked.html
+    │       │   ├── ready.html
+    │       │   ├── ballot_position.html
+    │       │   ├── review.html
+    │       │   ├── submitting.html
+    │       │   ├── success.html
+    │       │   └── error.html
+    │       │
+    │       └── results/
+    │           ├── dashboard.html
+    │           └── position_results.html
+    │
+    ├── admin.py
+    ├── apps.py
+    ├── consumers.py
+    ├── forms.py
+    ├── models.py
+    ├── routing.py
+    ├── services.py
+    ├── urls.py
+    ├── views.py
+    └── tests.py
+Responsibilities
+
+electra/ — Django project configuration
+
+Contains only project-level configuration:
+
+settings.py
+root urls.py
+asgi.py
+Channels root routing.py
+project configuration
+
+It should not become a miscellaneous application containing business logic.
+
+accounts/ — identity and access
+
+Owns:
+
+custom User model;
+Admin/Officer/Kiosk roles;
+Device identities;
+device credentials;
+credential rotation/revocation;
+DeviceSession;
+authentication;
+role permissions;
+session enforcement.
+
+elections/ — election configuration
+
+Owns:
+
+Election;
+Position;
+Candidate;
+eligibility rules;
+election lifecycle;
+election configuration validation;
+start/close operations;
+election configuration UI.
+
+voters/ — voter registry and allocation
+
+Owns:
+
+Voter;
+AcademicGroup;
+ElectionVoter;
+CSV/Excel import;
+future structured PDF import;
+voter filtering;
+voter enrollment;
+booth allocation;
+pre-election reallocation.
+
+voting/ — actual polling workflow
+
+Owns:
+
+VoterAuthorization;
+Vote;
+authorization service;
+ballot generation;
+ballot validation;
+atomic vote transaction;
+kiosk state;
+officer workflow;
+kiosk workflow;
+WebSocket consumers;
+live turnout;
+result calculation/publication;
+reconnection/resynchronization.
+Services are separated from the beginning
+
+Business logic should not be placed directly inside views or WebSocket consumers.
+
+For example:
+
+elections/services.py
+    start_election()
+    close_election()
+    validate_election_configuration()
+
+voters/services.py
+    allocate_voter()
+    reallocate_voters()
+    enroll_voters()
+
+voters/importers.py
+    import_csv()
+    import_excel()
+
+voting/services.py
+    create_authorization()
+    cancel_authorization()
+    build_ballot()
+    submit_ballot()
+    calculate_turnout()
+    publish_results()
+
+accounts/services.py
+    generate_device_credentials()
+    rotate_device_credentials()
+    revoke_device_credentials()
+    create_device_session()
+
+The views handle HTTP/UI concerns, consumers handle WebSocket communication, and services handle domain operations and transactions.---
+
+# 3. Core data model
+
+The following is the model to implement.
+
+## User / Account
+
+Use Django's authentication system with a custom user model established at project creation.
+
+Roles:
+
+```text
+ADMIN
+OFFICER
+KIOSK
+```
+
+### Administrator Account
+* Exactly one human Administrator account exists per installation (`role = ADMIN`).
+* Created dynamically during first-run setup (`UNINITIALIZED → INITIALIZED`).
+* **Dynamic Identity Rule:** Never hardcode administrator usernames (`"admin"`), primary keys (`id == 1`), or default passwords. Admin resolution must be dynamic via `role == Role.ADMIN` to preserve architectural extensibility.
+
+### Technical Accounts
+An Officer and Kiosk are **technical authenticated identities** bound to physical `Device` records, not ordinary human accounts.
+
+---
+
+## Device
+
+Represent an Officer Station or Voting Kiosk as a technical device identity.
+
+Important fields:
+
+```text
+Device
+    user
+    device_type       OFFICER / KIOSK
+    booth
+    identifier
+    credential_status ACTIVE / REVOKED
+    created_at
+    updated_at
+```
+
+The password is hashed by Django.
+
+The identifier is stable.
+
+If credentials leak:
+
+```text
+identifier remains
+password changes
+existing session is revoked
+```
+
+Credential rotation is allowed even while the election is active.
+
+A physical computer can therefore be replaced:
+
+```text
+New computer
+    ↓
+Open browser
+    ↓
+Login with same device credentials
+    ↓
+Same logical Officer/Kiosk identity
+```
+
+---
+
+## Booth
+
+```text
+Booth
+    election
+    name/number
+```
+
+Each booth has exactly:
+
+```text
+1 Officer Device
+1 Kiosk Device
+```
+
+The database/service layer must enforce the one-to-one pairing.
+
+Booths can be added before an election starts.
+
+If a booth is removed before polling:
+
+```text
+remove booth
+    ↓
+find its ElectionVoters
+    ↓
+reallocate them
+    ↓
+validate allocation
+    ↓
+print/download updated voter-booth list
+```
+
+After the election becomes active, booth configuration is frozen.
+
+---
+
+# 4. Voter registry
+## Voter
+
+Keep one central voter registry.
+
+Voter
+    primary_registry_value
+    name
+    gender
+    academic_group
+
+The primary registry identity is not hardcoded as `student_id`.
+
+The administrator configures which institution-defined identifier is the
+primary registry identity, such as:
+
+    Student ID
+    University ID
+    Admission Number
+    another institution-defined identifier
+
+The configured identity value is stored in `primary_registry_value` and is
+the unique registry-level identity used to match existing Voter records
+during imports and prevent duplicate registry records.
+
+The configured primary registry identity must be unique within the central
+Voter registry.
+
+Do **not** create separate voter tables for:
+
+* male/female;
+* departments;
+* classes;
+* semesters;
+* sections.
+
+These are attributes/relationships used for filtering and eligibility.
+
+---
+
+# 5. AcademicGroup
+
+Use a generic academic hierarchy.
+
+```text
+AcademicGroup
+    name
+    type
+    parent
+```
+
+Possible types:
+
+```text
+CLASS
+SECTION
+DEPARTMENT
+PROGRAM
+SEMESTER
+```
+
+The important point is that the importer does not assume that `MCA` means department.
+
+The administrator configures the import structure.
+
+Example:
+
+```text
+Department
+    ↓
+Semester
+```
+
+with:
+
+```text
+MCA
+ ├── Semester 1
+ ├── Semester 2
+ └── Semester 3
+```
+
+For a school:
+
+```text
+Class
+    ↓
+Section
+```
+
+with:
+
+```text
+Class 10
+ ├── Section A
+ └── Section B
+```
+
+The import mechanism therefore supports different school/college structures without hardcoding a particular institution's hierarchy.
+
+---
+
+# 6. ElectionVoter
+
+This is the election-specific participation record.
+
+```text
+ElectionVoter
+    election
+    voter
+    booth
+    has_voted
+```
+
+Constraint:
+
+```text
+unique(election, voter)
+```
+
+Every eligible voter must have exactly one booth allocation before the election starts, matching the SRS business rule. 
+
+No academic-data snapshot is necessary.
+
+Once the election becomes active, the relevant voter/election configuration is frozen.
+
+---
+
+# 7. Election
+
+Core fields:
+
+```text
+Election
+    name
+    description
+    starts_at
+    ends_at
+    status
+    created_at
+    closed_at
+    results_published_at
+```
+
+Status:
+
+```text
+DRAFT
+ACTIVE
+CLOSED
+RESULTS_PUBLISHED
+```
+
+Do not use a separate `READY` state.
+
+Instead, implement a **configuration validation service** that determines whether a DRAFT election is ready to start.
+
+---
+
+# 8. Position
+
+A position belongs to an election.
+
+```text
+Position
+    election
+    name
+    description
+    display_order
+```
+
+A single-position election is simply an election containing one position.
+
+A multi-position election contains several positions.
+
+No separate `SINGLE_POSITION` / `MULTIPLE_POSITION` architecture is necessary.
+
+---
+
+# 9. Candidate
+
+```text
+Candidate
+    position
+    name
+    description
+    symbol
+    photo/optional presentation data
+```
+
+Candidates are manually entered by the administrator for the core implementation.
+
+No candidate-generation/automation system is required.
+
+---
+
+# 10. Eligibility rules
+
+Each position can have zero or more eligibility rules.
+
+For example:
+
+```text
+UG Representative
+
+Rule:
+    academic_group ∈ {CSE, Mechanical, Civil, ECE}
+
+Rule:
+    gender ∈ {Female}
+```
+
+Semantics:
+
+* multiple values **inside one rule = OR**
+* different rules = AND
+
+Therefore:
+
+```text
+(CSE OR Mechanical OR Civil OR ECE)
+AND
+Female
+```
+
+No arbitrary Boolean rule engine.
+
+No OR-groups.
+
+This is enough for:
+
+* common positions;
+* department representatives;
+* class representatives;
+* gender-specific representatives;
+* UG/PG-specific positions;
+* combined department + gender eligibility.
+
+---
+
+# 11. VoterAuthorization
+
+Use:
+
+```text
+Authorization
+    election_voter
+    booth
+    kiosk
+    status
+    created_at
+    used_at
+    cancelled_at
+```
+
+Status:
+
+```text
+ACTIVE
+USED
+CANCELLED
+```
+
+No automatic expiry.
+
+### ACTIVE
+
+One voter is currently authorized and has not successfully submitted the ballot.
+
+### USED
+
+The complete ballot was successfully committed.
+
+### CANCELLED
+
+Officer explicitly cancelled it, or the election was closed while it was active.
+
+There is no `EXPIRED` state.
+
+---
+
+# 12. Vote
+
+The persistent vote deliberately remains separated from voter identity.
+
+Conceptually:
+
+```text
+Vote
+    election
+    candidate
+    created_at
+```
+
+No:
+
+```text
+voter_id
+election_voter_id
+authorization_id
+```
+
+A multi-position ballot therefore creates multiple Vote records.
+
+For example:
+
+```text
+one authorization
+        ↓
+Chairperson → Candidate A
+Secretary → Candidate C
+MCA Rep → Candidate F
+        ↓
+three Vote records
+```
+
+but they collectively represent **one accepted ballot**.
+
+This follows the SRS's requirement that voting be server-validated and that the recorded vote not be directly associated with voter identity. 
+
+---
+
+# 13. Kiosk runtime state
+
+Keep runtime state separate from persistent election state.
+
+Possible kiosk states:
+
+```text
+OFFLINE
+NOT_READY
+READY
+UNLOCKED
+VOTING
+LOCKED
+```
+
+The exact transitions will be controlled by the server.
+
+Important:
+
+> `READY` means the server currently knows that the kiosk WebSocket is connected, the kiosk has reported fullscreen/readiness, and the kiosk is available for authorization.
+
+No application heartbeat.
+
+The SRS currently mentions heartbeat/liveness, but the locked implementation decision is to use the persistent WebSocket connection and its disconnect/reconnect lifecycle instead of an application-level heartbeat. The database remains authoritative, so this is a deliberate implementation simplification. 
+
+---
+
+# 14. WebSocket architecture
+
+Use Channels.
+
+Suggested groups:
+
+```text
+booth:<booth_id>
+election:<election_id>
+admin:<election_id>
+```
+
+Events include:
+
+```text
+kiosk.connected
+kiosk.disconnected
+kiosk.ready
+kiosk.not_ready
+kiosk.fullscreen
+kiosk.fullscreen_exit
+kiosk.unlock
+kiosk.lock
+authorization.created
+authorization.cancelled
+ballot.recorded
+turnout.updated
+election.started
+election.closed
+```
+
+No candidate-selection information should be sent to Officer Stations.
+
+No voter identity should be sent to the Kiosk.
+
+The SRS specifically assigns real-time state to WebSockets and actual vote submission to HTTP. 
+
+---
+
+# 15. HTTP vs WebSocket boundary
+
+This should remain strict.
+
+### HTTP
+
+Use HTTP for:
+
+* login;
+* logout;
+* CRUD;
+* voter search;
+* election configuration;
+* candidate management;
+* booth configuration;
+* voter import;
+* authorization creation;
+* authorization cancellation;
+* ballot retrieval;
+* ballot submission;
+* result retrieval;
+* credential rotation.
+
+### WebSocket
+
+Use WebSocket for:
+
+* kiosk connection status;
+* fullscreen status;
+* readiness;
+* lock/unlock;
+* election lifecycle;
+* authorization notification;
+* ballot-recorded notification;
+* turnout updates;
+* resynchronization.
+
+**Never submit the actual vote over WebSocket.**
+
+---
+
+# 16. Transaction/concurrency architecture
+
+This is one of the most important parts of the project.
+
+All critical voting operations use:
+
+```python
+transaction.atomic()
+```
+
+and:
+
+```python
+select_for_update()
+```
+
+Use a consistent lock order.
+
+For voting operations:
+
+```text
+Election
+    ↓
+ElectionVoter
+    ↓
+Authorization
+    ↓
+Kiosk/device where required
+```
+
+This prevents race conditions between:
+
+* two authorization requests;
+* authorization and election close;
+* two ballot submissions;
+* vote submission and another administrative operation.
+
+---
+
+# 17. Authorization transaction
+
+When the officer clicks **Authorize**:
+
+```text
+BEGIN
+    lock Election
+    lock ElectionVoter
+    lock Kiosk
+
+    verify election is ACTIVE
+    verify current time is within voting period
+    verify voter exists
+    verify voter belongs to this election
+    verify voter belongs to officer's booth
+    verify has_voted = false
+    verify kiosk is connected
+    verify kiosk is ready
+    verify kiosk is fullscreen
+    verify no ACTIVE authorization already exists
+
+    create Authorization(ACTIVE)
+
+COMMIT
+```
+
+Only after commit:
+
+```text
+WebSocket → kiosk.unlock
+```
+
+Use `transaction.on_commit()` for the event.
+
+The officer should not receive a success response before the authorization is committed.
+
+---
+
+# 18. Election closure and race prevention
+
+The election close operation must also lock the `Election` row.
+
+Therefore:
+
+```text
+Vote transaction
+    locks Election
+```
+
+and:
+
+```text
+Close Election transaction
+    locks Election
+```
+
+Only one can proceed first.
+
+### If vote gets the lock first
+
+The vote can finish before closure.
+
+Then close happens.
+
+### If close gets the lock first
+
+Election becomes `CLOSED`.
+
+The subsequent vote sees:
+
+```text
+CLOSED
+```
+
+and is rejected.
+
+This makes the boundary deterministic and prevents a vote from being accepted after closure.
+
+---
+
+# 19. Ballot transaction
+
+The kiosk submits the **complete ballot** over HTTP.
+
+For example:
+
+```text
+Position 1 → Candidate 3
+Position 2 → Candidate 7
+Position 3 → Candidate 4
+Position 4 → Candidate 2
+```
+
+Backend:
+
+```text
+BEGIN
+
+lock Election
+lock ElectionVoter
+lock Authorization
+
+validate:
+    election ACTIVE
+    current time valid
+    authenticated kiosk
+    kiosk matches authorization
+    authorization ACTIVE
+    voter has not voted
+
+for every submitted position:
+    verify position belongs to election
+    verify voter is eligible for position
+    verify candidate belongs to position
+    verify exactly one candidate selected for position
+
+create all Vote records
+
+ElectionVoter.has_voted = True
+
+Authorization.status = USED
+
+Kiosk = LOCKED
+
+COMMIT
+```
+
+Only after commit:
+
+```text
+HTTP response → success
+WebSocket → ballot.recorded
+WebSocket → turnout.updated
+```
+
+If anything fails:
+
+```text
+ROLLBACK
+```
+
+Nothing is recorded.
+
+This directly addresses the SRS requirement that failed vote commits roll back and that confirmation occurs only after database commitment. 
+
+---
+
+# 20. Multi-page kiosk ballot
+
+The kiosk UI will present positions as separate interfaces/pages.
+
+Example:
+
+```text
+Position 1
+Chairperson
+[Candidate A]
+[Candidate B]
+[Next]
+
+↓
+
+Position 2
+Secretary
+[Candidate C]
+[Candidate D]
+[Next]
+
+↓
+
+Position 3
+MCA Representative
+[Candidate E]
+[Candidate F]
+[Next]
+
+↓
+
+Review
+[selection summary]
+
+[Submit Ballot]
+```
+
+The voter only sees positions for which they are eligible.
+
+The pages do **not** cause individual database transactions.
+
+The selections remain temporary in the kiosk/browser until the final submission.
+
+Only the final **Submit Ballot** creates the database transaction.
+
+Therefore:
+
+> Multiple UI pages, one logical ballot, one authorization, one atomic commit.
+
+---
+
+# 21. Ballot failure/retry
+
+If submission fails before the transaction commits:
+
+```text
+ElectionVoter.has_voted = false
+Authorization = ACTIVE
+Vote records = none
+```
+
+The kiosk should display:
+
+> **Vote was not recorded. Please try again.**
+
+It should not falsely claim success.
+
+If the server committed the ballot but the response was lost:
+
+```text
+ElectionVoter.has_voted = true
+Authorization = USED
+Vote records exist
+```
+
+The kiosk reconnects and resynchronizes.
+
+It then displays:
+
+> **Vote recorded successfully.**
+
+and locks.
+
+This handles the important "commit succeeded but HTTP response was lost" case.
+
+---
+
+# 22. Kiosk reconnection
+
+On every kiosk WebSocket connection:
+
+1. Authenticate the Django session.
+2. Identify the kiosk from the authenticated technical identity.
+3. Derive its booth from the server-side device binding.
+4. Fetch current election state.
+5. Fetch kiosk runtime state.
+6. Fetch any active authorization for that kiosk.
+7. Determine whether the authorization is `ACTIVE`, `USED`, or `CANCELLED`.
+8. Send authoritative state to the browser.
+9. Never trust stale local browser state.
+
+If the browser was closed after authorization:
+
+```text
+ACTIVE authorization
+```
+
+is recovered.
+
+If the ballot was already committed:
+
+```text
+USED
+```
+
+is recovered and the kiosk remains locked.
+
+If the officer cancelled it:
+
+```text
+CANCELLED
+```
+
+is recovered.
+
+---
+
+# 23. Fullscreen
+
+The browser Fullscreen API is used as a **readiness signal**, not as an OS security mechanism.
+
+Kiosk reports:
+
+```text
+fullscreen_entered
+fullscreen_exited
+```
+
+If fullscreen exits:
+
+```text
+Kiosk → NOT_READY
+```
+
+and the officer cannot authorize another voter while the kiosk is not ready.
+
+The browser cannot provide OS-level kiosk lockdown, and that remains outside scope as specified by the SRS. 
+
+---
+
+# 24. Election timer and automatic closure
+
+No Celery, APScheduler or external scheduler.
+
+Store:
+
+```text
+starts_at
+ends_at
+```
+
+The browser displays the countdown.
+
+Server-side operations always enforce the deadline:
+
+```text
+now >= ends_at
+```
+
+means:
+
+```text
+no new authorization
+no ballot acceptance
+```
+
+A lightweight `close_if_expired()` service is called by election-related requests.
+
+Connected clients can also trigger the expiration check at the displayed deadline.
+
+When the server changes:
+
+```text
+ACTIVE → CLOSED
+```
+
+it broadcasts:
+
+```text
+election.closed
+```
+
+to connected stations/kiosks.
+
+Admin can also manually close the election early.
+
+This avoids introducing a scheduler solely to change one database status.
+
+---
+
+# 25. Election start validation
+
+The **Start Election** operation is an important validation checkpoint.
+
+Before changing:
+
+```text
+DRAFT → ACTIVE
+```
+
+the backend verifies:
+
+### Election
+
+* name exists;
+* voting start/end times valid;
+* current time is compatible with start;
+* at least one position exists;
+* every position has candidates.
+
+### Booths
+
+* required booth configuration exists;
+* each booth has exactly one Officer device;
+* each booth has exactly one Kiosk device;
+* credentials are active.
+
+### Voters
+
+* eligible voters are enrolled;
+* every ElectionVoter has exactly one booth;
+* no invalid/duplicate allocation.
+
+### Position eligibility
+
+* all eligibility rules refer to valid academic groups/values;
+* candidate/position relationships are valid.
+
+### Runtime station requirement
+
+Per your requirement, the configured Officer/Kiosk stations must be **logged in with active sessions** before the election can start.
+
+The admin dashboard therefore needs to distinguish:
+
+```text
+Configuration
+    configured / incomplete
+
+Runtime
+    logged in / disconnected
+    ready / not ready
+    fullscreen / exited
+```
+
+This is the dashboard feature you specifically requested.
+
+---
+
+# 26. Credential management
+
+When an election creates booths, Electra automatically generates:
+
+```text
+Officer ID + password
+Kiosk ID + password
+```
+
+Passwords are only stored as hashes.
+
+The administrator gets the credentials for initial provisioning.
+
+Credential operations:
+
+```text
+Active
+    ↓
+Revoke
+    ↓
+Revoked
+```
+
+or:
+
+```text
+Active
+    ↓
+Rotate password
+    ↓
+Old sessions revoked
+    ↓
+New password active
+```
+
+The device identifier remains stable.
+
+Credential rotation is the **sole deliberate exception** to the election configuration freeze.
+
+The booth, voter allocation, candidate configuration, positions and eligibility cannot change once polling is active.
+
+---
+
+# 27. One-active-session enforcement
+
+Implement a small device-session mechanism rather than trying to infer active sessions solely from Django's session store.
+
+Conceptually:
+
+```text
+DeviceSession
+    device
+    session_key
+    created_at
+    last_activity
+    revoked_at
+```
+
+At login:
+
+```text
+lock Device
+    ↓
+check active session
+    ↓
+if active:
+    reject login
+    ↓
+otherwise create DeviceSession
+```
+
+On logout:
+
+```text
+DeviceSession → inactive
+```
+
+Credential rotation/revocation:
+
+```text
+invalidate active session
+close WebSocket
+```
+
+This satisfies the SRS requirement for only one active session per Officer Station/Kiosk. 
+
+---
+
+# 28. Admin dashboard
+
+Build the dashboard around two categories.
+
+## Election configuration status
+
+For every booth:
+
+```text
+Booth 1
+    Officer configured ✓
+    Kiosk configured ✓
+    Voters allocated 82
+```
+
+## Runtime status
+
+```text
+Officer: LOGGED IN
+Kiosk: CONNECTED
+Fullscreen: YES
+Kiosk state: READY
+```
+
+or:
+
+```text
+Officer: LOGGED IN
+Kiosk: DISCONNECTED
+Fullscreen: —
+Kiosk state: NOT READY
+```
+
+During polling also show:
+
+```text
+Booth 1
+    Allocated: 82
+    Voted: 51
+    Turnout: 62.2%
+```
+
+and aggregate:
+
+```text
+Total voters: 500
+Voted: 312
+Turnout: 62.4%
+```
+
+Do not show candidate-wise results while polling is active, as required by the SRS. 
+
+---
+
+# 29. Officer interface
+
+Officer flow:
+
+```text
+Login
+ ↓
+Bound booth dashboard
+ ↓
+Search voter
+ ↓
+Verify identity
+ ↓
+Check eligibility/allocation
+ ↓
+Check kiosk READY
+ ↓
+Authorize
+ ↓
+Kiosk unlock notification
+ ↓
+Wait for ballot result
+```
+
+Officer must never receive:
+
+* selected candidate;
+* candidate selection sequence;
+* ballot contents.
+
+Officer does receive:
+
+```text
+Authorization ACTIVE
+Ballot recorded
+Authorization CANCELLED
+Kiosk unavailable
+Vote not recorded
+```
+
+This gives the officer enough operational information without exposing ballot content.
+
+---
+
+# 30. Kiosk interface
+
+States/pages:
+
+```text
+LOCKED
+READY
+VOTING
+SUBMITTING
+SUCCESS
+ERROR/CONNECTION
+```
+
+### Locked
+
+> Please wait for authorization.
+
+### Ready/unlocked
+
+> You may vote.
+
+### Voting
+
+Position-by-position ballot.
+
+### Submitting
+
+Disable duplicate submission.
+
+### Success
+
+> Vote recorded successfully.
+
+Then:
+
+```text
+lock
+reset
+return to locked state
+```
+
+### Failed submission
+
+> Vote was not recorded. Please try again.
+
+Do not show candidate data outside the voting interaction.
+
+---
+
+# 31. Voter import implementation
+
+## Phase 1 import
+
+Implement:
+
+* CSV;
+* Excel.
+
+Use one normalized Voter registry.
+
+Support:
+
+### Whole institution
+
+Administrator supplies the academic structure and column mappings.
+
+### Specific academic group
+
+Administrator selects:
+
+```text
+MCA
+```
+
+and defines:
+
+```text
+MCA = Department
+semester = child Semester
+```
+
+The importer then creates/uses the appropriate AcademicGroups.
+
+Import workflow:
+
+```text
+Upload
+ ↓
+Choose scope
+ ↓
+Choose academic structure
+ ↓
+Map columns
+ ↓
+Preview
+ ↓
+Validate
+ ↓
+Show errors/warnings
+ ↓
+Confirm import
+ ↓
+Create/update Voters
+```
+
+Do not silently create duplicate voters.
+
+31. Primary Registry Identity and Academic Structure: The system shall allow the administrator to configure the primary registry identity used to uniquely identify and match voter records during registration and import. For example, this may be Student ID, University ID, Admission Number, or another institution-defined identifier. The administrator shall specify this identity in the same manner as the academic-group structure/context during voter import. The configured primary registry identity shall be used for detecting existing voters, preventing duplicate registry records, and matching subsequent imports to existing voter records.
+
+Implementation implication
+
+Do not hardcode `student_id` or `university_id` as the Voter model's
+identity.
+
+The Voter model stores the configured identity value in:
+
+    primary_registry_value
+
+The administrator configures which institution-defined identifier this
+value represents.
+
+For example:
+
+    Primary Registry Identity = University ID
+    primary_registry_value = "UNI202600123"
+
+or:
+
+    Primary Registry Identity = Student ID
+    primary_registry_value = "STU202600123"
+
+The configured identity is used for exact matching of existing Voter
+records and for duplicate prevention during imports.
+
+
+Registry Configuration
+├── Primary Registry Identity
+│   ├── Field/column: University ID
+│   └── Matching rule: exact match
+│
+└── Academic Structure
+    ├── Type: Department
+    ├── Context: MCA
+    └── Child: Semester
+
+For an institution where the primary identity is Student ID:
+
+Primary Registry Identity = Student ID
+
+For another institution:
+
+Primary Registry Identity = University ID
+Important distinction
+
+The primary registry identity is different from the election identity.
+
+Registry identity → identifies the person across imports/registry records.
+Voter → the persistent master registry record.
+ElectionVoter → that person's participation in a particular election.
+has_voted → election-specific voting state.
+Vote → contains no voter identity, preserving ballot secrecy.
+
+So the matching flow becomes:
+
+Import file
+    ↓
+Admin specifies primary identity
+    ↓
+Read configured identity column
+    ↓
+Match existing Voter by primary registry identity
+    ↓
+Existing voter → update permitted registry fields
+New identity → create Voter
+    ↓
+Create/update academic-group associations
+
+I would also make the configured identity unique at the registry level. If the admin selects University ID, two Voter records cannot have the same University ID.
+
+One further design point: because your election configuration is frozen once ACTIVE, the primary registry identity configuration should also be treated as frozen for an active election, just like the academic structure and eligibility-relevant voter data.
+---
+
+# 32. PDF import
+
+Defer until the core voter registry/import system works.
+
+When implemented, support only **structured tabular PDFs**.
+
+Do not attempt arbitrary scanned-document OCR as part of the 30-day core.
+
+This keeps PDF support an extension rather than a risk to the voting system.
+
+---
+
+# 33. Voter allocation
+
+Implement an admin allocation interface.
+
+The administrator can:
+
+* assign individual voters;
+* bulk assign filtered voters;
+* view voters by academic group;
+* view allocation by booth;
+* move voters between booths before election start;
+* add a new booth before election start;
+* remove a booth before election start;
+* reallocate voters from a removed booth.
+
+After allocation:
+
+```text
+Every ElectionVoter → exactly one Booth
+```
+
+The system should provide a printable/downloadable:
+
+```text
+Voter → Booth
+```
+
+allocation list.
+
+This becomes especially useful after pre-election booth changes.
+
+---
+
+# 34. Booth replacement vs booth removal
+
+Physical device replacement does **not** require booth reconfiguration.
+
+Example:
+
+```text
+Booth 3
+Officer ID = OFF-003
+Kiosk ID = KIOSK-003
+```
+
+The original computer fails.
+
+New computer:
+
+```text
+login as KIOSK-003
+```
+
+and it becomes the same logical kiosk.
+
+Only if there is no replacement device should the administrator need to remove the booth—and that operation is restricted to the pre-election configuration phase.
+
+---
+
+# 35. Results
+
+After:
+
+```text
+Election = CLOSED
+```
+
+calculate results by:
+
+```text
+Position
+    Candidate
+        Vote count
+```
+
+For a multi-position election:
+
+```text
+Chairperson
+    Candidate A — 120
+    Candidate B — 98
+
+Secretary
+    Candidate C — 143
+    Candidate D — 75
+
+MCA Representative
+    Candidate E — 51
+    Candidate F — 39
+```
+
+Results cannot be exposed as candidate-wise results while the election is active.
+
+This follows FR-8/FR-9. 
+
+---
+
+# 36. Confirmation and destructive-action UX
+
+Implement confirmation dialogs for:
+
+* Start Election;
+* Close Election;
+* Revoke credentials;
+* Rotate credentials;
+* Remove booth;
+* Reallocate voters;
+* Delete/remove voter records;
+* Bulk import;
+* Cancel authorization;
+* Publish results.
+
+Examples:
+
+> **Close Election?**
+> No further voter authorization or ballot submission will be accepted.
+
+and:
+
+> **Cancel Authorization?**
+> This voter will no longer be able to continue the current ballot. They can be authorized again later.
+
+Also provide clear success/error notifications.
+
+This is particularly important because the system is controlling an election workflow rather than a normal CRUD application.
+
+---
+
+# 37. Audit logging — after core
+
+Once the entire election works, implement operational auditing.
+
+Events can include:
+
+```text
+ADMIN_LOGIN
+OFFICER_LOGIN
+KIOSK_LOGIN
+
+ELECTION_STARTED
+ELECTION_CLOSED
+
+VOTER_VERIFIED
+AUTHORIZATION_CREATED
+AUTHORIZATION_CANCELLED
+
+KIOSK_UNLOCKED
+KIOSK_LOCKED
+
+BALLOT_ACCEPTED
+
+CREDENTIAL_REVOKED
+CREDENTIAL_ROTATED
+```
+
+Do **not** log:
+
+```text
+voter X → candidate Y
+```
+
+and do not put `candidate_id` into the audit event.
+
+The audit system is for operational accountability, not voter-to-ballot linkage.
+
+---
