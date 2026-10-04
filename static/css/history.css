@@ -1,0 +1,410 @@
+/* ==========================================================================
+   ELECTRA — ELECTION HISTORY STYLES
+   Visual Source of Truth: references/05_election_history.png
+   ========================================================================== */
+
+/* Page Canvas & Layout */
+.history-body {
+    background-color: #FFFFFF;
+    color: #111827;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+}
+
+.history-layout {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Top Minimal Navigation Strip */
+.history-top-bar {
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 24px 24px 0 24px;
+    display: flex;
+    align-items: center;
+}
+
+.history-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #4B5563;
+    font-size: 13.5px;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid #E5E7EB;
+    background: #FFFFFF;
+    transition: all 0.15s ease;
+}
+
+.history-back-btn svg {
+    width: 15px;
+    height: 15px;
+    stroke: currentColor;
+    stroke-width: 2;
+}
+
+.history-back-btn:hover {
+    color: #111827;
+    background: #F9FAFB;
+    border-color: #D1D5DB;
+}
+
+/* Main Centered History Workspace */
+.history-container {
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 28px 24px 80px 24px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Editorial Hero */
+.history-hero {
+    text-align: center;
+    margin-bottom: 36px;
+}
+
+.history-title {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 42px;
+    font-weight: 400;
+    line-height: 1.15;
+    color: #111827;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.02em;
+}
+
+.history-subtitle {
+    font-size: 15px;
+    color: #6B7280;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Filter Strip (Search + Year dropdown) */
+.history-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.history-search-wrap {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+.history-search-icon {
+    position: absolute;
+    left: 14px;
+    width: 16px;
+    height: 16px;
+    color: #9CA3AF;
+    pointer-events: none;
+}
+
+.history-search-input {
+    width: 100%;
+    height: 42px;
+    padding: 0 38px 0 40px;
+    font-size: 14px;
+    color: #111827;
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.history-search-input:focus {
+    border-color: #111827;
+    box-shadow: 0 0 0 1px #111827;
+}
+
+.history-search-input::placeholder {
+    color: #9CA3AF;
+}
+
+.history-search-clear {
+    position: absolute;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    color: #9CA3AF;
+    border-radius: 50%;
+    text-decoration: none;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.history-search-clear svg {
+    width: 14px;
+    height: 14px;
+}
+
+.history-search-clear:hover {
+    color: #111827;
+    background: #F3F4F6;
+}
+
+/* Year Filter Select Dropdown */
+.history-select-wrap {
+    position: relative;
+    min-width: 140px;
+}
+
+.history-select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    height: 42px;
+    padding: 0 34px 0 14px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #111827;
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    cursor: pointer;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
+}
+
+.history-select:focus {
+    border-color: #111827;
+}
+
+.history-select-chevron {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    color: #6B7280;
+    pointer-events: none;
+}
+
+/* Election History List Stack */
+.history-list {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid #F3F4F6;
+}
+
+/* Individual Election Row */
+.history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 26px 0;
+    border-bottom: 1px solid #F3F4F6;
+    gap: 24px;
+    transition: background-color 0.15s ease;
+}
+
+/* Column 1: Info (Title, Desc, Date) */
+.history-col-info {
+    flex: 1.4;
+    min-width: 0;
+}
+
+.history-item-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 4px 0;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+}
+
+.history-item-desc {
+    font-size: 13.5px;
+    color: #6B7280;
+    margin: 0 0 8px 0;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.history-item-meta {
+    font-size: 13px;
+    color: #9CA3AF;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Column 2: Stats (Total voters, Voted %, Positions) */
+.history-col-stats {
+    flex: 1.1;
+    display: flex;
+    align-items: flex-start;
+    gap: 32px;
+}
+
+.history-stat-box {
+    display: flex;
+    flex-direction: column;
+    min-width: 68px;
+}
+
+.history-stat-number {
+    font-size: 17px;
+    font-weight: 600;
+    color: #111827;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+}
+
+.history-stat-label {
+    font-size: 12px;
+    color: #6B7280;
+    margin-top: 4px;
+    white-space: nowrap;
+}
+
+/* Column 3: Actions (View results, View details) */
+.history-col-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.history-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #FFFFFF;
+    background: #111827;
+    border-radius: 6px;
+    text-decoration: none;
+    border: 1px solid #111827;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.history-btn-primary:hover {
+    background: #000000;
+    border-color: #000000;
+}
+
+.history-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #111827;
+    background: #FFFFFF;
+    border-radius: 6px;
+    text-decoration: none;
+    border: 1px solid #E5E7EB;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.history-btn-secondary:hover {
+    background: #F9FAFB;
+    border-color: #D1D5DB;
+}
+
+/* Electra Borderless Minimal Empty Placeholder */
+.history-empty-state {
+    padding: 72px 24px;
+    margin: 20px 0;
+}
+
+.history-empty-icon {
+    width: 46px;
+    height: 46px;
+    stroke: #9CA3AF;
+    stroke-width: 1.5;
+    fill: none;
+    margin-bottom: 16px;
+}
+
+.history-empty-title {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 24px;
+    font-weight: 500;
+    color: #111827;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px 0;
+}
+
+.history-empty-desc {
+    font-size: 14.5px;
+    color: #6B7280;
+    max-width: 440px;
+    line-height: 1.5;
+    margin: 0 auto 24px auto;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 860px) {
+    .history-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 18px;
+        padding: 22px 0;
+    }
+
+    .history-col-stats {
+        width: 100%;
+        justify-content: flex-start;
+        gap: 28px;
+    }
+
+    .history-col-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 640px) {
+    .history-top-bar {
+        padding: 16px 16px 0 16px;
+    }
+
+    .history-container {
+        padding: 20px 16px 60px 16px;
+    }
+
+    .history-title {
+        font-size: 32px;
+    }
+
+    .history-filter-bar {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .history-select-wrap {
+        width: 100%;
+    }
+
+    .history-col-stats {
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+}

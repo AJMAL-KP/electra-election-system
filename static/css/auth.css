@@ -1,0 +1,279 @@
+/* ==========================================================================
+   ELECTRA AUTHENTICATION & SETUP STYLES (Faithfully matched to references/02_setup&login.png)
+   - Wide landscape breadth: max-width 630px
+   - Compact vertical length without empty gaps: natural content height
+   - No weird gap above username: clean flush top field
+   - Validation errors inline below textboxes
+   - Fully responsive for desktop, tablet, and mobile
+   ========================================================================== */
+
+.auth-page {
+  margin: 0;
+  padding: 40px 20px;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.auth-page .main-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.auth-wrapper {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+/* Brand & Header */
+.auth-brand-heading {
+  font-family: var(--font-serif);
+  font-size: 46px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: #111827;
+  text-decoration: none;
+  margin: 0;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.auth-subtitle {
+  font-size: 14.5px;
+  font-weight: 400;
+  color: #6B7280;
+  margin: 10px 0 24px 0;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Form Container Card (Balanced landscape breadth: 480px, compact natural height) */
+.auth-card {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  padding: 28px 30px;
+  box-sizing: border-box;
+  display: block;
+}
+
+/* Form Layout */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+}
+
+/* Ensure hidden csrf token never adds spacing or gap */
+.auth-form input[type="hidden"] {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
+  width: 0 !important;
+  position: absolute !important;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 20px 0;
+  padding: 0;
+}
+
+.auth-field:first-of-type {
+  margin-top: 0;
+}
+
+.auth-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #1F2937;
+  letter-spacing: -0.01em;
+  margin: 0;
+  padding: 0;
+}
+
+/* Input Fields */
+.auth-input {
+  width: 100%;
+  height: 48px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: #111827;
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 0 14px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.auth-input::placeholder {
+  color: #9CA3AF;
+}
+
+.auth-input:focus {
+  border-color: #111827;
+  box-shadow: 0 0 0 1px #111827;
+}
+
+.auth-input.has-error {
+  border-color: #DC2626;
+}
+
+.auth-input.has-error:focus {
+  border-color: #DC2626;
+  box-shadow: 0 0 0 1px #DC2626;
+}
+
+/* Validation error text directly below textbox */
+.auth-field-error {
+  color: #DC2626;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  margin-top: 4px;
+  display: block;
+}
+
+.auth-general-error {
+  margin-bottom: 14px;
+}
+
+/* Password Toggle Wrapper */
+.auth-password-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.auth-password-wrapper .auth-input {
+  padding-right: 44px;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: #9CA3AF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.auth-password-toggle:hover {
+  color: #4B5563;
+}
+
+.auth-password-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Submit Action Button */
+.auth-btn-submit {
+  width: 100%;
+  height: 46px;
+  background-color: #111827;
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  box-sizing: border-box;
+}
+
+.auth-btn-submit:hover {
+  background-color: #000000;
+}
+
+.auth-btn-submit:active {
+  transform: scale(0.99);
+}
+
+/* Bottom Helper Text */
+.auth-footer-help {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 13px;
+  color: #6B7280;
+}
+
+.auth-footer-help a {
+  color: #111827;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   RESPONSIVE BREAKPOINTS (Mobile & Tablet)
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .auth-page {
+    padding: 24px 16px;
+  }
+  .auth-card {
+    padding: 24px 18px;
+    border-radius: 12px;
+  }
+  .auth-brand-heading {
+    font-size: 38px;
+  }
+  .auth-subtitle {
+    font-size: 14px;
+    margin: 8px 0 20px 0;
+  }
+  .auth-field {
+    margin-bottom: 14px;
+  }
+  .auth-input {
+    height: 44px;
+    padding: 0 12px;
+  }
+  .auth-btn-submit {
+    height: 44px;
+  }
+}

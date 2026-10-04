@@ -1,0 +1,496 @@
+/* ==========================================================================
+   ELECTRA AUTHENTICATED HOME STYLES (Faithfully matched to references/03_home.png)
+   - Centered workspace hub
+   - Two stacked hub cards (Voter registry, Election history) with stats
+   - Top-right corner settings icon and logout button side-by-side
+   - Unified Electra minimal monochrome theme
+   ========================================================================== */
+
+.home-body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font-sans);
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+}
+
+.home-body .main-content {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px 72px 24px;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   TOP-RIGHT CORNER ACTIONS (Settings & Logout side-by-side)
+   -------------------------------------------------------------------------- */
+/* Top-right actions wrapper */
+.home-top-actions {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 50;
+}
+
+/* Settings button + popover wrapper — positioning context */
+.home-settings-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.home-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 9999px;
+  color: #4B5563;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.home-action-btn:hover {
+  background: #F9FAFB;
+  border-color: #D1D5DB;
+  color: #111827;
+}
+
+.home-action-icon-only {
+  width: 38px;
+  padding: 0;
+}
+
+.home-action-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.home-logout-form {
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+}
+
+/* --------------------------------------------------------------------------
+   CENTER CONTAINER & HERO (Matched to references/03_home.png)
+   -------------------------------------------------------------------------- */
+.home-container {
+  width: 100%;
+  max-width: 580px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 36px;
+  box-sizing: border-box;
+}
+
+.home-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 32px;
+  width: 100%;
+}
+
+.home-brand-title {
+  font-family: var(--font-serif);
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: #111827;
+  margin: 0 0 12px 0;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.home-hero-subtitle {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: #6B7280;
+  margin: 0 0 24px 0;
+  max-width: 480px;
+  text-align: center;
+}
+
+.home-btn-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background-color: #111827;
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  border-radius: 9999px;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.home-btn-start:hover {
+  background-color: #000000;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+}
+
+.home-btn-start .btn-arrow {
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.home-btn-start:hover .btn-arrow {
+  transform: translateX(3px);
+}
+
+/* Hairline Divider */
+.home-divider {
+  width: 100%;
+  height: 1px;
+  background-color: #ECEEF2;
+  margin: 0 0 28px 0;
+}
+
+/* Active Election Live Banner (subtle) */
+.home-active-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background-color: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  text-decoration: none;
+  color: #065F46;
+  font-size: 13.5px;
+  font-weight: 500;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.home-active-banner:hover {
+  background-color: #D1FAE5;
+}
+
+.home-active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.home-active-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10B981;
+}
+
+/* --------------------------------------------------------------------------
+   HUB CARDS STACK (Matched to references/03_home.png)
+   -------------------------------------------------------------------------- */
+.home-cards-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.home-hub-card {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 14px;
+  padding: 24px 28px;
+  box-sizing: border-box;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+}
+
+.home-hub-card:hover {
+  border-color: #D1D5DB;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
+.hub-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.hub-card-title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #111827;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.hub-card-arrow {
+  font-size: 18px;
+  color: #9CA3AF;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.home-hub-card:hover .hub-card-arrow {
+  transform: translateX(3px);
+  color: #111827;
+}
+
+.hub-card-desc {
+  font-size: 13.5px;
+  font-weight: 400;
+  color: #6B7280;
+  line-height: 1.45;
+  margin: 0 0 20px 0;
+}
+
+.hub-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.hub-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 90px;
+}
+
+.hub-stat-number {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.hub-stat-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: #6B7280;
+}
+
+.hub-stat-divider {
+  width: 1px;
+  height: 28px;
+  background-color: #E5E7EB;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   SETTINGS INLINE POPOVER (anchored below settings gear button)
+   -------------------------------------------------------------------------- */
+.home-settings-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 300px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 16px;
+  box-sizing: border-box;
+  z-index: 200;
+  /* Subtle entry animation */
+  animation: popover-in 0.12s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.popover-title {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.01em;
+}
+
+.popover-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9CA3AF;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: color 0.12s ease;
+}
+.popover-close-btn:hover { color: #111827; }
+
+.popover-messages {
+  margin-bottom: 10px;
+}
+.popover-msg {
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.popover-msg--error   { background: #FEF2F2; color: #DC2626; border: 1px solid #FEE2E2; }
+.popover-msg--success { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+
+.popover-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popover-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.popover-input {
+  width: 100%;
+  height: 36px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: #111827;
+  background: #FAFAFA;
+  border: 1px solid #E5E7EB;
+  border-radius: 7px;
+  padding: 0 10px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.popover-input:focus {
+  border-color: #111827;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 1px #111827;
+}
+
+.popover-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.popover-btn-cancel {
+  padding: 7px 14px;
+  background: none;
+  border: 1px solid #E5E7EB;
+  border-radius: 7px;
+  color: #4B5563;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.popover-btn-cancel:hover { background: #F9FAFB; color: #111827; }
+
+.popover-btn-save {
+  padding: 7px 14px;
+  background: #111827;
+  border: 1px solid #111827;
+  border-radius: 7px;
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.popover-btn-save:hover { background: #000000; }
+
+/* --------------------------------------------------------------------------
+   RESPONSIVE (Mobile & Tablet)
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .home-top-actions {
+    top: 16px;
+    right: 16px;
+  }
+
+  .home-container {
+    margin-top: 48px;
+  }
+
+  .home-brand-title {
+    font-size: 40px;
+  }
+
+  .home-hero-subtitle {
+    font-size: 14px;
+  }
+
+  .home-hub-card {
+    padding: 20px 20px;
+  }
+
+  .hub-card-stats {
+    gap: 20px;
+  }
+}

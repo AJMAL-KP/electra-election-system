@@ -15,7 +15,7 @@ Electra Installation (Single Institution / LAN)
     ├── Exactly One PostgreSQL Database
     ├── Exactly One Human Administrator (role = ADMIN)
     ├── One Installation-Wide Voter Registry
-    ├── Multiple Sequential or Concurrent Elections
+    ├── Multiple Sequential Elections in History (at most ONE election ACTIVE at a time)
     └── Multiple Polling Booths (Officer Station + Kiosk Devices)
 ```
 

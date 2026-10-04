@@ -1,0 +1,236 @@
+{% extends "admin_base.html" %}
+{% load static %}
+
+{% block title %}Results — {{ election.name }} — Electra{% endblock %}
+
+{% block admin_content %}
+<!-- Header Bar -->
+<div class="positions-section-header" style="margin-top: 0; margin-bottom: 24px;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+            <a href="{% url 'elections:dashboard' %}?election_id={{ election.id }}" style="color: var(--text-muted); text-decoration: none; font-size: 13px;">&larr; Election Workspace</a>
+            <span style="color: var(--border-color);">&bull;</span>
+            <span class="status-badge status-{{ election.status|lower }}">{{ election.get_status_display }}</span>
+        </div>
+        <h1 class="positions-section-title">Election Results: {{ election.name }}</h1>
+        <p class="positions-section-desc">Certified ballot tallies, station turnout statistics, and election outcome records.</p>
+    </div>
+
+    <div style="display: flex; gap: 12px; align-items: center;">
+        {% if election.is_closed %}
+        <form method="post" action="{% url 'elections:publish_results' election.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary-pill" onclick="return confirm('Publish official election results? Published results are visible to the institution.')">
+                &check; Publish Official Results
+            </button>
+        </form>
+        {% elif election.is_results_published %}
+        <button type="button" class="btn-primary-pill" onclick="window.print()">
+            &#x1F5B6; Print Certified Report
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+{% if election.is_draft %}
+<!-- DRAFT STATE: Informational Banner -->
+<div class="position-block-card" style="text-align: center; padding: 48px 24px;">
+    <div style="font-size: 36px; margin-bottom: 12px;">&#x1F4C3;</div>
+    <h2 style="font-size: 18px; font-weight: 700; color: #111827; margin: 0 0 8px 0;">Election in Draft Setup</h2>
+    <p style="color: var(--text-secondary); max-width: 460px; margin: 0 auto 20px auto; font-size: 13.5px;">
+        Ballot results and turnout analytics will become available once this election is launched, live polling concludes, and the election is closed.
+    </p>
+    <a href="{% url 'elections:dashboard' %}?election_id={{ election.id }}" class="hero-btn-primary" style="background-color: #111827; color: #FFFFFF; text-decoration: none; display: inline-flex;">
+        Return to Election Workspace &rarr;
+    </a>
+</div>
+
+{% elif election.is_active %}
+<!-- ACTIVE POLLING STATE: Turnout Visible, Candidate Selections Sealed -->
+<div class="position-block-card" style="margin-bottom: 24px; border: 1px solid #93C5FD; background: #EFF6FF; padding: 20px 24px;">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+        <span class="status-indicator-dot dot-green"></span>
+        <strong style="font-size: 14.5px; color: #1E40AF;">Live Polling in Progress</strong>
+    </div>
+    <p style="font-size: 13px; color: #1E3A8A; margin: 0; line-height: 1.5;">
+        In strict adherence to ballot secrecy invariants, candidate selections remain cryptographically sealed until live polling is closed by the administrator. Real-time station turnout is monitored below.
+    </p>
+</div>
+
+<!-- Live Turnout Statistics Strip -->
+<div class="dashboard-stats-strip" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
+    <div class="stat-card">
+        <span class="stat-card-label">Enrolled Voters</span>
+        <div class="stat-card-value-row">
+            <span class="stat-card-value">{{ turnout.enrolled_count }}</span>
+        </div>
+        <span class="stat-card-subtext">Total eligible in this election</span>
+    </div>
+
+    <div class="stat-card">
+        <span class="stat-card-label">Ballots Cast</span>
+        <div class="stat-card-value-row">
+            <span class="stat-card-value text-green">{{ turnout.ballots_cast }}</span>
+        </div>
+        <span class="stat-card-subtext">Verified at polling kiosks</span>
+    </div>
+
+    <div class="stat-card">
+        <span class="stat-card-label">Live Turnout</span>
+        <div class="stat-card-value-row">
+            <span class="stat-card-value">{{ turnout.turnout_pct }}%</span>
+        </div>
+        <span class="stat-card-subtext">Participation rate</span>
+    </div>
+</div>
+
+{% else %}
+<!-- CLOSED or RESULTS_PUBLISHED STATE -->
+
+{% if election.is_closed %}
+<div class="position-block-card" style="margin-bottom: 24px; border: 1px solid #FCD34D; background: #FFFBEB; padding: 20px 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <strong style="font-size: 14.5px; color: #92400E; display: block; margin-bottom: 4px;">Polling Closed &bull; Awaiting Publication</strong>
+            <p style="font-size: 13px; color: #78350F; margin: 0;">
+                All polling stations are offline and ballots are locked. Verify the certified tally below before publishing results.
+            </p>
+        </div>
+        <form method="post" action="{% url 'elections:publish_results' election.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="hero-btn-primary" style="background-color: #111827; color: #FFFFFF;" onclick="return confirm('Publish official results now?')">
+                Publish Results &rarr;
+            </button>
+        </form>
+    </div>
+</div>
+{% elif election.is_results_published %}
+<div class="position-block-card" style="margin-bottom: 24px; border: 1px solid #A7F3D0; background: #ECFDF5; padding: 20px 24px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 18px; color: #059669;">&check;</span>
+        <div>
+            <strong style="font-size: 14.5px; color: #065F46; display: block;">Official Certified Results</strong>
+            <span style="font-size: 12.5px; color: #047857;">Published on {{ election.results_published_at|date:'F j, Y, H:i' }} &bull; Electra Server Certified</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Certified Turnout Strip -->
+<div class="dashboard-stats-strip" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 24px;">
+    <div class="stat-card">
+        <span class="stat-card-label">Total Enrolled</span>
+        <div class="stat-card-value-row">
+            <span class="stat-card-value">{{ turnout.enrolled_count }}</span>
+        </div>
+        <span class="stat-card-subtext">Eligible electorate</span>
+    </div>
+
+    <div class="stat-card">
+        <span class="stat-card-label">Ballots Cast</span>
+        <div class="stat-card-value-row">
+            <span class="stat-card-value">{{ turnout.ballots_cast }}</span>
+        </div>
+        <span class="stat-card-subtext">Total verified votes</span>
+    </div>
+
+    <div class="stat-card">
+        <span class="stat-card-label">Overall Turnout</span>
+        <div class="stat-card-value-row">
+            <span class="stat-card-value text-green">{{ turnout.turnout_pct }}%</span>
+        </div>
+        <span class="stat-card-subtext">Participation percentage</span>
+    </div>
+
+    <div class="stat-card">
+        <span class="stat-card-label">Ballot Positions</span>
+        <div class="stat-card-value-row">
+            <span class="stat-card-value">{{ position_results|length }}</span>
+        </div>
+        <span class="stat-card-subtext">Contested offices</span>
+    </div>
+</div>
+
+<!-- Position-by-Position Certified Tally Cards -->
+<div style="display: flex; flex-direction: column; gap: 24px;">
+    {% for pos_data in position_results %}
+    <div class="position-block-card">
+        <div class="position-header-bar">
+            <div class="position-title-area">
+                <h2 class="position-heading">{{ pos_data.position.display_order }}. {{ pos_data.position.name }}</h2>
+                <span class="position-count-tag">{{ pos_data.total_votes }} vote{{ pos_data.total_votes|pluralize }} tallied</span>
+            </div>
+        </div>
+
+        <div class="transparent-table-container">
+            <table class="transparent-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">Rank</th>
+                        <th>Candidate</th>
+                        <th>Ballot Symbol</th>
+                        <th>Academic Cohort</th>
+                        <th style="width: 200px;">Vote Share</th>
+                        <th style="text-align: right; width: 100px;">Votes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cand_res in pos_data.candidates %}
+                    <tr class="candidate-row" {% if forloop.first and pos_data.total_votes > 0 %}style="background: rgba(16, 185, 129, 0.04);"{% endif %}>
+                        <td class="cell-index">
+                            {% if forloop.first and pos_data.total_votes > 0 %}
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #10B981; color: #FFFFFF; font-weight: 700; font-size: 11px;">1</span>
+                            {% else %}
+                            {{ forloop.counter }}.
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="table-user-cell">
+                                {% if cand_res.candidate.photo %}
+                                <img src="{{ cand_res.candidate.photo.url }}" alt="{{ cand_res.candidate.name }}" class="table-avatar">
+                                {% else %}
+                                <div class="table-avatar-initial">{{ cand_res.candidate.name|slice:":1"|upper }}</div>
+                                {% endif %}
+                                <div>
+                                    <span class="table-candidate-name">{{ cand_res.candidate.name }}</span>
+                                    {% if forloop.first and pos_data.total_votes > 0 %}
+                                    <span style="font-size: 11px; font-weight: 700; color: #059669; margin-left: 6px;">ELECTED</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="table-party-cell">
+                                <span class="symbol-badge-icon">&#9679;</span>
+                                <span>{{ cand_res.candidate.symbol|default:"Independent" }}</span>
+                            </div>
+                        </td>
+                        <td class="text-secondary">{{ cand_res.candidate.academic_group|default:"—" }}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="flex: 1; height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden;">
+                                    <div style="width: {{ cand_res.percentage }}%; height: 100%; background: {% if forloop.first and pos_data.total_votes > 0 %}#10B981{% else %}#6B7280{% endif %}; border-radius: 4px;"></div>
+                                </div>
+                                <span style="font-size: 12px; font-weight: 600; color: var(--text-primary); width: 44px; text-align: right;">{{ cand_res.percentage }}%</span>
+                            </div>
+                        </td>
+                        <td style="text-align: right; font-weight: 700; font-size: 14px; color: var(--text-primary);">
+                            {{ cand_res.votes }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="empty-table-cell">
+                            <p>No candidates were registered for this position.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

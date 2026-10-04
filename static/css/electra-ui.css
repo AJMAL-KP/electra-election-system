@@ -1,0 +1,433 @@
+/* ==========================================================================
+   ELECTRA UI THEMED CONTROLS — VALIDATIONS, DROPDOWNS, TOASTS, EMPTY STATES
+   Custom minimalist controls adhering strictly to the Electra visual system.
+   No browser-default controls, popups, tooltips, or bulky card wrappers.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CUSTOM ELECTRA DROPDOWN COMPONENT
+   -------------------------------------------------------------------------- */
+.electra-dropdown-wrap {
+  position: relative;
+  display: inline-block;
+  width: auto;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+.electra-dropdown-wrap.full-width {
+  width: 100%;
+}
+
+.electra-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+  user-select: none;
+  min-height: 38px;
+  box-sizing: border-box;
+}
+
+.electra-dropdown-wrap.full-width .electra-dropdown-trigger {
+  width: 100%;
+  border-radius: 10px;
+}
+
+.electra-dropdown-trigger:hover {
+  border-color: #D1D5DB;
+  background-color: #F9FAFB;
+}
+
+.electra-dropdown-trigger:focus,
+.electra-dropdown-wrap.is-open .electra-dropdown-trigger {
+  border-color: #111827;
+  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.08);
+}
+
+.electra-dropdown-trigger.has-error {
+  border-color: #EF4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12) !important;
+}
+
+.electra-dropdown-arrow {
+  width: 14px;
+  height: 14px;
+  stroke: #6B7280;
+  stroke-width: 2.2;
+  fill: none;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.electra-dropdown-wrap.is-open .electra-dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.electra-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 100%;
+  max-width: 320px;
+  max-height: 280px;
+  overflow-y: auto;
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  padding: 6px;
+  z-index: 1000;
+  box-sizing: border-box;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.electra-dropdown-wrap.is-open .electra-dropdown-menu {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.electra-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 450;
+  color: #374151;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+  user-select: none;
+}
+
+.electra-dropdown-item:hover,
+.electra-dropdown-item.is-highlighted {
+  background-color: #F3F4F6;
+  color: #111827;
+}
+
+.electra-dropdown-item.is-selected {
+  font-weight: 600;
+  color: #111827;
+  background-color: #F3F4F6;
+}
+
+.electra-dropdown-check {
+  width: 14px;
+  height: 14px;
+  stroke: #111827;
+  stroke-width: 2.5;
+  fill: none;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.electra-dropdown-item.is-selected .electra-dropdown-check {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   CUSTOM ELECTRA FIELD VALIDATION STYLES
+   -------------------------------------------------------------------------- */
+.has-error,
+input.has-error,
+select.has-error,
+textarea.has-error {
+  border-color: #EF4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12) !important;
+}
+
+.electra-field-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #EF4444;
+  margin-top: 6px;
+  animation: electraErrorSlide 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.electra-field-error svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  fill: none;
+  flex-shrink: 0;
+}
+
+@keyframes electraErrorSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   ELECTRA AUTO-EXPIRING TOAST NOTIFICATIONS
+   -------------------------------------------------------------------------- */
+.electra-toast-container {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: 440px;
+  width: calc(100% - 48px);
+}
+
+.electra-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background-color: #111827;
+  color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  animation: electraToastIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.electra-toast.is-leaving {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+}
+
+.electra-toast-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.electra-toast--success .electra-toast-dot {
+  background-color: #10B981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.electra-toast--error .electra-toast-dot {
+  background-color: #EF4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+.electra-toast--info .electra-toast-dot {
+  background-color: #3B82F6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+}
+
+.electra-toast-content {
+  flex: 1;
+}
+
+.electra-toast-close {
+  background: none;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.electra-toast-close:hover {
+  color: #FFFFFF;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.electra-toast-close svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  fill: none;
+}
+
+@keyframes electraToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   BORDERLESS TRANSPARENT EMPTY STATE
+   -------------------------------------------------------------------------- */
+.electra-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.electra-empty-icon {
+  width: 44px;
+  height: 44px;
+  stroke: #9CA3AF;
+  stroke-width: 1.5;
+  fill: none;
+  margin-bottom: 16px;
+}
+
+.electra-empty-title {
+  font-family: var(--font-serif, "Newsreader", Georgia, serif);
+  font-size: 22px;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px 0;
+}
+
+.electra-empty-desc {
+  font-size: 14px;
+  color: #6B7280;
+  max-width: 420px;
+  line-height: 1.5;
+  margin: 0 0 20px 0;
+}
+
+/* --------------------------------------------------------------------------
+   ELECTRA CONFIRMATION MODAL & POPUP (Themed rectangle)
+   -------------------------------------------------------------------------- */
+.electra-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.electra-confirm-backdrop.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.electra-confirm-card {
+  width: 90%;
+  max-width: 420px;
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.14), 0 4px 12px rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+  transform: scale(0.96) translateY(4px);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.electra-confirm-backdrop.is-active .electra-confirm-card {
+  transform: scale(1) translateY(0);
+}
+
+.electra-confirm-title {
+  font-family: var(--font-serif, "Newsreader", Georgia, serif);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+
+.electra-confirm-desc {
+  font-size: 13.5px;
+  color: #6B7280;
+  line-height: 1.5;
+  margin: 0 0 24px 0;
+}
+
+.electra-confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.electra-confirm-btn {
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+  font-family: inherit;
+}
+
+.electra-confirm-cancel {
+  background-color: #FFFFFF;
+  color: #374151;
+  border: 1px solid #E5E7EB;
+}
+
+.electra-confirm-cancel:hover {
+  background-color: #F9FAFB;
+  border-color: #D1D5DB;
+}
+
+.electra-confirm-submit {
+  background-color: #111827;
+  color: #FFFFFF;
+  border: 1px solid #111827;
+}
+
+.electra-confirm-submit:hover {
+  background-color: #000000;
+}
+
+.electra-confirm-submit.is-danger {
+  background-color: #DC2626;
+  border-color: #DC2626;
+  color: #FFFFFF;
+}
+
+.electra-confirm-submit.is-danger:hover {
+  background-color: #B91C1C;
+  border-color: #B91C1C;
+}

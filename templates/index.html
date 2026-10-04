@@ -1,67 +1,116 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}electra{% endblock %}
+{% block title %}Electra — Election Experience for Institutions{% endblock %}
 
-{% block body_class %}exact-landing-body{% endblock %}
-{% block main_class %}exact-landing-main{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/landing.css' %}">
+{% endblock %}
 
+{% block body_class %}landing-body{% endblock %}
 {% block header %}{% endblock %}
 {% block footer %}{% endblock %}
 
 {% block content %}
-<!-- Floating Header Navigation (Matched to screenshot) -->
-<header class="exact-header-nav">
-    <a href="/" class="exact-brand">electra</a>
-    <nav class="exact-nav-links">
-        <a href="#working" class="exact-nav-link">Working</a>
-        <a href="#features" class="exact-nav-link">Features</a>
-        <a href="#about" class="exact-nav-link">About</a>
-    </nav>
-</header>
+<div class="landing-main">
+    <!-- Floating Top Navigation Pill (Matched to references/01_landing.png) -->
+    <div class="landing-nav-wrapper">
+        <header class="landing-nav-pill">
+            <a href="/" class="landing-brand">Electra</a>
+            <nav class="landing-nav-links" aria-label="Main Navigation">
+                <a href="#how-it-works" class="landing-nav-link">How it works</a>
+                <a href="#features" class="landing-nav-link">Features</a>
+                <a href="#about" class="landing-nav-link">About</a>
+            </nav>
+        </header>
+    </div>
 
-<!-- Center Hero Section -->
-<main class="exact-hero-section">
-    <h1 class="exact-headline">
-        <span class="exact-headline-static">Election experience for</span>
-        <span class="exact-scroller-window" aria-live="polite">
-            <span class="exact-scroller-list">
-                <span class="exact-scroller-item">students</span>
-                <span class="exact-scroller-item">children</span>
-                <span class="exact-scroller-item">teenagers</span>
-                <span class="exact-scroller-item">non-voters</span>
-                <span class="exact-scroller-item" aria-hidden="true">students</span>
+    <!-- Center Hero Section -->
+    <section class="landing-hero" aria-labelledby="hero-heading">
+        <div class="landing-eyebrow">Secure &bull; Transparent &bull; Real-time</div>
+
+        <h1 id="hero-heading" class="landing-headline">
+            <span class="landing-headline-line">Election experience</span>
+            <span class="landing-headline-line">
+                for 
+                <span class="landing-ticker-window" aria-live="polite">
+                    <span class="landing-ticker-list">
+                        <span class="landing-ticker-item">students</span>
+                        <span class="landing-ticker-item">children</span>
+                        <span class="landing-ticker-item">teenagers</span>
+                        <span class="landing-ticker-item">non-voters</span>
+                        <span class="landing-ticker-item" aria-hidden="true">students</span>
+                    </span>
+                </span>
             </span>
-        </span>
-    </h1>
+        </h1>
 
-    <p class="exact-description">
-        Authentic polling booths, physical officer check-in, and real-time election day simulation for modern institutions.
-    </p>
+        <p class="landing-subtitle">
+            A complete election management system with authentic polling booths, physical officer check-in, and real-time monitoring for modern institutions.
+        </p>
 
-    {% if not is_initialized %}
-    <a href="{% url 'accounts:setup' %}" class="exact-btn-start">
-        Start now
-    </a>
-    {% elif request.user.is_authenticated and request.user.role == 'ADMIN' %}
-    <a href="{% url 'elections:dashboard' %}" class="exact-btn-start">
-        Go to Dashboard
-    </a>
-    {% else %}
-    <a href="{% url 'accounts:login' %}" class="exact-btn-start">
-        Start now
-    </a>
-    {% endif %}
-</main>
+        {% if not is_initialized %}
+        <a href="{% url 'accounts:setup' %}" class="landing-btn-start">
+            Get started <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+        {% elif request.user.is_authenticated and request.user.role == 'ADMIN' %}
+        <a href="{% url 'elections:dashboard' %}" class="landing-btn-start">
+            Go to Dashboard <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+        {% else %}
+        <a href="{% url 'accounts:login' %}" class="landing-btn-start">
+            Get started <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+        {% endif %}
+    </section>
 
-<!-- Bottom Peeking Device Frame (Matched to screenshot) -->
-<div class="exact-device-peek" aria-hidden="true">
-    <div class="exact-device-notch"></div>
-    <div class="exact-device-status-card">
-        <div>
-            <span class="exact-device-dot"></span>
-            <span>Booth Station 01</span>
+    <!-- Bottom Peeking Dashboard Window Preview (Matched to references/01_landing.png) -->
+    <div class="landing-preview-container" aria-hidden="true">
+        <div class="landing-preview-window">
+            <div class="preview-window-header">
+                <span class="preview-brand">Electra</span>
+                <div class="preview-tabs">
+                    <span class="preview-tab active">Dashboard</span>
+                    <span class="preview-tab">Voters</span>
+                    <span class="preview-tab">Elections</span>
+                </div>
+            </div>
+
+            <div class="preview-window-body">
+                <div class="preview-status-badge">
+                    <span class="preview-status-dot"></span>
+                    <span>Election live</span>
+                </div>
+
+                <div class="preview-title">Student Union Election 2026</div>
+                <div class="preview-description">
+                    Voting is in progress. Monitor turnout, booth status and device activity in real time.
+                </div>
+
+                <div class="preview-timer-box">
+                    <span class="preview-timer-label">Time Remaining</span>
+                    <span class="preview-timer-digits">02 : 14 : 37</span>
+                    <div class="preview-timer-sublabels">
+                        <span>Hours</span>
+                        <span>Minutes</span>
+                        <span>Seconds</span>
+                    </div>
+                </div>
+
+                <div class="preview-stats-row preview-stats-row-turnout-only">
+                    <div class="preview-turnout-col">
+                        <div class="preview-stat-item" style="min-width: 90px;">
+                            <div class="preview-stat-value">65.6%</div>
+                            <div class="preview-stat-label">Live turnout</div>
+                        </div>
+                        <div class="preview-progress-bar">
+                            <div class="preview-progress-fill"></div>
+                        </div>
+                        <span class="preview-progress-text">65.6%</span>
+                    </div>
+                </div>
+            </div>
         </div>
-        <span style="opacity: 0.6; font-size: 11px;">Simulation Ready</span>
     </div>
 </div>
 {% endblock %}

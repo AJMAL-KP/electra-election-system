@@ -1,10 +1,142 @@
-# Electra — Revised 30-Day Implementation Plan
+# Electra — Implementation Plan
 
-This is the **implementation plan**, not a learning/documentation plan. The sequence is designed so that each day produces working functionality that can be exercised immediately.
+This is the **implementation plan**, not a learning/documentation plan. The implementation strategy follows a strict **vertical slice implementation approach**: workflow by workflow, end-to-end, so that each slice produces complete working functionality across technical layers that can be exercised and verified immediately.
 
 The plan incorporates the decisions we have now locked in: Django + PostgreSQL + Channels/Daphne, session authentication, booth-bound technical identities, WebSocket-only liveness, atomic multi-position ballots, eligibility rules, frozen election configuration, credential rotation, reconnection/resynchronization, and server-authoritative voting.
 
 The SRS establishes the three-interface architecture, Django/Channels backend, HTTP/WebSocket split, booth-bound authorization, single-use authorization, transactional voting, live turnout and result publication.  
+
+---
+
+# Implementation Strategy — Vertical Slices
+
+Implement Electra vertically, workflow by workflow.
+
+Do NOT implement the entire backend first and the entire frontend afterward.
+
+Do NOT create isolated models, services, WebSocket consumers, templates, or UI pages merely because they belong to a particular technical layer.
+
+Instead, take one meaningful user workflow and make that workflow work end-to-end through the existing architecture.
+
+For each vertical slice:
+
+1. Identify the exact user workflow.
+2. Trace the workflow through the existing architecture, data model,
+   state machines, invariants, authentication and authorization rules.
+3. Implement only the backend/domain pieces required for that workflow.
+4. Implement the required frontend interfaces.
+5. Implement WebSocket communication where that workflow requires it.
+6. Connect the actual frontend to the actual backend.
+7. Test the complete workflow with realistic state transitions.
+8. Verify the relevant invariants and failure cases.
+9. Only after the slice works end-to-end, move to the next slice.
+
+Example:
+
+DO NOT:
+"Build all WebSocket functionality."
+
+INSTEAD:
+"Implement voter authorization from Officer Station to Voting Kiosk."
+
+The complete slice should be:
+
+Officer Station
+→ identify/select eligible voter
+→ server validates voter and election state
+→ create the appropriate single-use authorization
+→ server sends authorization state through Django Channels/WebSocket
+→ Kiosk receives authorization
+→ Kiosk transitions to the authorized/unlocked state
+→ voter can proceed
+→ authorization remains valid according to the existing state machine
+→ invalid/expired/replayed authorization is rejected
+→ relevant state is synchronized to the Officer Station
+→ reconnect/resynchronization follows the existing architecture.
+
+Once that workflow is working and tested, proceed to the next vertical slice.
+
+==================================================
+VERTICAL SLICE RULE
+==================================================
+
+A slice is NOT complete merely because:
+- the model exists,
+- the API exists,
+- the WebSocket consumer exists,
+- the template exists,
+- or the page renders.
+
+A slice is complete only when the actual user workflow can be executed
+end-to-end through the application and its important failure cases have
+been tested.
+
+==================================================
+ORDER
+==================================================
+
+Use the existing architecture and implementation plan to determine the
+exact technical dependencies, but generally organize implementation
+around complete workflows rather than technical layers.
+
+The election setup workflow should become functional end-to-end first:
+
+1. Create/save an election draft.
+2. Configure election voters.
+3. Configure positions and candidates.
+4. Configure booths and devices.
+5. Allocate voters.
+6. Validate the election.
+7. Save as draft / start election.
+
+Then implement operational election workflows vertically:
+
+8. Officer authentication and booth readiness.
+9. Voter authorization.
+10. Kiosk authorization reception and unlocking.
+11. Ballot submission.
+12. Transactional vote recording and authorization consumption.
+13. Kiosk return to locked/ready state.
+14. Real-time turnout and device synchronization.
+15. Reconnection/state resynchronization.
+16. Election closure.
+17. Result publication.
+
+Do not assume that the order above overrides the state machines or
+architecture. Resolve dependencies using the existing locked documents.
+
+==================================================
+NO PREMATURE ABSTRACTION
+==================================================
+
+Do not build speculative infrastructure "for later."
+
+Before introducing a service, abstraction, API, component, or utility,
+identify which current vertical slice requires it.
+
+However, do not duplicate code when an existing architectural component
+already provides the correct abstraction.
+
+Follow the existing coding standards.
+
+==================================================
+AFTER EACH SLICE
+==================================================
+
+Before moving to the next slice:
+
+- run the relevant tests
+- manually verify the workflow where appropriate
+- inspect database state where necessary
+- verify state transitions
+- verify relevant invariants
+- verify authorization boundaries
+- verify WebSocket behavior where applicable
+- verify failure/rejection paths
+- confirm that the implementation still matches the locked architecture
+
+Then record the completed slice and any discovered implementation issue
+before proceeding.
 
 ---
 
@@ -98,10 +230,10 @@ electra/
 │   ├── migrations/
 │   ├── templates/
 │   │   └── elections/
-│   │       ├── dashboard.html
-│   │       ├── election_form.html
-│   │       ├── position_form.html
-│   │       ├── candidate_form.html
+│   │       ├── home.html
+│   │       ├── history.html
+│   │       ├── setup_details_candidates.html
+│   │       ├── setup_review.html
 │   │       └── ...
 │   ├── admin.py
 │   ├── apps.py
@@ -116,11 +248,10 @@ electra/
 │   ├── migrations/
 │   ├── templates/
 │   │   └── voters/
-│   │       ├── registry.html
-│   │       ├── voter_detail.html
-│   │       ├── import.html
-│   │       ├── import_preview.html
-│   │       ├── allocation.html
+│   │       ├── registry.html                  # Master Voter Registry (persistent area)
+│   │       ├── setup_voters.html              # Stage 1: Election Voters
+│   │       ├── setup_booths_allocation.html   # Stage 3: Booths & Allocation (single page)
+│   │       ├── import_modal.html
 │   │       └── ...
 │   ├── admin.py
 │   ├── apps.py
@@ -136,6 +267,7 @@ electra/
     ├── migrations/
     ├── templates/
     │   └── voting/
+    │       ├── live_dashboard.html            # Live Election Dashboard (real-time monitoring)
     │       ├── officer/
     │       │   ├── dashboard.html
     │       │   ├── voter_verify.html
@@ -149,10 +281,7 @@ electra/
     │       │   ├── submitting.html
     │       │   ├── success.html
     │       │   └── error.html
-    │       │
-    │       └── results/
-    │           ├── dashboard.html
-    │           └── position_results.html
+    │       └── results.html                   # Election Results & Winner highlight
     │
     ├── admin.py
     ├── apps.py
@@ -1341,57 +1470,64 @@ This satisfies the SRS requirement for only one active session per Officer Stati
 
 ---
 
-# 28. Admin dashboard
+# 28. Administrator interfaces: Setup flow and Live Dashboard
 
-Build the dashboard around two categories.
+The administrator working flow strictly follows a centered, onboarding-style sequence rather than a conventional SaaS admin dashboard (no permanent sidebar navigation, no generic dashboard grids, no excessive card-within-card containers).
 
-## Election configuration status
-
-For every booth:
-
+### Information Architecture
 ```text
-Booth 1
-    Officer configured ✓
-    Kiosk configured ✓
-    Voters allocated 82
+HOME
+  ↓
+START ELECTION
+  ↓
+1. ELECTION VOTERS
+  ↓
+2. ELECTION DETAILS & CANDIDATES
+  ↓
+3. BOOTHS & ALLOCATION
+  ↓
+4. REVIEW & START
+  ↓
+LIVE ELECTION DASHBOARD
+  ↓
+END ELECTION
+  ↓
+RESULTS
+  ↓
+HOME
 ```
 
-## Runtime status
+Constraint: Exactly **ONE active/running election** exists at any time across the installation.
 
-```text
-Officer: LOGGED IN
-Kiosk: CONNECTED
-Fullscreen: YES
-Kiosk state: READY
-```
+### Stage 4 — Review & Start (`references/06.4_review.png`)
+The final pre-election verification screen clearly distinguishes:
+- `Valid / Ready`
+- `Incomplete / Invalid`
+- `Device Not Ready` (Officer/Kiosk disconnected or unauthenticated)
 
-or:
+Provides two primary actions:
+- **Save as Draft**
+- **Start Election** (transitions `DRAFT → ACTIVE`, freezing configuration)
 
-```text
-Officer: LOGGED IN
-Kiosk: DISCONNECTED
-Fullscreen: —
-Kiosk state: NOT READY
-```
+### Live Election Dashboard (`references/07_live.png`)
+The Live Dashboard is **NOT part of the setup wizard**. It is a dedicated operational monitoring screen entered after Start Election.
 
-During polling also show:
+It displays:
+- Election name, active status, countdown timer (`Time Remaining`);
+- Real-time aggregate turnout metrics:
+  - Total eligible voters;
+  - Total ballots cast (voted);
+  - Live turnout percentage;
+- Booth-wise operational status:
+  - Booth identifier;
+  - Officer Station status (`LOGGED IN`, `ACTIVE`);
+  - Voting Kiosk status (`CONNECTED`, `READY`, `VOTING`, `LOCKED`);
+  - Fullscreen readiness status;
+  - Booth-specific turnout count and percentage;
+  - Credential/pass management controls (rotate pass / revoke);
+- Prominent **End Election** button (triggers confirmation modal, transitioning `ACTIVE → CLOSED`).
 
-```text
-Booth 1
-    Allocated: 82
-    Voted: 51
-    Turnout: 62.2%
-```
-
-and aggregate:
-
-```text
-Total voters: 500
-Voted: 312
-Turnout: 62.4%
-```
-
-Do not show candidate-wise results while polling is active, as required by the SRS. 
+Do not show candidate-wise results while polling is active. 
 
 ---
 
@@ -1627,26 +1763,28 @@ Defer until the core voter registry/import system works.
 
 When implemented, support only **structured tabular PDFs**.
 
-Do not attempt arbitrary scanned-document OCR as part of the 30-day core.
+Do not attempt arbitrary scanned-document OCR as part of the core implementation.
 
 This keeps PDF support an extension rather than a risk to the voting system.
 
 ---
 
-# 33. Voter allocation
+# 33. Stage 3: Booths & Allocation and Lightweight Printing
 
-Implement an admin allocation interface.
+Booths, paired devices, and voter allocation are managed together within **Stage 3 — Booths & Allocation** (`references/06.3_booth&allocation.png`) as a single coherent setup workspace (not separate multi-step pages).
+
+Booths are represented as clean, borderless/transparent sections/cards:
+- Paired Officer Station and Voting Kiosk with device identifiers;
+- Device status and masked credentials;
+- One-click credential pass rotation.
 
 The administrator can:
 
-* assign individual voters;
-* bulk assign filtered voters;
-* view voters by academic group;
-* view allocation by booth;
+* assign individual voters or use automatic balanced allocation;
+* adjust voter allocation manually between booths;
+* view allocation counts and academic group breakdown per booth;
 * move voters between booths before election start;
-* add a new booth before election start;
-* remove a booth before election start;
-* reallocate voters from a removed booth.
+* add or remove booths before election start (with automatic voter reallocation prompt).
 
 After allocation:
 
@@ -1654,15 +1792,10 @@ After allocation:
 Every ElectionVoter → exactly one Booth
 ```
 
-The system should provide a printable/downloadable:
-
-```text
-Voter → Booth
-```
-
-allocation list.
-
-This becomes especially useful after pre-election booth changes.
+### Lightweight Printing
+Printing is intentionally lightweight and non-intrusive. Do not create a large "print materials" panel, card, or checklist. Instead, discrete action buttons are provided directly on the page:
+- `Print voter list`
+- `Print booth slips`
 
 ---
 
@@ -1692,7 +1825,7 @@ Only if there is no replacement device should the administrator need to remove t
 
 ---
 
-# 35. Results
+# 35. Results (`references/08_result.png`)
 
 After:
 
@@ -1712,21 +1845,27 @@ For a multi-position election:
 
 ```text
 Chairperson
-    Candidate A — 120
+    Candidate A — 120 (WINNER)
     Candidate B — 98
 
 Secretary
-    Candidate C — 143
+    Candidate C — 143 (WINNER)
     Candidate D — 75
 
 MCA Representative
-    Candidate E — 51
+    Candidate E — 51 (WINNER)
     Candidate F — 39
 ```
 
+The Results screen (`references/08_result.png`) provides:
+- Position-by-position vote counts and percentage shares;
+- Visual identification and highlight of the **winner** for each position;
+- `Print Results` action button generating an official paper tally;
+- Navigation button returning back to Home.
+
 Results cannot be exposed as candidate-wise results while the election is active.
 
-This follows FR-8/FR-9. 
+This follows FR-18/FR-19. 
 
 ---
 

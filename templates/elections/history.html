@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Election History — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/history.css' %}">
+{% endblock %}
+
+{% block body_class %}history-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="history-layout">
+    <!-- Top Minimal Navigation -->
+    <header class="history-top-bar">
+        <a href="{% url 'elections:dashboard' %}" class="history-back-btn" aria-label="Back to Dashboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            <span>Back</span>
+        </a>
+    </header>
+
+    <main class="history-container">
+        <!-- Hero Title & Subtitle -->
+        <div class="history-hero">
+            <h1 class="history-title">Election history</h1>
+            <p class="history-subtitle">View and manage all past elections.</p>
+        </div>
+
+        <!-- Filter Bar (Search + Year) -->
+        <form method="get" action="{% url 'elections:history' %}" class="history-filter-bar" id="history-filter-form">
+            <div class="history-search-wrap">
+                <svg class="history-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input 
+                    type="text" 
+                    name="q" 
+                    value="{{ search_query }}" 
+                    placeholder="Search by election name or year..." 
+                    class="history-search-input" 
+                    autocomplete="off"
+                    aria-label="Search past elections"
+                >
+                {% if search_query %}
+                <a href="{% url 'elections:history' %}{% if selected_year %}?year={{ selected_year }}{% endif %}" class="history-search-clear" title="Clear search query" aria-label="Clear search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </a>
+                {% endif %}
+            </div>
+
+            <div class="history-select-wrap">
+                <select name="year" class="history-select" onchange="this.form.submit()" aria-label="Filter by year">
+                    <option value="">All years</option>
+                    {% for yr in available_years %}
+                    <option value="{{ yr }}" {% if selected_year == yr|stringformat:"s" %}selected{% endif %}>{{ yr }}</option>
+                    {% endfor %}
+                </select>
+                <svg class="history-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </div>
+        </form>
+
+        <!-- Hidden Django Messages Container -->
+        {% if messages %}
+        <div style="display:none;" id="django-messages-data">
+            {% for message in messages %}
+            <div data-django-message data-type="{% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Election History Content -->
+        {% if history_items %}
+        <div class="history-list">
+            {% for item in history_items %}
+            <article class="history-row" id="election-{{ item.election.id }}">
+                <div class="history-col-info">
+                    <h2 class="history-item-name">{{ item.election.name }}</h2>
+                    {% if item.election.description %}
+                    <p class="history-item-desc">{{ item.election.description }}</p>
+                    {% endif %}
+                    <div class="history-item-meta">
+                        <time datetime="{{ item.date|date:'c' }}">{{ item.date|date:"j M Y · g:i A" }}</time>
+                    </div>
+                </div>
+
+                <div class="history-col-stats">
+                    <div class="history-stat-box">
+                        <span class="history-stat-number">{{ item.total_voters }}</span>
+                        <span class="history-stat-label">Total voters</span>
+                    </div>
+                    <div class="history-stat-box">
+                        <span class="history-stat-number">{{ item.voted_count }}</span>
+                        <span class="history-stat-label">Voted ({{ item.turnout_pct }}%)</span>
+                    </div>
+                    <div class="history-stat-box">
+                        <span class="history-stat-number">{{ item.positions_count }}</span>
+                        <span class="history-stat-label">Positions</span>
+                    </div>
+                </div>
+
+                <div class="history-col-actions">
+                    <a href="{% url 'elections:results' item.election.id %}" class="history-btn-primary">View results</a>
+                    <a href="{% url 'elections:edit' item.election.id %}" class="history-btn-secondary">View details</a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <!-- Electra Themed Borderless Minimal Empty Placeholder -->
+        {% if has_filters %}
+        <div class="electra-empty-state history-empty-state">
+            <svg class="electra-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+            <h2 class="electra-empty-title">No matching elections found</h2>
+            <p class="electra-empty-desc">
+                No past elections matched your search criteria. Try searching with a different term or clear your filters.
+            </p>
+            <a href="{% url 'elections:history' %}" class="history-btn-secondary">Clear filters</a>
+        </div>
+        {% else %}
+        <div class="electra-empty-state history-empty-state">
+            <svg class="electra-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <h2 class="electra-empty-title">No election history yet</h2>
+            <p class="electra-empty-desc">
+                Past elections and their official voter turnout summaries will be automatically archived here once voting concludes.
+            </p>
+            <a href="{% url 'elections:dashboard' %}" class="history-btn-secondary">Return to home</a>
+        </div>
+        {% endif %}
+        {% endif %}
+    </main>
+</div>
+{% endblock %}

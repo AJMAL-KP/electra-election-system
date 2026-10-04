@@ -1,0 +1,693 @@
+/* Electra Initial Setup with Import Styles
+   Faithfully reproduces references/04_voter_registry_initial.png:
+   - Light white background
+   - Center-focused composition
+   - State 1: Centered half-screen file dropzone
+   - State 2: Initial import configuration layout
+   - Newsreader serif editorial headings & Inter sans-serif controls
+   - Borderless, clean preview table with dynamic columns
+*/
+
+.registry-create-body {
+    background-color: #FFFFFF !important;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+    color: #111827;
+    -webkit-font-smoothing: antialiased;
+}
+
+.registry-create-layout {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #FFFFFF;
+}
+
+/* Top Bar: Cancel button */
+.create-top-bar {
+    padding: 32px 48px 16px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.btn-cancel {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #111827;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-cancel:hover {
+    background: #F9FAFB;
+    border-color: #D1D5DB;
+    color: #000000;
+}
+
+.btn-cancel svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2;
+}
+
+/* ==========================================================================
+   STATE 1: File Upload Only (Centered Half Screen)
+   ========================================================================== */
+.state-upload-screen {
+    width: 100%;
+    max-width: 580px;
+    margin: 0 auto;
+    padding: 20px 24px 80px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 140px);
+    box-sizing: border-box;
+    animation: fadeIn 0.25s ease-out;
+}
+
+.upload-hero {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.upload-hero-title {
+    font-family: var(--font-serif, 'Newsreader', Georgia, serif);
+    font-size: 38px;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: #0F172A;
+    margin: 0 0 12px 0;
+}
+
+.upload-hero-subtitle {
+    font-size: 15px;
+    line-height: 1.55;
+    color: #64748B;
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.upload-dropzone-box {
+    width: 100%;
+    background-color: #FAFAFA;
+    border: 2px dashed #E2E8F0;
+    border-radius: 14px;
+    padding: 48px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.upload-dropzone-box:hover,
+.upload-dropzone-box.drag-over {
+    background-color: #F8FAFC;
+    border-color: #0F172A;
+}
+
+.upload-icon-circle {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background-color: #F1F5F9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 18px;
+    color: #475569;
+    transition: transform 0.2s ease;
+}
+
+.upload-dropzone-box:hover .upload-icon-circle {
+    transform: translateY(-2px);
+    background-color: #E2E8F0;
+}
+
+.upload-icon-circle svg {
+    width: 24px;
+    height: 24px;
+}
+
+.upload-prompt-text {
+    font-size: 15px;
+    font-weight: 500;
+    color: #1E293B;
+    margin: 0 0 6px 0;
+}
+
+.upload-prompt-browse {
+    color: #0F172A;
+    text-decoration: underline;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.upload-subtext {
+    font-size: 13px;
+    color: #94A3B8;
+    margin: 0;
+}
+
+/* Spinner during parsing */
+.upload-loading-overlay {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+}
+
+.upload-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #E2E8F0;
+    border-top-color: #0F172A;
+    border-radius: 50%;
+    animation: electraSpin 0.75s linear infinite;
+}
+
+.upload-loading-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: #475569;
+}
+
+@keyframes electraSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   STATE 2: Initial Import Configuration (04_voter_registry_initial.png)
+   ========================================================================== */
+.state-config-screen {
+    width: 100%;
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 10px 32px 80px 32px;
+    box-sizing: border-box;
+    animation: fadeIn 0.25s ease-out;
+}
+
+.config-hero {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.config-title {
+    font-family: var(--font-serif, 'Newsreader', Georgia, serif);
+    font-size: 42px;
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+    color: #0F172A;
+    margin: 0 0 12px 0;
+}
+
+.config-subtitle {
+    font-size: 15px;
+    line-height: 1.55;
+    color: #64748B;
+    max-width: 620px;
+    margin: 0 auto;
+}
+
+/* Section Common Styling */
+.config-section {
+    margin-bottom: 36px;
+}
+
+.config-section-title {
+    font-family: var(--font-serif, 'Newsreader', Georgia, serif);
+    font-size: 24px;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    color: #0F172A;
+    margin: 0 0 14px 0;
+}
+
+.config-section-desc {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #64748B;
+    margin: -6px 0 20px 0;
+}
+
+/* Form Section 1: Registry Details */
+.registry-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-label {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.req-star {
+    color: #EF4444;
+    font-weight: 600;
+}
+
+.form-input {
+    width: 100%;
+    padding: 11px 14px;
+    font-size: 14px;
+    color: #0F172A;
+    background-color: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-family: var(--font-sans, 'Inter', sans-serif);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-input::placeholder {
+    color: #94A3B8;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #0F172A;
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.06);
+}
+
+.config-divider {
+    border: none;
+    border-bottom: 1px solid #F1F5F9;
+    margin: 36px 0;
+}
+
+/* Form Section 2: Map Columns Grid */
+.column-mapping-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+}
+
+.select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.form-select {
+    width: 100%;
+    padding: 10px 34px 10px 14px;
+    font-size: 14px;
+    font-weight: 400;
+    color: #0F172A;
+    background-color: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-family: var(--font-sans, 'Inter', sans-serif);
+    appearance: none;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: #0F172A;
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.06);
+}
+
+.select-arrow {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #64748B;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.select-arrow svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2;
+}
+
+/* Form Section 3: File Preview Table */
+.preview-table-card {
+    background-color: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.preview-table th {
+    background-color: #F8FAFC;
+    padding: 12px 18px;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748B;
+    border-bottom: 1px solid #E2E8F0;
+}
+
+.preview-table td {
+    padding: 14px 18px;
+    font-size: 13.5px;
+    color: #1E293B;
+    border-bottom: 1px solid #F1F5F9;
+    white-space: nowrap;
+}
+
+.preview-table tr:last-child td {
+    border-bottom: none;
+}
+
+.preview-empty-cell {
+    color: #94A3B8;
+    font-style: italic;
+}
+
+/* Bottom Action Row */
+.config-actions-bar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 36px;
+    padding-bottom: 40px;
+}
+
+.btn-continue {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #0F172A;
+    color: #FFFFFF;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 12px 26px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.btn-continue:hover {
+    background-color: #1E293B;
+}
+
+.btn-continue:active {
+    transform: scale(0.99);
+}
+
+.btn-continue svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 2;
+    transition: transform 0.15s ease;
+}
+
+.btn-continue:hover svg {
+    transform: translateX(3px);
+}
+
+/* Custom In-page Toast / Notification Banner */
+.custom-alert-box {
+    margin-bottom: 24px;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.4;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.custom-alert-error {
+    background-color: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FCA5A5;
+}
+
+.custom-alert-success {
+    background-color: #F0FDF4;
+    color: #166534;
+    border: 1px solid #86EFAC;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* File Card for State 2 */
+.file-card {
+    display: flex;
+    align-items: center;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    padding: 14px 18px;
+    background-color: #FAFAFA;
+}
+
+.file-card-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.file-icon-box {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background-color: #F1F5F9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+}
+
+.file-icon-box svg {
+    width: 20px;
+    height: 20px;
+}
+
+.file-name {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 2px;
+}
+
+.file-meta {
+    font-size: 13px;
+    color: #64748B;
+}
+
+.btn-change-file {
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #475569;
+    background-color: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-change-file:hover {
+    background-color: #F8FAFC;
+    color: #0F172A;
+    border-color: #94A3B8;
+}
+
+/* In-Page Error Banner */
+.config-error-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background-color: #FEF2F2;
+    border: 1px solid #FCA5A5;
+    border-radius: 10px;
+    margin-bottom: 24px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.error-banner-icon-box {
+    flex-shrink: 0;
+    color: #DC2626;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+.error-banner-icon-box svg {
+    width: 20px;
+    height: 20px;
+}
+
+.error-banner-body {
+    flex: 1;
+}
+
+.error-banner-msg {
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: #991B1B;
+    font-weight: 500;
+    margin: 0;
+}
+
+.error-banner-msg + .error-banner-msg {
+    margin-top: 4px;
+}
+
+/* Sub-group Toggle Styling */
+.subgroup-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 24px;
+}
+
+.subgroup-subtext {
+    font-weight: 400;
+    color: #94A3B8;
+    font-size: 11px;
+}
+
+.segmented-toggle {
+    display: inline-flex;
+    background-color: #F1F5F9;
+    padding: 2px;
+    border-radius: 6px;
+    border: 1px solid #E2E8F0;
+}
+
+.toggle-pill {
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: #64748B;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1.25;
+}
+
+.toggle-pill:hover {
+    color: #0F172A;
+}
+
+.toggle-pill.active {
+    background-color: #0F172A;
+    color: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.subgroup-off-hint {
+    padding: 8px 12px;
+    background-color: #F8FAFC;
+    border: 1px dashed #CBD5E1;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #64748B;
+    line-height: 1.35;
+    box-sizing: border-box;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+}
+
+/* Secondary Cancel Button */
+.btn-cancel-secondary {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #475569;
+    background-color: transparent;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-cancel-secondary:hover {
+    background-color: #F8FAFC;
+    color: #0F172A;
+    border-color: #94A3B8;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+    .column-mapping-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .registry-details-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .column-mapping-grid {
+        grid-template-columns: 1fr;
+    }
+    .create-top-bar {
+        padding: 20px 24px 10px 24px;
+    }
+    .state-config-screen {
+        padding: 10px 16px 60px 16px;
+    }
+    .config-title {
+        font-size: 32px;
+    }
+}

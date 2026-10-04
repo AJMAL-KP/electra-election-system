@@ -2,712 +2,402 @@
 
 **Status:** LOCKED  
 **Document Type:** Implementation Plan  
-**Purpose:** Define the build order, dependencies, and completion gates for Electra.
+**Purpose:** Define the vertical slice build order, workflow dependencies, and completion gates for Electra.
 
-> This document controls **sequence**, not detailed product behavior. Use `01-requirements.md` for requirements and the focused documents for architecture, data/invariants, state/flow, UI, coding, and testing. `electra-locked-in.txt` remains the highest-authority source of truth.
-
----
-
-## 1. Build Strategy
-
-Build incrementally. Each phase must leave the system runnable and testable.
-
-```text
-1. Foundation
-2. Authentication / RBAC
-3. Election Management
-4. Voter Registry
-5. Booth Management
-6. Authorization
-7. WebSocket Infrastructure
-8. Kiosk State Machine
-9. Voting
-10. Reconnection / Resynchronization
-11. Turnout / Results
-12. Testing / Hardening
-```
-
-Do not implement later functionality by bypassing an unfinished dependency.
-
-Phase boundaries are dependency and verification boundaries, not mandatory calendar deadlines.
+> This document controls **sequence and workflow execution**, not detailed product behavior. Use `01_REQUIREMENTS.md` for requirements and the focused documents for architecture, data/invariants, state/flow, UI, coding, and testing. `electra-locked-in.txt` remains the highest-authority source of truth.
 
 ---
 
-# 2. Phase 1 — Foundation
+# 1. Implementation Strategy — Vertical Slices
 
-### Goal
+Implement Electra vertically, workflow by workflow.
 
-Establish the Django project, dedicated PostgreSQL database, and locked technical foundation for a self-hosted web application deployed on a Local-Area Network (LAN).
+Do NOT implement the entire backend first and the entire frontend afterward.
 
-### Build
+Do NOT create isolated models, services, WebSocket consumers, templates, or UI pages merely because they belong to a particular technical layer.
 
-- Django project configuration for LAN access.
-- Dedicated PostgreSQL database configuration (one database per installation).
-- Installation initialization check (detects whether first-run setup is required).
-- Django session authentication foundation.
-- Django Channels / ASGI / Daphne configuration.
-- `accounts`, `elections`, `voters`, and `voting` apps.
-- Initial test configuration.
-- Required project-level configuration and diagnostic health check.
+Instead, take one meaningful user workflow and make that workflow work end-to-end through the existing architecture.
 
-### Depends on
+For each vertical slice:
 
-None.
+1. Identify the exact user workflow.
+2. Trace the workflow through the existing architecture, data model, state machines, invariants, authentication and authorization rules.
+3. Implement only the backend/domain pieces required for that workflow.
+4. Implement the required frontend interfaces.
+5. Implement WebSocket communication where that workflow requires it.
+6. Connect the actual frontend to the actual backend.
+7. Test the complete workflow with realistic state transitions.
+8. Verify the relevant invariants and failure cases.
+9. Only after the slice works end-to-end, move to the next slice.
 
-### Complete when
+Example:
 
-- Project starts cleanly and is accessible over LAN.
-- Database connection works.
-- Migrations run cleanly.
-- Installation initialization status can be checked.
-- Four domain apps are installed.
-- ASGI/Channels configuration loads.
-- Basic tests run.
-- No forbidden infrastructure (Redis, Celery, multi-tenant schemas) has been introduced.
+DO NOT:
+"Build all WebSocket functionality."
 
-### Explicitly not required yet
+INSTEAD:
+"Implement voter authorization from Officer Station to Voting Kiosk."
 
-Voting logic, authorization, kiosk workflow, application heartbeat, Redis, Celery, or external scheduler infrastructure.
+The complete slice should be:
 
----
+Officer Station  
+→ identify/select eligible voter  
+→ server validates voter and election state  
+→ create the appropriate single-use authorization  
+→ server sends authorization state through Django Channels/WebSocket  
+→ Kiosk receives authorization  
+→ Kiosk transitions to the authorized/unlocked state  
+→ voter can proceed  
+→ authorization remains valid according to the existing state machine  
+→ invalid/expired/replayed authorization is rejected  
+→ relevant state is synchronized to the Officer Station  
+→ reconnect/resynchronization follows the existing architecture.  
 
-# 3. Phase 2 — Authentication and RBAC
-
-### Goal
-
-Establish secure authenticated technical identities and the first-run Administrator setup.
-
-### Build
-
-- First-run installation setup view (creates the initial Administrator account).
-- Custom `User` model with database-backed `ADMIN`, `OFFICER`, and `KIOSK` roles.
-- Single-administrator enforcement (exactly one human Administrator per installation).
-- Dynamic Administrator identity (no hardcoded username, fixed ID, or settings constant).
-- `Device`.
-- Device credentials.
-- Django password hashing.
-- Credential rotation/revocation.
-- `DeviceSession`.
-- One-active-session enforcement for Officer and Kiosk devices.
-- Role and permission enforcement.
-- Login/logout.
-
-### Depends on
-
-Phase 1.
-
-### Complete when
-
-- Uninitialized installation routes to first-run Administrator creation.
-- Initialized installation disables further public Administrator creation.
-- Administrator can authenticate using normal Django session authentication.
-- Administrator identity is stored normally in the database without hardcoded assumptions.
-- Officer and Kiosk technical identities can authenticate.
-- Role boundaries are strictly enforced.
-- A device cannot have two simultaneous active sessions.
-- Rotation invalidates the previous session.
-- Revocation prevents continued access.
-- Replacement hardware can use the same logical device identity.
-- No public registration, SaaS account management, or multi-admin features exist.
-
-### Verify
-
-First-run setup, authentication, permissions, session exclusivity, rotation, revocation, unauthorized access, and single-admin enforcement.
+Once that workflow is working and tested, proceed to the next vertical slice.
 
 ---
 
-# 4. Phase 3 — Election Management
+# 2. Vertical Slice Rule
 
-### Goal
+A slice is NOT complete merely because:
+- the model exists,
+- the API exists,
+- the WebSocket consumer exists,
+- the template exists,
+- or the page renders.
 
-Implement election configuration and lifecycle belonging to the installation.
-
-### Build
-
-- `Election` (belongs to the installation; no `owner` field).
-- `Position`.
-- `Candidate`.
-- Eligibility configuration.
-- Election configuration UI.
-- Configuration validation.
-- `DRAFT → ACTIVE → CLOSED → RESULTS_PUBLISHED`.
-- Start and close operations.
-- Configuration freeze after activation.
-- Server-side election deadline enforcement.
-
-### Depends on
-
-Phase 2.
-
-### Complete when
-
-- Admin can create/configure elections for the installation.
-- No per-user election ownership or `Election.owner` field exists.
-- Positions and candidates can be managed.
-- Eligibility can be configured.
-- Invalid elections cannot start.
-- Valid elections can become `ACTIVE`.
-- Active election configuration is frozen.
-- Elections can close.
-- Results cannot be published before closure.
-- Expired elections reject new voting operations.
-
-### Rule
-
-Do not create a separate election `READY` state. Readiness is a configuration-validation result.
+A slice is complete only when the actual user workflow can be executed end-to-end through the application and its important failure cases have been tested.
 
 ---
 
-# 5. Phase 4 — Voter Registry
+# 3. Order
 
-### Goal
+Use the existing architecture and implementation plan to determine the exact technical dependencies, but generally organize implementation around complete workflows rather than technical layers.
 
-Implement the installation's central voter registry and election enrollment.
+The election setup workflow should become functional end-to-end first:
 
-### Build
+1. Create/save an election draft.
+2. Configure election voters.
+3. Configure positions and candidates.
+4. Configure booths and devices.
+5. Allocate voters.
+6. Validate the election.
+7. Save as draft / start election.
 
-- `Voter` (scoped to the installation; no tenant/user ownership).
-- `AcademicGroup`.
-- Configurable primary registry identity.
-- Configurable academic hierarchy.
-- CSV import.
-- Excel import.
-- Import preview/validation.
-- Duplicate detection.
-- Voter search/filtering.
-- Election enrollment.
-- `ElectionVoter`.
+Then implement operational election workflows vertically:
 
-### Depends on
+8. Officer authentication and booth readiness.
+9. Voter authorization.
+10. Kiosk authorization reception and unlocking.
+11. Ballot submission.
+12. Transactional vote recording and authorization consumption.
+13. Kiosk return to locked/ready state.
+14. Real-time turnout and device synchronization.
+15. Reconnection/state resynchronization.
+16. Election closure.
+17. Result publication.
 
-Phase 3.
-
-### Complete when
-
-- Voters can be created and maintained in the installation registry.
-- Registry identity is configurable and unique within the installation.
-- Academic hierarchy is configurable.
-- CSV/Excel imports use validation before confirmation.
-- Duplicate registry records are prevented.
-- Voters can be enrolled in an election.
-- `ElectionVoter` uniquely represents a voter's participation in an election.
-- No per-user or tenant registry partitioning exists.
-
-### Deferred
-
-Arbitrary OCR and non-core PDF import.
+Do not assume that the order above overrides the state machines or architecture. Resolve dependencies using the existing locked documents.
 
 ---
 
-# 6. Phase 5 — Booth Management
+# 4. No Premature Abstraction
 
-### Goal
+Do not build speculative infrastructure "for later."
 
-Configure polling booths and voter allocation.
+Before introducing a service, abstraction, API, component, or utility, identify which current vertical slice requires it.
 
-### Build
+However, do not duplicate code when an existing architectural component already provides the correct abstraction.
 
-- `Booth`.
-- Officer Device ↔ Booth binding.
-- Kiosk Device ↔ Booth binding.
-- Exactly one Officer and one Kiosk per booth.
-- Booth configuration UI.
-- Individual allocation.
-- Bulk/filter allocation.
-- Pre-election reallocation.
-- Pre-election booth add/remove.
-- Voter → Booth export/print view.
-
-### Depends on
-
-Phases 2–4.
-
-### Complete when
-
-- Every booth has exactly one Officer Device and one Kiosk Device.
-- Participating voters can be allocated.
-- Every `ElectionVoter` has exactly one booth before activation.
-- Cross-booth authorization is impossible.
-- Booth configuration cannot change after activation.
-- Removing a booth requires affected voters to be reallocated before activation.
+Follow the existing coding standards.
 
 ---
 
-# 7. Phase 6 — Authorization
+# 5. After Each Slice
 
-### Goal
+Before moving to the next slice:
 
-Implement the Officer → Authorization → Kiosk bridge.
+- run the relevant tests
+- manually verify the workflow where appropriate
+- inspect database state where necessary
+- verify state transitions
+- verify relevant invariants
+- verify authorization boundaries
+- verify WebSocket behavior where applicable
+- verify failure/rejection paths
+- confirm that the implementation still matches the locked architecture
 
-### Build
-
-- `VoterAuthorization`.
-- Officer voter verification.
-- Eligibility checks.
-- Booth-allocation checks.
-- Kiosk readiness checks.
-- Authorization creation/cancellation.
-- `ACTIVE`, `USED`, and `CANCELLED` authorization states.
-
-### Depends on
-
-Phases 2–5.
-
-### Complete when
-
-Authorization is rejected unless all required conditions are valid:
-
-- election active;
-- voting time valid;
-- voter enrolled;
-- voter eligible;
-- voter belongs to officer's booth;
-- voter has not voted;
-- paired kiosk connected;
-- paired kiosk ready;
-- kiosk fullscreen;
-- no active authorization already exists.
-
-Authorization creation must be transactional.
-
-Kiosk unlock must occur only after successful authorization commit.
+Then record the completed slice and any discovered implementation issue before proceeding.
 
 ---
 
-# 8. Phase 7 — WebSocket Infrastructure
+# 6. Technical Foundations (Prerequisite Baseline)
 
-### Goal
+The foundation infrastructure provides the runtime environment for executing vertical slices.
 
-Establish real-time operational communication.
-
-### Build
-
-- Channels routing.
-- Authenticated WebSocket connections.
-- Required booth/election/admin groups.
-- Connection/disconnection events.
-- Readiness/fullscreen events.
-- Lock/unlock notifications.
-- Authorization notifications.
-- Election lifecycle events.
-- Ballot/turnout notifications.
-- Resynchronization messages.
-
-### Depends on
-
-Phases 2–6.
-
-### Complete when
-
-- Authorized clients connect.
-- Server identifies the technical device.
-- Server derives the device's booth.
-- Connection/disconnection state is reliable.
-- Events reach only their intended clients.
-- Candidate selections never reach Officer Stations.
-- Voter identity never reaches Kiosks.
-
-### Explicit exclusion
-
-**No application-level heartbeat.** Persistent WebSocket connection lifecycle is the liveness mechanism.
+### Foundation & Identity Baseline
+- **LAN Deployment Setup**: Self-hosted Django project configured for Local-Area Network access (`http://192.168.x.x:8000`), dedicated PostgreSQL database per installation.
+- **Dynamic First-Run Setup**: Uninitialized installation detection (`UNINITIALIZED → INITIALIZED`), dynamically creating exactly one Administrator (`role = ADMIN`). No hardcoded usernames or IDs.
+- **Technical Accounts & Device Sessions**: Technical device identities (`Device`, `device_type = OFFICER / KIOSK`), password hashing, one-active-session exclusivity (`DeviceSession`), session revocation/rotation.
+- **Channels & ASGI Configuration**: Daphne/ASGI foundation ready for domain-specific WebSocket consumers.
+- **Central Master Voter Registry**: `Voter`, `AcademicGroup`, configurable primary registry identity, CSV/Excel preview and transactional import, persistent grouped display (`references/04_voter_registry.png`).
 
 ---
 
-# 9. Phase 8 — Kiosk State Machine
+# 7. Part 1 — Election Setup Workflows (Slices 1–7)
 
-### Goal
+The election setup flow guides the administrator through the locked four-stage wizard.
 
-Implement server-authoritative kiosk runtime.
+### Slice 1: Create and Save Election Draft
+- **Workflow**: Admin navigates from Authenticated Home (`references/03_home.png`) → clicks **Start Election** → system initializes a new election draft (`status = DRAFT`) belonging to the installation.
+- **Architecture & Invariants**: Enforce installation ownership (no `Election.owner` or tenant scoping). Enforce active election constraint: if an election is already `ACTIVE`, initiating another election is rejected.
+- **Backend / Domain**: `elections.services.create_election_draft()`, model persistence.
+- **Frontend**: Election creation modal or transition to Stage 1.
+- **Test Scenarios**: Successful draft creation, draft persistence, rejection if an active election exists.
 
-### Build
+### Slice 2: Configure Election Voters (Stage 1)
+- **Workflow**: In Stage 1 (`references/06.1_voter_list.png`), Admin views eligible voters from the Master Voter Registry or imports voters directly via bulk CSV/Excel into the election. Admin selects voters (individually or in bulk) to enroll into the election as `ElectionVoter` records.
+- **Architecture & Invariants**: `unique(election, voter)`. Registry identity matching prevents duplicates. Voters are scoped to this election.
+- **Backend / Domain**: `voters.services.enroll_voters()`, `voters.importers.import_election_voters()`.
+- **Frontend**: Stage 1 template (`references/06.1_voter_list.png`): dense/grouped voter roster, search/filter controls, bulk selection, counter badges, next navigation.
+- **Test Scenarios**: Bulk enrollment, duplicate prevention, selection filtering, navigation state.
 
-Kiosk states:
+### Slice 3: Configure Positions and Candidates (Stage 2)
+- **Workflow**: In Stage 2 (`references/06.2_election_details.png`), Admin defines election title, voting period (`starts_at`, `ends_at`), positions, candidate assignments from enrolled election voters, editable candidate symbols, and position eligibility rules.
+- **Architecture & Invariants**: Positions belong to the election. Candidates belong to a position. Eligibility rules follow (OR within rule, AND across rules).
+- **Backend / Domain**: `elections.services.update_election_details()`, `elections.services.create_position()`, `elections.services.add_candidate()`, `elections.services.set_eligibility()`.
+- **Frontend**: Stage 2 template (`references/06.2_election_details.png`): single coherent workspace with modal candidate picker, symbol editing, and position accordion/card lists.
+- **Test Scenarios**: Position CRUD, candidate selection from enrolled voters, candidate validation, eligibility rule persistence.
 
-```text
-OFFLINE
-NOT_READY
-READY
-UNLOCKED
-VOTING
-LOCKED
-```
+### Slice 4: Configure Booths and Devices (Stage 3 — Setup)
+- **Workflow**: In Stage 3 (`references/06.3_booth&allocation.png`), Admin adds/configures polling booths. For each booth, system generates exactly one paired Officer Station device and one Voting Kiosk device, complete with masked credentials and one-click credential rotation. Lightweight printing actions (`Print voter list`, `Print booth slips`) are available.
+- **Architecture & Invariants**: Exactly one Officer and one Kiosk per booth. Derived booth isolation. Credential rotation revokes previous sessions.
+- **Backend / Domain**: `voters.services.create_booth()`, `accounts.services.provision_booth_devices()`, `accounts.services.rotate_device_credentials()`.
+- **Frontend**: Stage 3 template (`references/06.3_booth&allocation.png`): borderless booth cards, device pairing display, masked passwords, rotate pass button, discrete print buttons.
+- **Test Scenarios**: Booth creation, 1:1 device binding, credential generation/rotation, session revocation on rotation.
 
-Implement:
+### Slice 5: Allocate Voters to Booths (Stage 3 — Allocation)
+- **Workflow**: In Stage 3 (`references/06.3_booth&allocation.png`), Admin allocates enrolled `ElectionVoter` records to booths automatically (balanced distribution) or manually adjusts them. Pre-election booth addition or removal prompts necessary voter reallocation.
+- **Architecture & Invariants**: Every `ElectionVoter` must be assigned to exactly one Booth. No unallocated voters allowed before election start.
+- **Backend / Domain**: `voters.services.allocate_voters_balanced()`, `voters.services.reallocate_voter()`, `voters.services.remove_booth_and_reallocate()`.
+- **Frontend**: Stage 3 allocation controls: auto-allocate button, drag/select manual adjustment, per-booth voter count and academic group breakdown.
+- **Test Scenarios**: Balanced allocation math, manual reallocation, booth deletion with forced reallocation, booth-bound uniqueness invariant.
 
-- readiness reporting;
-- Fullscreen API readiness signal;
-- server-side lock/unlock;
-- authorization-driven unlock;
-- lock/reset behavior;
-- state synchronization;
-- corresponding kiosk UI states.
+### Slice 6: Validate Election Configuration (Stage 4 — Verification)
+- **Workflow**: Admin proceeds to Stage 4 Review & Start (`references/06.4_review.png`). Server executes comprehensive configuration validation checking election fields, positions, candidates, enrolled voters, 100% booth allocation, and device runtime readiness (Officer/Kiosk logged in and connected).
+- **Architecture & Invariants**: Read-only validation service. Distinguishes `Valid / Ready`, `Incomplete / Invalid`, and `Device Not Ready`. No separate `READY` database state.
+- **Backend / Domain**: `elections.services.validate_election_configuration()`.
+- **Frontend**: Stage 4 verification screen (`references/06.4_review.png`): status checklist, detailed validation warnings/blockers, runtime device connectivity badges.
+- **Test Scenarios**: Missing candidates rejection, unallocated voters rejection, unauthenticated devices warning/blocker, fully valid election confirmation.
 
-### Depends on
-
-Phases 6–7.
-
-### Complete when
-
-- Kiosk starts locked.
-- Kiosk cannot unlock without valid server authorization.
-- Fullscreen exit makes the kiosk not ready.
-- Officer cannot authorize through a not-ready kiosk.
-- Successful voting returns the kiosk to locked.
-- Browser state cannot override server state.
-
----
-
-# 10. Phase 9 — Voting
-
-### Goal
-
-Implement the complete atomic ballot workflow.
-
-### Build
-
-- Ballot generation.
-- Eligibility-filtered positions.
-- Candidate validation.
-- Multi-position ballot UI.
-- Complete ballot submission over HTTP.
-- Atomic vote transaction.
-- Duplicate-vote prevention.
-- Authorization consumption.
-- Kiosk locking after commit.
-- Post-commit success/events.
-
-### Depends on
-
-Phases 1–8.
-
-### Complete when
-
-A successful ballot follows:
-
-```text
-complete ballot submitted
-        ↓
-server validates entire ballot
-        ↓
-database transaction commits
-        ↓
-Vote records created
-        ↓
-ElectionVoter.has_voted = true
-        ↓
-Authorization = USED
-        ↓
-kiosk locked
-        ↓
-success returned/broadcast
-```
-
-A failed transaction leaves no partial ballot.
-
-A voter cannot submit a second accepted ballot.
-
-The actual vote is submitted through HTTP, never WebSocket.
-
-### Critical concurrency
-
-Use the transaction and row-lock rules defined by the architecture/data contracts.
+### Slice 7: Save as Draft / Start Election (Stage 4 → ACTIVE)
+- **Workflow**: On Stage 4 (`references/06.4_review.png`), Admin can choose **Save as Draft** (returns to Home) or **Start Election** (transitions `DRAFT → ACTIVE`).
+- **Architecture & Invariants**: Atomic transition `DRAFT → ACTIVE`. Locks election configuration completely (freeze on booths, candidates, positions, voter allocation, eligibility). Only credential rotation remains permitted. Exclusivity: exactly one active election across installation.
+- **Backend / Domain**: `elections.services.start_election()`, atomic state transition, configuration freeze enforcement.
+- **Frontend**: Start Election confirmation modal, redirect to Live Election Dashboard (`references/07_live.png`).
+- **Test Scenarios**: Transition validation, concurrent start prevention, configuration freeze validation (mutations rejected once active).
 
 ---
 
-# 11. Phase 10 — Reconnection / Resynchronization
+# 8. Part 2 — Operational Election Workflows (Slices 8–17)
 
-### Goal
+Operational workflows execute live polling over the LAN with strict booth isolation, server authority, and ballot secrecy.
 
-Make kiosk behavior correct across disconnects, reconnects, and lost responses.
+### Slice 8: Officer Authentication and Booth Readiness
+- **Workflow**: Officer launches browser on their station (`http://192.168.x.x:8000/login/`) → logs in with device credentials → server identifies device, derives its bound Booth, locks session exclusivity, and connects Officer WebSocket. Officer sees the bound Officer Station Dashboard (`voting/officer/dashboard.html`).
+- **Architecture & Invariants**: Technical identity authentication. Derived booth (Officer A → Booth A only). One active session enforcement.
+- **Backend / Domain**: `accounts.services.authenticate_device()`, `accounts.consumers.OfficerConsumer`.
+- **Frontend**: Officer Station dashboard: booth indicator, voter search box, kiosk status indicator.
+- **Test Scenarios**: Successful login, booth derivation, reject concurrent second login on same device, WebSocket channel subscription.
 
-### Build
+### Slice 9: Voter Authorization
+- **Workflow**: Voter arrives at Officer Station. Officer searches voter by identity/name → verifies eligibility and booth allocation → checks that Kiosk is connected, ready, and fullscreen → clicks **Authorize**. Server transactionally creates single-use `VoterAuthorization(status = ACTIVE)`.
+- **Architecture & Invariants**: Row locking order (`Election` → `ElectionVoter` → `Kiosk`). Server validates: election ACTIVE, within voting window, voter enrolled, voter belongs to officer's booth, `has_voted == False`, kiosk connected/ready/fullscreen, no existing ACTIVE authorization for kiosk.
+- **Backend / Domain**: `voting.services.create_authorization()`, `transaction.atomic()`, `select_for_update()`.
+- **Frontend**: Officer verification screen, authorize button with loading state, active authorization confirmation.
+- **Test Scenarios**: Valid authorization, rejection if voter belongs to other booth, rejection if voter already voted, rejection if kiosk not ready, rejection if another authorization is active.
 
-On reconnection:
+### Slice 10: Kiosk Authorization Reception and Unlocking
+- **Workflow**: On authorization commit, server broadcasts `kiosk.unlock` event via Django Channels to the paired Kiosk WebSocket. Kiosk unlocks, transitions from `LOCKED` to `UNLOCKED/VOTING`, and displays the voter's ballot interface. Officer station receives status sync.
+- **Architecture & Invariants**: `transaction.on_commit()` event emission. Server-authoritative kiosk state transition. No voter identity transmitted to Kiosk.
+- **Backend / Domain**: `voting.consumers.KioskConsumer`, `voting.services.unlock_kiosk()`.
+- **Frontend**: Kiosk screen transitions smoothly from locked waiting screen (`references/kiosk/locked.html`) to voting interface (`references/kiosk/ballot_position.html`).
+- **Test Scenarios**: Unlock event received only by bound kiosk, no voter identity leaked in payload, kiosk state transition to UNLOCKED, pre-commit failure emits no event.
 
-1. Authenticate the Django session.
-2. Identify the kiosk.
-3. Derive its booth from the server-side device binding.
-4. Read authoritative election state.
-5. Read authoritative kiosk state.
-6. Read authorization state.
-7. Resynchronize the browser.
-8. Ignore stale local state.
+### Slice 11: Ballot Submission
+- **Workflow**: Voter on Kiosk interacts with position-by-position ballot screens, selecting candidates. Voter reviews complete choices on review screen (`references/kiosk/review.html`) → clicks **Submit Ballot**. Complete ballot is posted over HTTP.
+- **Architecture & Invariants**: Multi-page UI, single complete ballot submission over HTTP (never WebSocket). Temporary local state in browser until submit. Candidate selections are never exposed to Officer or logs.
+- **Backend / Domain**: `voting.views.SubmitBallotView`, ballot payload validation.
+- **Frontend**: Step-by-step position screens, candidate cards with symbols, review screen, single-submit button with duplicate click prevention.
+- **Test Scenarios**: Multi-position selection, eligibility filtering (voter sees only positions they qualify for), payload structure validation, duplicate submission blocked at UI.
 
-Handle:
+### Slice 12: Transactional Vote Recording and Authorization Consumption
+- **Workflow**: Server receives complete ballot via HTTP. Within an atomic transaction with row locking, validates election state, authorization `ACTIVE`, voter `has_voted == False`, and every position/candidate. Creates anonymous `Vote` records, sets `ElectionVoter.has_voted = True`, sets `Authorization.status = USED`, locks Kiosk.
+- **Architecture & Invariants**: Lock order: `Election` → `ElectionVoter` → `Authorization` → `Kiosk`. Atomicity: all votes or none. Ballot secrecy: `Vote` contains only `(election, candidate, created_at)`—strictly no voter or authorization foreign keys.
+- **Backend / Domain**: `voting.services.submit_ballot()`, `transaction.atomic()`, `select_for_update()`.
+- **Frontend**: HTTP JSON response `{success: true}`.
+- **Test Scenarios**: Atomic commit, all `Vote` records created, `has_voted` set to true, authorization marked `USED`, rollback on partial/invalid candidate selection, concurrent double submission rejected.
 
-- reconnect before voting;
-- reconnect during active authorization;
-- browser close after authorization;
-- committed vote with lost HTTP response;
-- cancelled authorization;
-- election closure while disconnected.
+### Slice 13: Kiosk Return to Locked/Ready State
+- **Workflow**: Kiosk receives HTTP success response → displays **Vote recorded successfully** on success screen (`references/kiosk/success.html`) → automatically clears browser selection state → locks and returns to waiting screen (`references/kiosk/locked.html`).
+- **Architecture & Invariants**: Transient success feedback, zero persistence of candidate choices in browser, kiosk runtime state becomes `LOCKED`.
+- **Backend / Domain**: Kiosk runtime state synchronization.
+- **Frontend**: Success screen with timeout/reset, clean transition back to waiting for next authorization.
+- **Test Scenarios**: Selection memory wipe, return to locked screen, rejection of back-navigation or resubmission.
 
-### Complete when
+### Slice 14: Real-time Turnout and Device Synchronization
+- **Workflow**: Following successful ballot commitment, server emits `ballot.recorded` and `turnout.updated` WebSocket events to Live Election Dashboard (`references/07_live.png`) and Officer Stations. Dashboard updates total ballots cast, turnout percentage, and booth-specific metrics in real time.
+- **Architecture & Invariants**: `transaction.on_commit()` event broadcast. Live turnout derived from server counts. Zero candidate selection or voter link exposed in turnout events.
+- **Backend / Domain**: `voting.services.calculate_turnout()`, `voting.consumers.AdminLiveConsumer`.
+- **Frontend**: Live Election Dashboard (`references/07_live.png`): real-time animated counters, booth activity status, Officer/Kiosk connectivity badges.
+- **Test Scenarios**: Turnout increments only on committed ballot, event delivered to Live Dashboard, no candidate data in event, correct booth-specific count.
 
-- A committed ballot is never shown as uncommitted.
-- An uncommitted ballot is never shown as successfully recorded.
-- Lost responses can be resolved from authoritative server state.
+### Slice 15: Reconnection and State Resynchronization
+- **Workflow**: Kiosk or Officer browser disconnects, refreshes, or loses LAN connection. Upon reconnecting, WebSocket authenticates session, derives device/booth, reads authoritative server state, and sends synchronization message restoring exact server state.
+- **Architecture & Invariants**: Authoritative server reconstruction. Never trust local browser state. If vote committed but response was lost: recovery detects `Authorization = USED` and displays success/locked, preventing second vote.
+- **Backend / Domain**: `voting.services.resynchronize_kiosk()`, `voting.consumers.KioskConsumer.connect()`.
+- **Frontend**: Reconnecting overlay, seamless state restoration to appropriate screen.
+- **Test Scenarios**: Reconnect during active authorization, reconnect after vote commit with dropped HTTP response, reconnect after officer cancellation, reject stale local state.
 
----
+### Slice 16: Election Closure
+- **Workflow**: Admin clicks **End Election** on Live Dashboard (or election reaches `ends_at`). Server locks `Election` row, transitions `ACTIVE → CLOSED`, cancels any dangling `ACTIVE` authorizations, broadcasts `election.closed` WebSocket event to all stations, and rejects all subsequent authorizations and ballot submissions.
+- **Architecture & Invariants**: Lock `Election` row to prevent race with ongoing votes. Expired/closed elections immediately reject new authorizations and ballot submissions.
+- **Backend / Domain**: `elections.services.close_election()`, `voting.services.cancel_active_authorizations()`.
+- **Frontend**: End Election confirmation modal, Live Dashboard closed banner, Officer/Kiosk transition to election-ended view.
+- **Test Scenarios**: Vote vs close race condition (deterministic boundary), immediate rejection of voting after closure, dangling authorization cancellation, closure broadcast.
 
-# 12. Phase 11 — Turnout and Results
-
-### Goal
-
-Complete live election monitoring and post-election results.
-
-### Build
-
-Turnout:
-
-- total eligible voters;
-- total voters who voted;
-- turnout percentage;
-- per-booth activity;
-- live updates after committed ballots.
-
-Results:
-
-- result calculation;
-- Position → Candidate → Vote count;
-- result publication;
-- results UI.
-
-### Depends on
-
-Phase 9.
-
-### Complete when
-
-- Turnout changes only after successful ballot commitment.
-- Candidate-wise results are not exposed during active polling.
-- Results can be calculated after closure.
-- Results can be published only after closure.
-- Results are based on persisted Vote records.
-
----
-
-# 13. Phase 12 — Testing and Hardening
-
-### Goal
-
-Verify correctness, security, integrity, concurrency, and the complete lifecycle.
-
-### Verify
-
-- Model/database constraints.
-- Service logic.
-- Views.
-- WebSockets.
-- Integration.
-- Full election lifecycle.
-- Permissions/security.
-- Concurrency.
-- Failure/retry behavior.
-- Reconnection.
-- Import/allocation.
-- UI acceptance.
-- Data integrity.
-
-### Mandatory failure scenarios
-
-- duplicate authorization;
-- duplicate ballot submission;
-- simultaneous ballot submissions;
-- vote vs election-close race;
-- authorization vs election-close race;
-- failed ballot transaction;
-- commit succeeds but response is lost;
-- kiosk disconnect/reconnect;
-- fullscreen exit;
-- revoked credentials;
-- rotated credentials;
-- stale browser state;
-- cross-booth access;
-- unauthorized WebSocket access;
-- incomplete election configuration;
-- invalid voter allocation.
-
-### Complete when
-
-All critical invariants pass, the full election lifecycle passes, and no known critical security, ballot-secrecy, integrity, concurrency, or state-management defect remains.
+### Slice 17: Result Publication
+- **Workflow**: After election is `CLOSED`, Admin accesses Election Results (`references/08_result.png`). Server calculates tally exclusively from persisted `Vote` records: Position → Candidate → Vote count. Displays position breakdowns, vote shares, highlights winners, and enables official paper tally printing (`Print Results`).
+- **Architecture & Invariants**: Results strictly inaccessible while election is `ACTIVE`. Derived exclusively from anonymous `Vote` records. Winner calculation handles ties correctly.
+- **Backend / Domain**: `voting.services.calculate_results()`, `voting.views.ResultsView`.
+- **Frontend**: Results screen (`references/08_result.png`): position cards, vote counts, percentage bars, winner badge, `Print Results` button, navigation back to Home.
+- **Test Scenarios**: Results hidden while active, accurate tally matching votes, winner identification, multi-position tally, print view stylesheet.
 
 ---
 
-# 14. Cross-Phase Rules
+# 9. Cross-Slice Invariants and Architectural Rules
 
-These rules apply throughout the build.
+These core invariants apply across every vertical slice:
 
 ### Deployment and Installation Boundary
+- Electra is a self-hosted web application deployed on a dedicated Local-Area Network (LAN).
+- Exactly one PostgreSQL database per installation.
+- Exactly one human Administrator per installation (`role = ADMIN`), provisioned dynamically during first-run setup.
+- Exactly **one active election** at any time across the entire installation.
+- Strictly no SaaS, multi-tenancy, per-user election ownership (`Election.owner`), or public user registration.
 
-Electra is a self-hosted web application deployed on a Local-Area Network (LAN):
+### Architecture Layering & Responsibilities
+- Strictly follow: `Browser → HTTP Views / WebSocket Consumers → Services → Selectors / Models → PostgreSQL`.
+- Services own domain operations, business rules, and transaction boundaries.
+- Models own persistence, database constraints, and local integrity.
+- Templates and JavaScript handle presentation and user interactions only.
+- No business logic duplicated across views, consumers, forms, or JavaScript.
 
-- One installation = one PostgreSQL database = one human Administrator.
-- Separate installations are completely independent.
-- The browser is the client, communicating with Django via HTTP and WebSockets over the LAN.
-- The Administrator is created during first-run setup and must not be hardcoded.
-- Do not introduce SaaS platforms, multi-tenancy, tenant IDs, per-user ownership (`Election.owner`), or public user registration.
+### Server Authority
+- The server is the sole authority on all validation: voter eligibility, booth binding, election timing, authorization status, kiosk readiness, and ballot validity.
+- Client-side validation is strictly for usability and never serves as proof of authorization or commit.
 
-### Architecture
+### Ballot Secrecy
+- `Vote` records contain only `(election, candidate, created_at)`.
+- Never associate `Vote` with `voter_id`, `election_voter_id`, or `authorization_id`.
+- Never expose candidate selections to Officers, WebSocket broadcasts, or operational audit logs.
 
-Keep business logic in the correct layer:
+### Booth Isolation
+- Officer and Kiosk devices are strictly bound to their assigned Booth.
+- The server derives booth identity exclusively from the authenticated `Device` session.
+- Client-supplied booth IDs are never trusted.
 
-```text
-HTTP → Views → Services → Models/Selectors
-WebSocket → Consumers → Services → Models/Selectors
-```
+### Atomicity and Concurrency
+- Critical operations execute inside `transaction.atomic()` with `select_for_update()`.
+- Preserve the canonical row lock order: `Election → ElectionVoter → Authorization → Kiosk`.
+- Post-commit events must use `transaction.on_commit()`.
 
-Views and consumers orchestrate communication.
+### Configuration Freeze
+- Once an election becomes `ACTIVE`, all configuration (booths, candidates, positions, voter allocation, eligibility) is permanently frozen.
+- Credential rotation/revocation is the sole deliberate exception permitted during an active election.
 
-Services own domain operations and transaction boundaries.
-
-Models enforce persistence constraints and simple model behavior.
-
-Complex reads belong in the appropriate query/selector layer.
-
-### Server authority
-
-Never rely on browser state for:
-
-- authorization validity;
-- eligibility;
-- booth identity;
-- election state;
-- vote validity;
-- duplicate-vote prevention;
-- successful vote confirmation.
-
-### Ballot secrecy
-
-Do not create voter-to-candidate linkage through:
-
-- models;
-- API responses;
-- WebSocket events;
-- logs;
-- audit records;
-- UI.
-
-### Booth isolation
-
-The server derives booth identity from the authenticated technical identity.
-
-Do not trust a client-supplied booth identifier as authority.
-
-### Atomicity
-
-A multi-position ballot is one logical ballot and one atomic database operation.
-
-### Configuration freeze
-
-Do not introduce normal election-configuration mutations after activation.
-
-Credential rotation/revocation remains the deliberate operational exception.
-
-### Removed infrastructure
-
-Do not introduce:
-
-- application heartbeat;
-- Redis;
-- Celery;
-- external scheduler;
-- JWT;
-- React SPA;
-- microservices;
-- offline voting.
-
-Only an explicit locked requirements change can alter this scope.
+### Removed Infrastructure
+- No Redis, Celery, APScheduler, external message brokers, JWT, React SPA, microservices, or offline voting.
+- Persistent WebSocket connection lifecycle is the liveness mechanism (no application-level heartbeat).
 
 ---
 
-# 15. Phase Completion Gate
+# 10. Slice Completion Gate
 
-A phase is complete only when:
+A vertical slice is NOT complete merely because individual components exist. Before marking a slice complete and moving to the next:
 
 ```text
-Implementation
-    ↓
-Tests pass
-    ↓
-Relevant invariants checked
-    ↓
-Architecture boundaries checked
-    ↓
-No scope expansion introduced
-    ↓
-Acceptance criteria satisfied
-    ↓
-Phase reported complete
+[ ] Exact user workflow identified and traced end-to-end
+[ ] Backend/domain pieces implemented in owning app services
+[ ] Required frontend interfaces created matching references/
+[ ] WebSocket communication implemented where workflow requires it
+[ ] Frontend connected to backend and exercised end-to-end
+[ ] Relevant tests written and passing
+[ ] Invariants and failure paths verified
+[ ] Security, booth isolation, and server authority checked
+[ ] No duplicated business logic or premature abstractions introduced
 ```
-
-Code existing is not sufficient to mark a phase complete.
-
-Unresolved critical failures keep the phase incomplete.
 
 ---
 
-# 16. Final End-to-End Gate
+# 11. Final End-to-End Gate
 
-The implementation is complete only when this lifecycle works without violating the locked contracts:
+Electra is complete only when the full end-to-end lifecycle executes seamlessly without violating any locked contract:
 
 ```text
-Admin configures election
-        ↓
-Voters enrolled and allocated
-        ↓
-Booths/devices configured
-        ↓
-Election validated
-        ↓
-Election starts
-        ↓
-Officer authenticates
-        ↓
-Kiosk connects and becomes ready
-        ↓
-Officer verifies voter
-        ↓
-Officer authorizes voter
-        ↓
-Kiosk unlocks
-        ↓
-Voter completes ballot
-        ↓
-Server validates complete ballot
-        ↓
-Atomic commit
-        ↓
-Authorization USED
-        ↓
-Kiosk LOCKED
-        ↓
-Turnout updated
-        ↓
-Election closes
-        ↓
-Further authorization/voting rejected
-        ↓
-Results calculated/published
+Admin logs in (Home)
+      ↓
+Start Election (Draft created)
+      ↓
+Stage 1: Configure Election Voters (enrolled from Master Registry / bulk import)
+      ↓
+Stage 2: Configure Details & Candidates (single workspace, editable symbols, eligibility)
+      ↓
+Stage 3: Configure Booths & Allocation (paired devices, credentials, balanced allocation, print slips)
+      ↓
+Stage 4: Review & Start (validation verified, runtime readiness checked)
+      ↓
+Election Starts (DRAFT → ACTIVE, configuration frozen)
+      ↓
+Live Election Dashboard active (real-time turnout monitoring)
+      ↓
+Officer logs in (bound to Booth, single active session)
+      ↓
+Kiosk connects (fullscreen readiness signal, locked state)
+      ↓
+Officer verifies and authorizes voter (transactional ACTIVE authorization)
+      ↓
+Kiosk unlocks (receives WebSocket unlock event)
+      ↓
+Voter completes position-by-position ballot
+      ↓
+Complete ballot submitted over HTTP
+      ↓
+Atomic commit: Vote rows created, has_voted = True, Authorization = USED, Kiosk locked
+      ↓
+Turnout updated in real time on Live Dashboard
+      ↓
+Kiosk returns to locked waiting state
+      ↓
+Admin ends election (ACTIVE → CLOSED)
+      ↓
+Further authorization and ballot submission rejected
+      ↓
+Results calculated and published (winner highlight, paper tally printing)
+      ↓
+Return to Home
 ```
-
-Every stage must satisfy the relevant requirements, architecture rules, state transitions, data invariants, and testing/Definition-of-Done contract.
 
 ---
 
-# 17. Rule for Choosing the Next Task
+# 12. Rule for Choosing the Next Task
 
-Before implementing a change:
+Before implementing any task:
 
-1. Check this phase plan.
-2. Check `01-requirements.md`.
-3. Read the relevant focused contract.
-4. Inspect the existing code.
-5. Implement the smallest change that completes the current phase.
-6. Run the required tests.
-7. Check invariants and architecture boundaries.
-8. Check that scope has not expanded.
-9. Report the phase status.
-10. Proceed only when the phase completion gate is satisfied.
-
-The implementation plan controls **sequence**. It does not override the product requirements or the higher-authority locked specification.
+1. Identify the current vertical slice in the locked sequence (Slices 1–17).
+2. Trace the workflow through the specifications, data model, state machines, and invariants.
+3. Inspect existing code in the repository.
+4. Implement the smallest correct change that completes the vertical workflow end-to-end.
+5. Write and run tests for the workflow and its failure cases.
+6. Verify relevant invariants and security boundaries.
+7. Record completion and proceed to the next slice only when the Slice Completion Gate is satisfied.

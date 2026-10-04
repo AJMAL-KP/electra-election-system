@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Voter Registries — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/registries.css' %}">
+{% endblock %}
+
+{% block body_class %}registries-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="registries-layout">
+    <!-- Top Minimal Navigation -->
+    <header class="registries-top-bar">
+        <a href="{% url 'elections:dashboard' %}" class="registries-back-btn" aria-label="Back to Dashboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            <span>Back</span>
+        </a>
+    </header>
+
+    <main class="registries-container">
+        <!-- Hero Title & Subtitle -->
+        <div class="registries-hero">
+            <h1 class="registries-title">Voter registries</h1>
+            <p class="registries-subtitle">
+                Manage voter registries used for elections. Each registry has a fixed schema configuration and can be used by multiple elections.
+            </p>
+        </div>
+
+        <!-- Optional Action Strip -->
+        <div class="registries-actions-strip">
+            <a href="{% url 'voters:registry_create' %}" class="registries-btn-create">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Create registry</span>
+            </a>
+        </div>
+
+        <!-- Hidden Django Messages Container for Toast Rendering -->
+        {% if messages %}
+        <div style="display:none;" id="django-messages-data">
+            {% for message in messages %}
+            <div data-django-message data-type="{% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Registries Stack -->
+        {% if registries %}
+        <div class="registries-stack">
+            {% for reg in registries %}
+            <div class="registry-card-wrap">
+                <a href="{% url 'voters:registry_detail' reg.id %}" class="registry-card" aria-label="Open registry {{ reg.name }}">
+                    <div class="registry-card-header">
+                        <h2 class="registry-card-name">{{ reg.name }}</h2>
+                        <span class="registry-card-arrow" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                        </span>
+                    </div>
+                    <div class="registry-card-schema">
+                        <span class="schema-tag">{{ reg.name_source }}</span>
+                        <span class="schema-pipe">|</span>
+                        <span class="schema-tag">{{ reg.primary_id_source }}</span>
+                        <span class="schema-pipe">|</span>
+                        <span class="schema-tag">{{ reg.group_source }}</span>
+                        {% if reg.has_subgroups %}
+                        <span class="schema-pipe">|</span>
+                        <span class="schema-tag">{{ reg.subgroup_source }}</span>
+                        {% endif %}
+                        <span class="schema-pipe">|</span>
+                        <span class="schema-tag">{{ reg.gender_source }}</span>
+                    </div>
+                    {% if reg.voter_count is not None %}
+                    <div class="registry-card-stats">
+                        <span>{{ reg.voter_count }} voter{{ reg.voter_count|pluralize }}</span>
+                        <span class="stats-dot" aria-hidden="true"></span>
+                        <span>{{ reg.group_count|default:"0" }} {{ reg.group_source|lower|default:"departments" }}</span>
+                    </div>
+                    {% endif %}
+                </a>
+                <div class="registry-card-actions">
+                    {% if reg.election_count > 0 %}
+                    <span class="registry-locked-pill-small" title="Locked: Linked to an election and cannot be deleted or modified.">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        <span>Locked</span>
+                    </span>
+                    {% else %}
+                    <form method="post" action="{% url 'voters:registry_delete' reg.id %}" style="display:inline; margin:0;" onsubmit="return electraConfirmSubmit(event, this, 'Delete Registry', 'Are you sure you want to delete the \'{{ reg.name|escapejs }}\' registry? This action cannot be undone and will permanently remove all associated voter and department records.');">
+                        {% csrf_token %}
+                        <button type="submit" class="registry-delete-btn" title="Delete registry {{ reg.name }}" aria-label="Delete registry {{ reg.name }}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <!-- Empty State -->
+        <div class="registries-empty">
+            <h2 class="registries-empty-title">No voter registries found</h2>
+            <p class="registries-empty-desc">
+                Get started by creating your first voter registry to configure its schema and import voter data.
+            </p>
+            <a href="{% url 'voters:registry_create' %}" class="registries-btn-create">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Create registry</span>
+            </a>
+        </div>
+        {% endif %}
+    </main>
+</div>
+{% endblock %}

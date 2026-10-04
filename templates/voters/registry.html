@@ -1,0 +1,1069 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Master Voter Registry — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/registry.css' %}">
+{% endblock %}
+
+{% block body_class %}registry-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="registry-container">
+    <!-- Top Bar with Back Button -->
+    <div class="registry-top-bar">
+        <a href="{% url 'voters:registries' %}" class="registry-back-btn">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <span>Back to Registries</span>
+        </a>
+        <span class="sr-only" style="display:none;" aria-hidden="true">Central Voter Registry</span>
+    </div>
+
+    <!-- Hidden Django Messages Container for Toast Rendering -->
+    {% if messages %}
+    <div style="display:none;" id="django-messages-data">
+        {% for message in messages %}
+        <div data-django-message data-type="{% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Page Header & Action Buttons Row -->
+    <div class="registry-header-row">
+        <div class="registry-title-area">
+            <h1 class="registry-title">{{ registry.name|default:"Master voter registry" }}</h1>
+            <p class="registry-subtitle">
+                {% if registry %}
+                <span class="registry-schema-text" style="color: #6B7280; font-size: 13.5px; letter-spacing: 0.01em;">{{ registry.schema_display }}</span>
+                {% else %}
+                Manage the master list of voters. Add, edit details and assign groups.
+                {% endif %}
+            </p>
+        </div>
+        <div class="registry-actions-area">
+            {% if is_linked_to_election %}
+            <div class="registry-locked-pill" title="This registry is locked because it is used in an election. Its contents cannot be modified.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Locked &middot; In Use by Election{% if linked_elections %} ({{ linked_elections.0.name }}){% endif %}</span>
+            </div>
+            {% else %}
+            <a href="{% if registry %}{% url 'voters:registry_import' registry.id %}?reset=1{% else %}{% url 'voters:import' %}?reset=1{% endif %}" class="registry-btn-action registry-btn-import">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                <span>Import</span>
+            </a>
+            {% if registry %}
+            <form method="post" action="{% url 'voters:registry_delete' registry.id %}" style="display:inline; margin:0;" onsubmit="return electraConfirmSubmit(event, this, 'Delete Registry', 'Are you sure you want to delete the \'{{ registry.name|escapejs }}\' registry? This action cannot be undone and will permanently remove all associated voter and department records.');">
+                {% csrf_token %}
+                <button type="submit" class="registry-btn-action registry-btn-danger" title="Delete registry {{ registry.name }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    <span>Delete</span>
+                </button>
+            </form>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Search & Sort Strip -->
+    <div class="registry-toolbar">
+        <form method="get" action="{% if registry %}{% url 'voters:registry_detail' registry.id %}{% else %}{% url 'voters:registry' %}{% endif %}" class="registry-toolbar-left" id="search-filter-form" novalidate>
+            <div class="registry-search-wrap">
+                <input type="text" name="q" id="search-input" value="{{ search_query }}" class="registry-search-input" placeholder="Search by name, ID or email..." onkeydown="if(event.key==='Enter') this.form.submit();">
+                <button type="submit" class="registry-search-btn" title="Search" aria-label="Search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
+            </div>
+
+            {% if search_query %}
+            <a href="{% if registry %}{% url 'voters:registry_detail' registry.id %}{% else %}{% url 'voters:registry' %}{% endif %}{% if current_sort %}?sort={{ current_sort }}{% endif %}" class="registry-clear-btn" title="Clear search">Clear</a>
+            {% endif %}
+
+            <!-- Single Sort Button: toggles count asc/desc with animated icon -->
+            <input type="hidden" name="sort" id="sort-input" value="{{ current_sort }}">
+            <button type="button" class="registry-btn-sort {% if current_sort == 'count_desc' or current_sort == 'count' %}is-active is-desc{% elif current_sort == 'count_asc' %}is-active is-asc{% endif %}" onclick="toggleCountSort()" title="Sort groups by voter count">
+                <span>Sort by count</span>
+                <span class="sort-icon-indicator {% if current_sort == 'count_asc' %}asc{% elif current_sort == 'count_desc' or current_sort == 'count' %}desc{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                </span>
+            </button>
+        </form>
+
+        <div class="registry-toolbar-right">
+            <span class="registry-count-voters">{{ summary.total_voters|default:0 }} voters</span>
+            <span class="registry-count-groups">{{ summary.total_groups|default:0 }} {{ registry.group_source|lower|default:"departments" }}</span>
+        </div>
+    </div>
+
+    <!-- Main Content: Filtered View OR Grouped Accordion -->
+    {% if is_filtering %}
+    <!-- Filtered Results View -->
+    <div class="registry-accordion-list">
+        <div class="registry-group-card open" style="margin-bottom: 24px;">
+            <div class="registry-group-header" style="cursor: default;">
+                <div class="registry-group-header-left" style="display: flex; align-items: center; gap: 10px;">
+                    <a href="{% if registry %}{% url 'voters:registry_detail' registry.id %}{% else %}{% url 'voters:registry' %}{% endif %}{% if current_sort %}?sort={{ current_sort }}{% endif %}" class="registry-search-back-arrow" title="Back to all {{ registry.group_source|lower|default:'departments' }}" aria-label="Back">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    </a>
+                    <span class="registry-group-name">Search Results</span>
+                    <span class="registry-group-badge">{{ total_results }} found</span>
+                </div>
+            </div>
+            <div class="registry-group-body" style="display: block;">
+                {% if filtered_voters %}
+                <table class="registry-table">
+                    <thead>
+                        <tr>
+                            {% if not is_linked_to_election %}
+                            <th class="col-checkbox">
+                                <input type="checkbox" class="registry-checkbox table-select-all" title="Select all in table" onclick="toggleTableSelectAll(this)">
+                            </th>
+                            {% endif %}
+                            <th>{{ registry.group_source|default:"Department"|upper }}</th>
+                            <th>{{ registry.name_source|default:"Name"|upper }}</th>
+                            <th>{{ registry.primary_id_source|default:"Student ID"|upper }}</th>
+                            <th>{{ registry.subgroup_source|default:"Semester"|upper }}</th>
+                            <th>{{ registry.gender_source|default:"Gender"|upper }}</th>
+                            {% if not is_linked_to_election %}
+                            <th class="col-actions">ACTIONS</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for voter in filtered_voters %}
+                        <tr>
+                            {% if not is_linked_to_election %}
+                            <td class="col-checkbox"><input type="checkbox" class="registry-checkbox voter-select-checkbox" data-voter-id="{{ voter.id }}" aria-label="Select voter" onchange="updateBulkBar()"></td>
+                            {% endif %}
+                            <td class="voter-group-cell">{{ voter.academic_group.parent.name|default:voter.academic_group.name|default:"—" }}</td>
+                            <td class="voter-name-cell">{{ voter.name }}</td>
+                            <td class="voter-id-cell">{{ voter.primary_registry_value }}</td>
+                            <td>{% if voter.academic_group.parent %}{{ voter.academic_group.name }}{% else %}—{% endif %}</td>
+                            <td>{{ voter.gender|default:"—" }}</td>
+                            {% if not is_linked_to_election %}
+                            <td class="col-actions">
+                                <div class="voter-actions-wrap">
+                                    <button type="button" class="voter-action-btn" title="Edit voter" onclick="openEditVoterModal('{{ voter.id }}', '{{ voter.primary_registry_value|escapejs }}', '{{ voter.name|escapejs }}', '{{ voter.gender|escapejs }}', '{{ voter.academic_group_id|default:'' }}')">
+                                        <svg viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                    </button>
+                                    <form method="post" action="{% url 'voters:delete' voter.id %}" style="display: inline;" onsubmit="return electraConfirmSubmit(event, this, 'Delete Voter', 'Are you sure you want to delete voter \'{{ voter.name|escapejs }}\'? This action cannot be undone.');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="voter-action-btn voter-action-btn--delete" title="Delete voter">
+                                            <svg viewBox="0 0 24 24" fill="none"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="electra-empty-state" style="padding: 32px 20px;">
+                    <p class="electra-empty-desc">No voters matched your query criteria.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Grouped Accordion List (Matched faithfully to references/04_voter_registry.png) -->
+    <div class="registry-accordion-list">
+        {% for group in top_level_groups %}
+        <div class="registry-group-card" id="group-card-{{ group.id }}">
+            <div class="registry-group-header" onclick="toggleGroupAccordion('group-card-{{ group.id }}', event)">
+                <div class="registry-group-header-left">
+                    <span class="registry-chevron-btn" aria-hidden="true">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </span>
+                    {% if not is_linked_to_election %}
+                    <input type="checkbox" class="registry-checkbox group-select-all" data-group-id="{{ group.id }}" title="Select all in {{ group.name }}" onclick="event.stopPropagation(); toggleGroupSelectAll('{{ group.id }}', this.checked)">
+                    {% endif %}
+                    <span class="registry-group-name">{{ group.name }}</span>
+                    <span class="registry-group-badge">{{ group.voter_count }}</span>
+                </div>
+                <div class="registry-group-header-right" onclick="event.stopPropagation();">
+                    {% if not is_linked_to_election %}
+                    <button type="button" class="registry-header-btn" onclick="openAddVoterForGroup('{{ group.id }}', '{{ group.name|escapejs }}', '{{ group.dot_color|default:'#3B82F6'|escapejs }}', [ {% for s in group.subgroups_list %}{id: '{{ s.id }}', name: '{{ s.name|escapejs }}'}{% if not forloop.last %},{% endif %}{% endfor %} ])">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        <span>+ Add voter</span>
+                    </button>
+                    <form method="post" action="{% url 'voters:group_delete' group.id %}" style="display:inline;" onsubmit="return electraConfirmSubmit(event, this, 'Delete {{ registry.group_source|default:"Department" }}', 'Are you sure you want to delete {{ registry.group_source|lower|default:"department" }} \'{{ group.name|escapejs }}\'? This action will delete all voters in this {{ registry.group_source|lower|default:"department" }}.');">
+                        {% csrf_token %}
+                        <button type="submit" class="registry-header-btn registry-header-btn--delete" title="Delete {{ registry.group_source|lower|default:'department' }}">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Group Content Body -->
+            <div class="registry-group-body">
+                {% if group.subgroups_list %}
+                <!-- Sub-groups Section: Collapsed initially, fully expands rows pushing other groups downward -->
+                <div class="registry-subgroups-wrap">
+                    {% for sub in group.subgroups_list %}
+                    <div class="registry-subgroup-card" id="subgroup-card-{{ sub.id }}">
+                        <div class="registry-subgroup-header" onclick="toggleSubgroupAccordion('subgroup-card-{{ sub.id }}', event)">
+                            <div class="registry-subgroup-header-left">
+                                <span class="registry-chevron-btn" aria-hidden="true">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                </span>
+                                {% if not is_linked_to_election %}
+                                <input type="checkbox" class="registry-checkbox subgroup-select-all" data-subgroup-id="{{ sub.id }}" data-parent-group-id="{{ group.id }}" title="Select all in {{ sub.name }}" onclick="event.stopPropagation(); toggleSubgroupSelectAll('{{ sub.id }}', '{{ group.id }}', this.checked)">
+                                {% endif %}
+                                <span class="registry-subgroup-name">{{ sub.name }}</span>
+                                <span class="registry-group-badge">{{ sub.voter_count }}</span>
+                            </div>
+                            <div class="registry-group-header-right" onclick="event.stopPropagation();">
+                                {% if not is_linked_to_election %}
+                                <form method="post" action="{% url 'voters:group_delete' sub.id %}" style="display:inline;" onsubmit="return electraConfirmSubmit(event, this, 'Delete {{ registry.subgroup_source|default:"Subdivision" }}', 'Are you sure you want to delete {{ registry.subgroup_source|lower|default:"subdivision" }} \'{{ sub.name|escapejs }}\'? This action will delete all voters in this {{ registry.subgroup_source|lower|default:"subdivision" }}.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="registry-header-btn registry-header-btn--delete" title="Delete {{ registry.subgroup_source|lower|default:'subdivision' }}">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Subgroup Roster Table (Full rows shown when expanded) -->
+                        <div class="registry-subgroup-body">
+                            {% if sub.all_voters %}
+                            <table class="registry-table">
+                                <thead>
+                                    <tr>
+                                        {% if not is_linked_to_election %}
+                                        <th class="col-checkbox">
+                                            <input type="checkbox" class="registry-checkbox table-select-all" title="Select all in sub group" onclick="toggleTableSelectAll(this)">
+                                        </th>
+                                        {% endif %}
+                                        <th>{{ registry.group_source|default:"Department"|upper }}</th>
+                                        <th>{{ registry.name_source|default:"Name"|upper }}</th>
+                                        <th>{{ registry.primary_id_source|default:"Student ID"|upper }}</th>
+                                        <th>{{ registry.subgroup_source|default:"Semester"|upper }}</th>
+                                        <th>{{ registry.gender_source|default:"Gender"|upper }}</th>
+                                        {% if not is_linked_to_election %}
+                                        <th class="col-actions">ACTIONS</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for voter in sub.all_voters %}
+                                    <tr>
+                                        {% if not is_linked_to_election %}
+                                        <td class="col-checkbox">
+                                            <input type="checkbox" class="registry-checkbox voter-select-checkbox" data-voter-id="{{ voter.id }}" data-group-id="{{ group.id }}" data-subgroup-id="{{ sub.id }}" onchange="updateBulkBar()">
+                                        </td>
+                                        {% endif %}
+                                        <td class="voter-group-cell">{{ group.name }}</td>
+                                        <td class="voter-name-cell">{{ voter.name }}</td>
+                                        <td class="voter-id-cell">{{ voter.primary_registry_value }}</td>
+                                        <td>{{ sub.name }}</td>
+                                        <td>{{ voter.gender|default:"—" }}</td>
+                                        {% if not is_linked_to_election %}
+                                        <td class="col-actions">
+                                            <div class="voter-actions-wrap">
+                                                <button type="button" class="voter-action-btn" title="Edit voter" onclick="openEditVoterModal('{{ voter.id }}', '{{ voter.primary_registry_value|escapejs }}', '{{ voter.name|escapejs }}', '{{ voter.gender|escapejs }}', '{{ voter.academic_group_id|default:'' }}')">
+                                                    <svg viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                                </button>
+                                                <form method="post" action="{% url 'voters:delete' voter.id %}" style="display: inline;" onsubmit="return electraConfirmSubmit(event, this, 'Delete Voter', 'Are you sure you want to delete voter \'{{ voter.name|escapejs }}\'? This action cannot be undone.');">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="voter-action-btn voter-action-btn--delete" title="Delete voter">
+                                                        <svg viewBox="0 0 24 24" fill="none"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <div class="electra-empty-state" style="padding: 24px 16px;">
+                                <p class="electra-empty-desc">No voters assigned to this sub group yet.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if group.direct_voters %}
+                <!-- Voters assigned directly to group without subgroup -->
+                <div class="registry-direct-voters-wrap">
+                    {% if group.subgroups_list %}
+                    <div style="font-size: 13px; font-weight: 600; color: #6B7280; padding: 12px 16px 6px;">Unassigned to {{ registry.subgroup_source|default:"Semester" }} ({{ group.direct_voters|length }})</div>
+                    {% endif %}
+                    <table class="registry-table">
+                        <thead>
+                            <tr>
+                                {% if not is_linked_to_election %}
+                                <th class="col-checkbox">
+                                    <input type="checkbox" class="registry-checkbox table-select-all" title="Select all in table" onclick="toggleTableSelectAll(this)">
+                                </th>
+                                {% endif %}
+                                <th>{{ registry.group_source|default:"Department"|upper }}</th>
+                                <th>{{ registry.name_source|default:"Name"|upper }}</th>
+                                <th>{{ registry.primary_id_source|default:"Student ID"|upper }}</th>
+                                <th>{{ registry.subgroup_source|default:"Semester"|upper }}</th>
+                                <th>{{ registry.gender_source|default:"Gender"|upper }}</th>
+                                {% if not is_linked_to_election %}
+                                <th class="col-actions">ACTIONS</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for voter in group.direct_voters %}
+                            <tr>
+                                {% if not is_linked_to_election %}
+                                <td class="col-checkbox">
+                                    <input type="checkbox" class="registry-checkbox voter-select-checkbox" data-voter-id="{{ voter.id }}" data-group-id="{{ group.id }}" onchange="updateBulkBar()">
+                                </td>
+                                {% endif %}
+                                <td class="voter-group-cell">{{ group.name }}</td>
+                                <td class="voter-name-cell">{{ voter.name }}</td>
+                                <td class="voter-id-cell">{{ voter.primary_registry_value }}</td>
+                                <td>—</td>
+                                <td>{{ voter.gender|default:"—" }}</td>
+                                {% if not is_linked_to_election %}
+                                <td class="col-actions">
+                                    <div class="voter-actions-wrap">
+                                        <button type="button" class="voter-action-btn" title="Edit voter" onclick="openEditVoterModal('{{ voter.id }}', '{{ voter.primary_registry_value|escapejs }}', '{{ voter.name|escapejs }}', '{{ voter.gender|escapejs }}', '{{ voter.academic_group_id|default:'' }}')">
+                                            <svg viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                        </button>
+                                        <form method="post" action="{% url 'voters:delete' voter.id %}" style="display: inline;" onsubmit="return electraConfirmSubmit(event, this, 'Delete Voter', 'Are you sure you want to delete voter \'{{ voter.name|escapejs }}\'? This action cannot be undone.');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="voter-action-btn voter-action-btn--delete" title="Delete voter">
+                                                <svg viewBox="0 0 24 24" fill="none"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                {% if not group.subgroups_list and not group.direct_voters %}
+                <!-- Empty Group State -->
+                <div class="electra-empty-state" style="padding: 32px 16px;">
+                    <p class="electra-empty-desc" style="margin-bottom: 14px;">No voters in {{ group.name }} yet.</p>
+                    {% if not is_linked_to_election %}
+                    <a href="{% if registry %}{% url 'voters:registry_import' registry.id %}{% else %}{% url 'voters:import' %}{% endif %}?default_group={{ group.name|urlencode }}" class="registry-btn-action">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                        <span>Import voters</span>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <!-- Borderless Empty State for Entire Registry -->
+        <div class="electra-empty-state">
+            <svg class="electra-empty-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            <h3 class="electra-empty-title">No {{ registry.group_source|default:"Department" }}s Configured</h3>
+            <p class="electra-empty-desc">Import your voter roster spreadsheet to get started.</p>
+            {% if not is_linked_to_election %}
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <a href="{% if registry %}{% url 'voters:registry_import' registry.id %}{% else %}{% url 'voters:import' %}{% endif %}" class="registry-btn-action">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                    <span>Import CSV / Excel</span>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <!-- Floating Scroll Up Button -->
+    <button type="button" id="floating-scroll-up-btn" class="registry-floating-up-btn" aria-label="Scroll to previous group" title="Scroll to top group">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="18 15 12 9 6 15"/></svg>
+    </button>
+
+    {% if not is_linked_to_election %}
+    <!-- Floating Bulk Actions Bar (for deleting selected voter rows) -->
+    <div id="registry-bulk-bar" class="registry-bulk-bar" style="display: none;">
+        <div class="registry-bulk-info">
+            <span id="registry-bulk-count">0</span> voter(s) selected
+        </div>
+        <div class="registry-bulk-actions">
+            <button type="button" class="registry-bulk-cancel-btn" onclick="clearAllSelections()">Cancel</button>
+            <form id="bulk-delete-form" method="post" action="{% url 'voters:bulk_delete' %}" style="display:inline; margin:0;" onsubmit="return handleBulkDelete(event);">
+                {% csrf_token %}
+                <input type="hidden" name="registry_id" value="{{ registry.id }}">
+                <input type="hidden" name="voter_ids" id="bulk-delete-voter-ids" value="">
+                <button type="submit" class="registry-bulk-delete-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    Delete
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ========================================================================
+     MODALS
+     ======================================================================== -->
+
+<!-- Modal: Add Single Voter (Sub Group field shown only if group has sub groups) -->
+<div id="modal-add-voter" class="registry-modal-backdrop" style="display: none;">
+    <div class="registry-modal-panel">
+        <div class="registry-modal-header">
+            <div>
+                <h2 class="registry-modal-title">Add voter</h2>
+                <div id="add-voter-group-badge" class="add-voter-group-badge">
+                    <span id="add-voter-group-dot" class="add-voter-group-dot"></span>
+                    <span id="add-voter-group-name">Group</span>
+                </div>
+            </div>
+            <button type="button" class="registry-modal-close" onclick="closeModal('modal-add-voter')" aria-label="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <form method="post" action="{% url 'voters:create' %}" class="registry-modal-form" novalidate id="add-voter-form">
+            {% csrf_token %}
+            <input type="hidden" name="registry_id" value="{{ registry.id }}">
+            <input type="hidden" id="add-voter-academic-group-id" name="academic_group_id" value="">
+            
+            <div class="registry-form-group">
+                <label for="add-voter-id" class="registry-form-label">{{ registry.primary_id_source|default:"Student ID" }} *</label>
+                <input type="text" id="add-voter-id" name="primary_registry_value" class="registry-form-input" placeholder="e.g. CS001, 2026001" required>
+            </div>
+            <div class="registry-form-group">
+                <label for="add-voter-name" class="registry-form-label">{{ registry.name_source|default:"Full Name" }} *</label>
+                <input type="text" id="add-voter-name" name="name" class="registry-form-input" placeholder="e.g. Aarav Nair" required>
+            </div>
+
+            <!-- Sub Group field (shown only if the existing group has sub groups) -->
+            <div class="registry-form-group" id="add-voter-subgroup-group" style="display: none;">
+                <label class="registry-form-label">{{ registry.subgroup_source|default:"Semester / Section" }}</label>
+                <div id="add-voter-subgroup-radios" class="registry-radio-group">
+                </div>
+            </div>
+
+            <div class="registry-form-group">
+                <label class="registry-form-label">{{ registry.gender_source|default:"Gender" }}</label>
+                <div class="registry-radio-group">
+                    <label class="registry-radio-label">
+                        <input type="radio" name="gender" value="Male" class="registry-radio-input">
+                        <span class="registry-radio-text">Male</span>
+                    </label>
+                    <label class="registry-radio-label">
+                        <input type="radio" name="gender" value="Female" class="registry-radio-input">
+                        <span class="registry-radio-text">Female</span>
+                    </label>
+                    <label class="registry-radio-label">
+                        <input type="radio" name="gender" value="Other" class="registry-radio-input">
+                        <span class="registry-radio-text">Other</span>
+                    </label>
+                    <label class="registry-radio-label">
+                        <input type="radio" name="gender" value="" class="registry-radio-input" checked>
+                        <span class="registry-radio-text">Unspecified</span>
+                    </label>
+                </div>
+            </div>
+            <div class="registry-modal-footer">
+                <button type="button" class="registry-btn-action" onclick="closeModal('modal-add-voter')">Cancel</button>
+                <button type="submit" class="registry-btn-primary">Add Voter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Edit Voter -->
+<div id="modal-edit-voter" class="registry-modal-backdrop" style="display: none;">
+    <div class="registry-modal-panel">
+        <div class="registry-modal-header">
+            <h2 class="registry-modal-title">Edit voter</h2>
+            <button type="button" class="registry-modal-close" onclick="closeModal('modal-edit-voter')" aria-label="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <form id="edit-voter-form" method="post" action="" class="registry-modal-form" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="registry_id" value="{{ registry.id }}">
+            <div class="registry-form-group">
+                <label for="edit-voter-id" class="registry-form-label">{{ registry.primary_id_source|default:"Student ID" }} (Read-only)</label>
+                <input type="text" id="edit-voter-id" class="registry-form-input" readonly style="background-color: #FFFFFF; cursor: not-allowed; opacity: 0.85;">
+            </div>
+            <div class="registry-form-group">
+                <label for="edit-voter-name" class="registry-form-label">{{ registry.name_source|default:"Full Name" }} *</label>
+                <input type="text" id="edit-voter-name" name="name" class="registry-form-input" required>
+            </div>
+            <!-- Hidden input that submits the final assigned academic_group_id -->
+            <input type="hidden" name="academic_group_id" id="edit-voter-final-group-id" value="">
+
+            <div class="edit-voter-groups-row{% if not registry.has_subgroups %} single-col{% endif %}" id="edit-voter-groups-container">
+                <div class="registry-form-group edit-group-col">
+                    <label for="edit-voter-group-select" class="registry-form-label">{{ registry.group_source|default:"Department" }} *</label>
+                    <select id="edit-voter-group-select" class="electra-select registry-form-select" data-label="{{ registry.group_source|default:'Department' }}" required>
+                        <option value="" disabled selected>Select {{ registry.group_source|default:"Department" }}...</option>
+                        {% for grp in top_level_groups %}
+                        <option value="{{ grp.id }}">{{ grp.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if registry.has_subgroups %}
+                <div class="registry-form-group edit-subgroup-col" id="edit-voter-subgroup-col">
+                    <label for="edit-voter-subgroup-select" class="registry-form-label">{{ registry.subgroup_source|default:"Semester" }} *</label>
+                    <select id="edit-voter-subgroup-select" class="electra-select registry-form-select" data-label="{{ registry.subgroup_source|default:'Semester' }}" required>
+                        <option value="" disabled selected>Select {{ registry.subgroup_source|default:"Semester" }}...</option>
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+            <div class="registry-form-group">
+                <label class="registry-form-label">{{ registry.gender_source|default:"Gender" }}</label>
+                <div class="registry-radio-group">
+                    <label class="registry-radio-label">
+                        <input type="radio" name="gender" id="edit-gender-male" value="Male" class="registry-radio-input">
+                        <span class="registry-radio-text">Male</span>
+                    </label>
+                    <label class="registry-radio-label">
+                        <input type="radio" name="gender" id="edit-gender-female" value="Female" class="registry-radio-input">
+                        <span class="registry-radio-text">Female</span>
+                    </label>
+                    <label class="registry-radio-label">
+                        <input type="radio" name="gender" id="edit-gender-other" value="Other" class="registry-radio-input">
+                        <span class="registry-radio-text">Other</span>
+                    </label>
+                    <label class="registry-radio-label">
+                        <input type="radio" name="gender" id="edit-gender-unspec" value="" class="registry-radio-input">
+                        <span class="registry-radio-text">Unspecified</span>
+                    </label>
+                </div>
+            </div>
+            <div class="registry-modal-footer">
+                <button type="button" class="registry-btn-action" onclick="closeModal('modal-edit-voter')">Cancel</button>
+                <button type="submit" class="registry-btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script id="registry-hierarchy-json" type="application/json">
+{
+  {% for grp in top_level_groups %}
+  "{{ grp.id }}": {
+    "name": "{{ grp.name|escapejs }}",
+    "subgroups": [
+      {% for sub in grp.subgroups_list %}
+      {"id": {{ sub.id }}, "name": "{{ sub.name|escapejs }}"}{% if not forloop.last %},{% endif %}
+      {% endfor %}
+    ]
+  }{% if not forloop.last %},{% endif %}
+  {% endfor %}
+}
+</script>
+<script>
+    // Group Accordion Toggle
+    function toggleGroupAccordion(cardId, event) {
+        if (event.target.closest('button') || event.target.closest('a') || event.target.closest('input')) {
+            return;
+        }
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.classList.toggle('open');
+        }
+    }
+
+    // Sub-group Accordion Toggle
+    function toggleSubgroupAccordion(cardId, event) {
+        if (event.target.closest('button') || event.target.closest('a') || event.target.closest('input')) {
+            return;
+        }
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.classList.toggle('open');
+        }
+    }
+
+    // Toggle Sort by Count
+    function toggleCountSort() {
+        const sortInput = document.getElementById('sort-input');
+        const current = sortInput.value;
+        if (current === 'count_desc' || current === 'count') {
+            sortInput.value = 'count_asc';
+        } else {
+            sortInput.value = 'count_desc';
+        }
+        document.getElementById('search-filter-form').submit();
+    }
+
+    // Select All in Table
+    function toggleTableSelectAll(headerCheckbox) {
+        const table = headerCheckbox.closest('table');
+        if (!table) return;
+        const isChecked = headerCheckbox.checked;
+
+        table.querySelectorAll('.voter-select-checkbox').forEach(cb => {
+            cb.checked = isChecked;
+        });
+
+        updateBulkBar();
+    }
+
+    // Select All in Group
+    function toggleGroupSelectAll(groupId, isChecked) {
+        const groupCard = document.getElementById('group-card-' + groupId);
+        if (!groupCard) return;
+
+        groupCard.querySelectorAll('.subgroup-select-all').forEach(cb => {
+            cb.checked = isChecked;
+            cb.indeterminate = false;
+        });
+
+        groupCard.querySelectorAll('.table-select-all').forEach(cb => {
+            cb.checked = isChecked;
+            cb.indeterminate = false;
+        });
+
+        groupCard.querySelectorAll('.voter-select-checkbox').forEach(cb => {
+            cb.checked = isChecked;
+        });
+
+        updateBulkBar();
+    }
+
+    // Select All in Subgroup
+    function toggleSubgroupSelectAll(subgroupId, parentGroupId, isChecked) {
+        const subgroupCard = document.getElementById('subgroup-card-' + subgroupId);
+        if (!subgroupCard) return;
+
+        subgroupCard.querySelectorAll('.table-select-all').forEach(cb => {
+            cb.checked = isChecked;
+            cb.indeterminate = false;
+        });
+
+        subgroupCard.querySelectorAll('.voter-select-checkbox').forEach(cb => {
+            cb.checked = isChecked;
+        });
+
+        updateBulkBar();
+    }
+
+    // Update Bulk Bar and Group Checkbox States
+    function updateBulkBar() {
+        const checkedBoxes = Array.from(document.querySelectorAll('.voter-select-checkbox:checked'));
+        const count = checkedBoxes.length;
+        const bulkBar = document.getElementById('registry-bulk-bar');
+        const countEl = document.getElementById('registry-bulk-count');
+        const idsInput = document.getElementById('bulk-delete-voter-ids');
+
+        if (countEl) countEl.textContent = count;
+        if (idsInput) {
+            idsInput.value = checkedBoxes.map(cb => cb.getAttribute('data-voter-id')).join(',');
+        }
+
+        if (bulkBar) {
+            bulkBar.style.display = count > 0 ? 'flex' : 'none';
+        }
+
+        // Synchronize all table-select-all checkboxes
+        document.querySelectorAll('.registry-table').forEach(table => {
+            const tableAllBox = table.querySelector('.table-select-all');
+            if (tableAllBox) {
+                const voterBoxes = table.querySelectorAll('.voter-select-checkbox');
+                const checked = table.querySelectorAll('.voter-select-checkbox:checked');
+                const all = voterBoxes.length > 0 && checked.length === voterBoxes.length;
+                const some = checked.length > 0 && !all;
+                tableAllBox.checked = all;
+                tableAllBox.indeterminate = some;
+            }
+        });
+
+        // Synchronize all subgroup-select-all checkboxes
+        document.querySelectorAll('.registry-subgroup-card').forEach(subgroupCard => {
+            const subAllBox = subgroupCard.querySelector('.subgroup-select-all');
+            if (subAllBox) {
+                const voterBoxes = subgroupCard.querySelectorAll('.voter-select-checkbox');
+                const checked = subgroupCard.querySelectorAll('.voter-select-checkbox:checked');
+                const all = voterBoxes.length > 0 && checked.length === voterBoxes.length;
+                const some = checked.length > 0 && !all;
+                subAllBox.checked = all;
+                subAllBox.indeterminate = some;
+            }
+        });
+
+        // Synchronize each group-level select-all checkbox
+        document.querySelectorAll('.registry-group-card').forEach(groupCard => {
+            const groupAllBox = groupCard.querySelector('.group-select-all');
+            if (groupAllBox) {
+                const voterBoxes = groupCard.querySelectorAll('.voter-select-checkbox');
+                const groupChecked = groupCard.querySelectorAll('.voter-select-checkbox:checked');
+                const allChecked = voterBoxes.length > 0 && groupChecked.length === voterBoxes.length;
+                const someChecked = groupChecked.length > 0 && !allChecked;
+                groupAllBox.checked = allChecked;
+                groupAllBox.indeterminate = someChecked;
+            }
+        });
+    }
+
+    // Clear all selections
+    function clearAllSelections() {
+        document.querySelectorAll('.voter-select-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        document.querySelectorAll('.table-select-all').forEach(cb => {
+            cb.checked = false;
+            cb.indeterminate = false;
+        });
+        document.querySelectorAll('.subgroup-select-all').forEach(cb => {
+            cb.checked = false;
+            cb.indeterminate = false;
+        });
+        document.querySelectorAll('.group-select-all').forEach(cb => {
+            cb.checked = false;
+            cb.indeterminate = false;
+        });
+        updateBulkBar();
+    }
+
+    // Handle Bulk Delete with custom electraConfirm
+    function handleBulkDelete(event) {
+        event.preventDefault();
+        const checkedBoxes = Array.from(document.querySelectorAll('.voter-select-checkbox:checked'));
+        const count = checkedBoxes.length;
+        if (count === 0) return false;
+
+        const form = document.getElementById('bulk-delete-form');
+        window.electraConfirm({
+            title: 'Delete Selected Voters',
+            message: `Are you sure you want to delete ${count} selected voter(s)? This action cannot be undone.`,
+            confirmText: 'Delete',
+            isDanger: true,
+            onConfirm: function() {
+                form.submit();
+            }
+        });
+        return false;
+    }
+
+    // Modals
+    function openModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+
+    function closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // Open Add Voter for a specific Group
+    function openAddVoterForGroup(groupId, groupName, dotColor, subgroups) {
+        const form = document.getElementById('add-voter-form');
+        if (form) form.reset();
+
+        const nameEl = document.getElementById('add-voter-group-name');
+        const dotEl = document.getElementById('add-voter-group-dot');
+        if (nameEl) nameEl.textContent = groupName;
+        if (dotEl) dotEl.style.backgroundColor = dotColor || '#3B82F6';
+
+        const sgGroup = document.getElementById('add-voter-subgroup-group');
+        const sgRadios = document.getElementById('add-voter-subgroup-radios');
+
+        if (subgroups && subgroups.length > 0) {
+            sgGroup.style.display = 'block';
+            sgRadios.innerHTML = '';
+
+            subgroups.forEach(function(sub, idx) {
+                const label = document.createElement('label');
+                label.className = 'registry-radio-label';
+
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = 'academic_subgroup_radio';
+                radio.value = sub.id;
+                radio.className = 'registry-radio-input';
+                if (idx === 0) {
+                    radio.checked = true;
+                    document.getElementById('add-voter-academic-group-id').value = sub.id;
+                }
+                radio.onchange = function() {
+                    document.getElementById('add-voter-academic-group-id').value = this.value;
+                };
+
+                const span = document.createElement('span');
+                span.className = 'registry-radio-text';
+                span.textContent = sub.name;
+
+                label.appendChild(radio);
+                label.appendChild(span);
+                sgRadios.appendChild(label);
+            });
+        } else {
+            sgGroup.style.display = 'none';
+            document.getElementById('add-voter-academic-group-id').value = groupId;
+        }
+
+        openModal('modal-add-voter');
+    }
+
+    let registryHierarchyData = {};
+    try {
+        const hierEl = document.getElementById('registry-hierarchy-json');
+        if (hierEl) registryHierarchyData = JSON.parse(hierEl.textContent || '{}');
+    } catch(e) {
+        console.error('Failed to parse hierarchy JSON', e);
+    }
+
+    function populateEditSubgroups(topGroupId, selectedSubgroupId) {
+        const subgroupSelect = document.getElementById('edit-voter-subgroup-select');
+        if (!subgroupSelect) return;
+
+        const subLabel = subgroupSelect.getAttribute('data-label') || 'Semester';
+        subgroupSelect.innerHTML = '<option value="" disabled selected>Select ' + subLabel + '...</option>';
+
+        if (topGroupId && registryHierarchyData[topGroupId]) {
+            const subs = registryHierarchyData[topGroupId].subgroups || [];
+            if (subs.length > 0) {
+                subs.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name;
+                    if (String(s.id) === String(selectedSubgroupId)) {
+                        opt.selected = true;
+                    }
+                    subgroupSelect.appendChild(opt);
+                });
+                subgroupSelect.disabled = false;
+            } else {
+                subgroupSelect.disabled = true;
+            }
+        } else {
+            subgroupSelect.disabled = true;
+        }
+
+        if (typeof window.refreshElectraSelect === 'function') {
+            window.refreshElectraSelect(subgroupSelect);
+        }
+    }
+
+    function openEditVoterModal(voterId, primaryId, name, gender, groupId) {
+        const form = document.getElementById('edit-voter-form');
+        form.action = '/voters/' + voterId + '/edit/';
+        document.getElementById('edit-voter-id').value = primaryId;
+        document.getElementById('edit-voter-name').value = name;
+        
+        // Select gender radio
+        if (gender === 'Male') {
+            document.getElementById('edit-gender-male').checked = true;
+        } else if (gender === 'Female') {
+            document.getElementById('edit-gender-female').checked = true;
+        } else if (gender === 'Other') {
+            document.getElementById('edit-gender-other').checked = true;
+        } else {
+            document.getElementById('edit-gender-unspec').checked = true;
+        }
+
+        const groupSelect = document.getElementById('edit-voter-group-select');
+        const subgroupSelect = document.getElementById('edit-voter-subgroup-select');
+        const finalGroupInput = document.getElementById('edit-voter-final-group-id');
+
+        let matchedTopGroupId = '';
+        let matchedSubgroupId = '';
+
+        if (groupId) {
+            const strId = String(groupId);
+            if (registryHierarchyData[strId]) {
+                matchedTopGroupId = strId;
+                matchedSubgroupId = '';
+            } else {
+                for (const topId in registryHierarchyData) {
+                    const subs = registryHierarchyData[topId].subgroups || [];
+                    const found = subs.find(s => String(s.id) === strId);
+                    if (found) {
+                        matchedTopGroupId = topId;
+                        matchedSubgroupId = strId;
+                        break;
+                    }
+                }
+                if (!matchedTopGroupId) {
+                    matchedTopGroupId = strId;
+                }
+            }
+        }
+
+        if (groupSelect) {
+            groupSelect.value = matchedTopGroupId;
+            if (typeof window.refreshElectraSelect === 'function') window.refreshElectraSelect(groupSelect);
+        }
+
+        populateEditSubgroups(matchedTopGroupId, matchedSubgroupId);
+
+        if (finalGroupInput) {
+            finalGroupInput.value = matchedSubgroupId || matchedTopGroupId || '';
+        }
+
+        openModal('modal-edit-voter');
+    }
+
+    // Bind change listeners on Edit Modal selects
+    document.addEventListener('DOMContentLoaded', function () {
+        const editGroupSelect = document.getElementById('edit-voter-group-select');
+        const editSubgroupSelect = document.getElementById('edit-voter-subgroup-select');
+        const editFinalGroupInput = document.getElementById('edit-voter-final-group-id');
+        const editForm = document.getElementById('edit-voter-form');
+
+        if (editGroupSelect) {
+            editGroupSelect.addEventListener('change', function () {
+                const topId = this.value;
+                populateEditSubgroups(topId, '');
+                if (editFinalGroupInput) {
+                    editFinalGroupInput.value = (editSubgroupSelect && !editSubgroupSelect.disabled && editSubgroupSelect.value) ? editSubgroupSelect.value : topId;
+                }
+            });
+        }
+
+        if (editSubgroupSelect) {
+            editSubgroupSelect.addEventListener('change', function () {
+                if (editFinalGroupInput) {
+                    editFinalGroupInput.value = this.value || (editGroupSelect ? editGroupSelect.value : '');
+                }
+            });
+        }
+
+        if (editForm) {
+            editForm.addEventListener('submit', function (e) {
+                const nameInput = document.getElementById('edit-voter-name');
+                if (nameInput && !nameInput.value.trim()) {
+                    e.preventDefault();
+                    if (window.showElectraToast) {
+                        window.showElectraToast('Please enter the voter name.', 'error');
+                    }
+                    return false;
+                }
+                if (editGroupSelect && !editGroupSelect.value) {
+                    e.preventDefault();
+                    const label = editGroupSelect.getAttribute('data-label') || 'Department';
+                    if (window.showElectraToast) {
+                        window.showElectraToast('Please select a ' + label + '.', 'error');
+                    }
+                    return false;
+                }
+                if (editSubgroupSelect && !editSubgroupSelect.disabled && !editSubgroupSelect.value) {
+                    e.preventDefault();
+                    const label = editSubgroupSelect.getAttribute('data-label') || 'Semester';
+                    if (window.showElectraToast) {
+                        window.showElectraToast('Please select a ' + label + '.', 'error');
+                    }
+                    return false;
+                }
+                if (editFinalGroupInput) {
+                    if (editSubgroupSelect && !editSubgroupSelect.disabled && editSubgroupSelect.value) {
+                        editFinalGroupInput.value = editSubgroupSelect.value;
+                    } else if (editGroupSelect && editGroupSelect.value) {
+                        editFinalGroupInput.value = editGroupSelect.value;
+                    }
+                }
+            });
+        }
+    });
+
+    // Floating Scroll Up Arrow Navigation
+    function initFloatingScrollUp() {
+        const btn = document.getElementById('floating-scroll-up-btn');
+        if (!btn) return;
+
+        function updateVisibility() {
+            const isScrolled = window.scrollY > 100;
+            if (isScrolled) {
+                btn.classList.add('is-visible');
+            } else {
+                btn.classList.remove('is-visible');
+            }
+        }
+
+        window.addEventListener('scroll', updateVisibility, { passive: true });
+        document.addEventListener('click', function() {
+            setTimeout(updateVisibility, 80);
+        });
+
+        btn.addEventListener('click', function() {
+            const currentScrollY = window.scrollY;
+
+            // 1. Check for expanded groups or subgroups above current scroll position
+            const expandedElements = Array.from(document.querySelectorAll('.registry-group-card.open, .registry-subgroup-card.open'));
+            const expandedAbove = expandedElements.filter(el => {
+                const top = window.scrollY + el.getBoundingClientRect().top;
+                return top < currentScrollY - 20;
+            });
+
+            if (expandedAbove.length > 0) {
+                // Navigate to closest expanded group/subgroup above
+                expandedAbove.sort((a, b) => {
+                    const topA = window.scrollY + a.getBoundingClientRect().top;
+                    const topB = window.scrollY + b.getBoundingClientRect().top;
+                    return topB - topA;
+                });
+                expandedAbove[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                return;
+            }
+
+            // 2. If no expanded element above, navigate to next group card above
+            const allGroups = Array.from(document.querySelectorAll('.registry-group-card'));
+            const groupsAbove = allGroups.filter(el => {
+                const top = window.scrollY + el.getBoundingClientRect().top;
+                return top < currentScrollY - 20;
+            });
+
+            if (groupsAbove.length > 0) {
+                groupsAbove.sort((a, b) => {
+                    const topA = window.scrollY + a.getBoundingClientRect().top;
+                    const topB = window.scrollY + b.getBoundingClientRect().top;
+                    return topB - topA;
+                });
+                groupsAbove[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                return;
+            }
+
+            // 3. Fallback: Scroll to top of page
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        updateVisibility();
+    }
+
+    // Close on backdrop click
+    document.querySelectorAll('.registry-modal-backdrop').forEach(function(backdrop) {
+        backdrop.addEventListener('click', function(e) {
+            if (e.target === backdrop) {
+                backdrop.style.display = 'none';
+            }
+        });
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.registry-modal-backdrop').forEach(function(b) {
+                b.style.display = 'none';
+            });
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        initFloatingScrollUp();
+    });
+</script>
+{% endblock %}

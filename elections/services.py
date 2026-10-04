@@ -7,6 +7,7 @@ Owns:
 - Start, close, and publish_results operations (atomic with select_for_update)
 - Server-side deadline expiry enforcement
 """
+from typing import Optional
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -14,20 +15,34 @@ from django.utils import timezone
 from elections.models import Candidate, Election, ElectionStatus, Position
 
 
-def create_election(*, name: str, starts_at, ends_at, description: str = "") -> Election:
+def create_election(
+    *,
+    name: str,
+    description: str = "",
+    starts_at=None,
+    ends_at=None,
+    voter_registry=None,
+) -> Election:
     """Create a new election in DRAFT status for the installation.
     
     Installation-scoped: no owner or tenant scoping.
+    Title and description are set at creation.
+    starts_at is automatically stamped at launch time, and cutoff time (ends_at) is finalized before start.
     """
-    if ends_at <= starts_at:
+    clean_name = name.strip()
+    if not clean_name:
+        raise ValidationError("Election title is required.")
+
+    if starts_at and ends_at and ends_at <= starts_at:
         raise ValidationError("Election cutoff time (ends_at) must be strictly after start time (starts_at).")
 
     election = Election(
-        name=name.strip(),
+        name=clean_name,
         description=description.strip(),
         starts_at=starts_at,
         ends_at=ends_at,
         status=ElectionStatus.DRAFT,
+        voter_registry=voter_registry,
     )
     election.full_clean()
     election.save()
@@ -38,9 +53,10 @@ def update_election(
     *,
     election_id: int,
     name: str,
-    starts_at,
-    ends_at,
     description: str = "",
+    starts_at=None,
+    ends_at=None,
+    voter_registry=None,
 ) -> Election:
     """Update election parameters. Permitted ONLY when election is in DRAFT."""
     with transaction.atomic():
@@ -48,16 +64,21 @@ def update_election(
         if not election.is_draft:
             raise ValidationError("Configuration is frozen. Only DRAFT elections may be edited.")
 
-        if ends_at <= starts_at:
+        if starts_at and ends_at and ends_at <= starts_at:
             raise ValidationError("Election cutoff time must be strictly after start time.")
 
         election.name = name.strip()
         election.description = description.strip()
-        election.starts_at = starts_at
-        election.ends_at = ends_at
+        if starts_at is not None:
+            election.starts_at = starts_at
+        if ends_at is not None:
+            election.ends_at = ends_at
+        if voter_registry is not None:
+            election.voter_registry = voter_registry
         election.full_clean()
         election.save()
         return election
+
 
 
 def delete_election(*, election_id: int) -> None:
@@ -123,14 +144,41 @@ def delete_position(*, position_id: int) -> None:
         position.delete()
 
 
-def create_candidate(*, position_id: int, name: str, academic_group: str = "", symbol: str = "", photo=None) -> Candidate:
-    """Register a candidate contesting a position. Permitted ONLY when election is in DRAFT."""
+def create_candidate(
+    *,
+    position_id: int,
+    name: str = "",
+    academic_group: str = "",
+    symbol: str = "",
+    photo=None,
+    voter_id: Optional[int] = None,
+) -> Candidate:
+    """Register a candidate contesting a position. Permitted ONLY when election is in DRAFT.
+    
+    If voter_id is provided, candidate name and academic group are prefilled from registry.
+    """
+    from voters.models import Voter
+
     with transaction.atomic():
         position = Position.objects.select_for_update().select_related("election").get(id=position_id)
         if not position.election.is_draft:
             raise ValidationError("Configuration is frozen. Candidates cannot be added once election is activated.")
 
+        voter_obj = None
+        if voter_id:
+            try:
+                voter_obj = Voter.objects.select_related("academic_group").get(id=voter_id)
+                if not name:
+                    name = voter_obj.name
+                if not academic_group and voter_obj.academic_group:
+                    academic_group = voter_obj.academic_group.name
+            except Voter.DoesNotExist:
+                raise ValidationError("Specified voter does not exist in registry.")
+
         cleaned_name = name.strip()
+        if not cleaned_name:
+            raise ValidationError("Candidate name is required.")
+
         cleaned_symbol = symbol.strip()
         if Candidate.objects.filter(position=position, name__iexact=cleaned_name).exists():
             raise ValidationError(f"Candidate '{cleaned_name}' is already registered for this position.")
@@ -140,6 +188,7 @@ def create_candidate(*, position_id: int, name: str, academic_group: str = "", s
 
         candidate = Candidate(
             position=position,
+            voter=voter_obj,
             name=cleaned_name,
             academic_group=academic_group.strip(),
             symbol=cleaned_symbol,
@@ -150,12 +199,28 @@ def create_candidate(*, position_id: int, name: str, academic_group: str = "", s
         return candidate
 
 
-def update_candidate(*, candidate_id: int, name: str, academic_group: str = "", symbol: str = "", photo=None) -> Candidate:
+def update_candidate(
+    *,
+    candidate_id: int,
+    name: str,
+    academic_group: str = "",
+    symbol: str = "",
+    photo=None,
+    voter_id: Optional[int] = None,
+) -> Candidate:
     """Update candidate details. Permitted ONLY when parent election is in DRAFT."""
+    from voters.models import Voter
+
     with transaction.atomic():
         candidate = Candidate.objects.select_for_update().select_related("position__election").get(id=candidate_id)
         if not candidate.position.election.is_draft:
             raise ValidationError("Configuration is frozen. Candidates cannot be modified once election is activated.")
+
+        if voter_id:
+            try:
+                candidate.voter = Voter.objects.get(id=voter_id)
+            except Voter.DoesNotExist:
+                raise ValidationError("Specified voter does not exist in registry.")
 
         cleaned_name = name.strip()
         cleaned_symbol = symbol.strip()
@@ -184,24 +249,35 @@ def delete_candidate(*, candidate_id: int) -> None:
         candidate.delete()
 
 
-def validate_election_configuration(election: Election) -> list[str]:
-    """Validate election configuration readiness.
+def validate_election_configuration(election: Election, *, check_cutoff: bool = True) -> list[str]:
+    """Validate election configuration readiness before activation.
     
     Returns a list of error strings if invalid, or empty list if valid.
     Rules:
     - Election must be in DRAFT status.
-    - ends_at must be strictly greater than starts_at.
+    - Cutoff time (ends_at) must be specified and strictly after start time (when check_cutoff=True).
     - At least one position must exist.
     - Every position must have at least one candidate.
     - No other election is currently ACTIVE.
+    - At least one booth exists.
+    - Every booth has an active Officer device session and active Kiosk device session.
+    - At least one voter enrolled.
+    - Every enrolled ElectionVoter has booth assigned.
     """
+    from accounts.models import DeviceType
+    from accounts.selectors import get_active_device_session
+    from voters.models import ElectionVoter
+
     errors: list[str] = []
 
     if not election.is_draft:
         errors.append(f"Election is in {election.status} state; only DRAFT elections can be validated for activation.")
 
-    if election.ends_at <= election.starts_at:
-        errors.append("Election cutoff time must be strictly after start time.")
+    if check_cutoff:
+        if not election.ends_at:
+            errors.append("Election cutoff time must be specified before launching live polling.")
+        elif election.starts_at and election.ends_at <= election.starts_at:
+            errors.append("Election cutoff time must be strictly after start time.")
 
     # Check for another active election in the installation
     active_exists = Election.objects.filter(status=ElectionStatus.ACTIVE).exclude(id=election.id).exists()
@@ -216,26 +292,53 @@ def validate_election_configuration(election: Election) -> list[str]:
             if pos.candidates.count() == 0:
                 errors.append(f"Position '{pos.name}' has no registered candidates. Every position requires at least one candidate.")
 
+    booths = list(election.booths.prefetch_related("devices").all())
+    if not booths:
+        errors.append("Election has no polling booths configured. At least one booth is required.")
+    else:
+        for booth in booths:
+            officer_dev = booth.devices.filter(device_type=DeviceType.OFFICER).first()
+            kiosk_dev = booth.devices.filter(device_type=DeviceType.KIOSK).first()
+            if not officer_dev or not get_active_device_session(officer_dev.id):
+                errors.append(f"Booth {booth.booth_number}: Officer station must be logged in with an active session.")
+            if not kiosk_dev or not get_active_device_session(kiosk_dev.id):
+                errors.append(f"Booth {booth.booth_number}: Voting Kiosk must be logged in with an active session.")
+
+    enrolled_count = ElectionVoter.objects.filter(election=election).count()
+    if enrolled_count == 0:
+        errors.append("No voters enrolled in this election. Please enroll voters before activation.")
+    else:
+        unallocated_count = ElectionVoter.objects.filter(election=election, booth__isnull=True).count()
+        if unallocated_count > 0:
+            errors.append(f"{unallocated_count} enrolled voter(s) have not been allocated to a polling booth.")
+
     return errors
 
 
-def start_election(*, election_id: int) -> Election:
+def start_election(*, election_id: int, ends_at=None) -> Election:
     """Atomically start the election, transitioning DRAFT -> ACTIVE.
     
     Locks the election row and enforces:
-    - Exact transition from DRAFT -> ACTIVE.
+    - starts_at is automatically stamped at this exact launch moment.
+    - ends_at is confirmed/finalized.
     - Full configuration readiness checks.
+    - Exact transition from DRAFT -> ACTIVE.
     - Configuration is frozen upon activation.
     """
     with transaction.atomic():
         election = Election.objects.select_for_update().get(id=election_id)
         
+        now = timezone.now()
+        election.starts_at = now
+        if ends_at is not None:
+            election.ends_at = ends_at
+
         errors = validate_election_configuration(election)
         if errors:
             raise ValidationError({"configuration": errors})
 
         election.status = ElectionStatus.ACTIVE
-        election.save(update_fields=["status", "updated_at"])
+        election.save(update_fields=["status", "starts_at", "ends_at", "updated_at"])
         return election
 
 

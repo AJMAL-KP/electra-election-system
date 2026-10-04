@@ -25,13 +25,29 @@ class Election(models.Model):
     """
     name = models.CharField(max_length=255, help_text="Election title.")
     description = models.TextField(blank=True, help_text="Institutional overview or notes.")
-    starts_at = models.DateTimeField(help_text="Scheduled voting start time.")
-    ends_at = models.DateTimeField(help_text="Scheduled voting cutoff time.")
+    starts_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Scheduled voting start time (automatically stamped when election goes live)."
+    )
+    ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Scheduled voting cutoff time."
+    )
     status = models.CharField(
         max_length=20,
         choices=ElectionStatus.choices,
         default=ElectionStatus.DRAFT,
         help_text="Canonical lifecycle state."
+    )
+    voter_registry = models.ForeignKey(
+        'voters.VoterRegistry',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='elections',
+        help_text="The single voter registry selected as the voter source for this election."
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -39,7 +55,7 @@ class Election(models.Model):
     results_published_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ['-starts_at']
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.name} [{self.get_status_display()}]"
@@ -108,6 +124,14 @@ class Candidate(models.Model):
         on_delete=models.CASCADE,
         related_name='candidates',
         help_text="Position this candidate is contesting."
+    )
+    voter = models.ForeignKey(
+        'voters.Voter',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='candidacies',
+        help_text="Optional link to central voter registry identity."
     )
     name = models.CharField(max_length=200, help_text="Candidate full name.")
     academic_group = models.CharField(

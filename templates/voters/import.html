@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Import Voters — {{ registry.name }} — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/import.css' %}">
+{% endblock %}
+
+{% block body_class %}import-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="import-page-wrapper">
+    <!-- Top Bar with Back Link -->
+    <header class="import-top-bar">
+        <a href="{% if registry %}{% url 'voters:registry_detail' registry.id %}{% else %}{% url 'voters:registries' %}{% endif %}" class="import-back-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <span>Back</span>
+        </a>
+    </header>
+
+    <!-- Global Messages Container for Toast Rendering -->
+    {% if messages %}
+    <div style="display:none;" id="django-messages-data">
+        {% for message in messages %}
+        <div data-django-message data-type="{% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- ====================================================================
+         STATE 1: Central File Upload Screen (Initial View)
+         ==================================================================== -->
+    <div id="state-upload-screen" class="state-upload-screen" style="{% if pending_file %}display: none;{% endif %}">
+        <div class="upload-hero">
+            <h1 class="upload-hero-title">Import voters</h1>
+            <p class="upload-hero-subtitle">
+                Upload your institution's voter file (CSV or Excel) to import voters into {{ registry.name }}.
+            </p>
+        </div>
+
+        <!-- Registry Schema Configuration Display -->
+        <div class="import-schema-card">
+            <div class="import-schema-header">
+                <span class="import-schema-title">Expected file columns for {{ registry.name }}</span>
+            </div>
+            <div class="import-schema-pills">
+                <div class="schema-pill schema-pill--required" title="Must be present in the file">
+                    <span class="schema-pill-name">{{ registry.primary_id_source|default:"Student ID" }}</span>
+                    <span class="schema-pill-badge schema-pill-badge--required">Required</span>
+                </div>
+                <div class="schema-pill schema-pill--required" title="Must be present in the file">
+                    <span class="schema-pill-name">{{ registry.name_source|default:"Name" }}</span>
+                    <span class="schema-pill-badge schema-pill-badge--required">Required</span>
+                </div>
+                {% if registry.has_subgroups %}
+                <div class="schema-pill schema-pill--required" title="Must be present in the file">
+                    <span class="schema-pill-name">{{ registry.subgroup_source|default:"Semester" }}</span>
+                    <span class="schema-pill-badge schema-pill-badge--required">Required</span>
+                </div>
+                {% endif %}
+                <div class="schema-pill schema-pill--manual" title="Can be in file or entered manually">
+                    <span class="schema-pill-name">{{ registry.group_source|default:"Department" }}</span>
+                    <span class="schema-pill-badge schema-pill-badge--manual">File or Manual</span>
+                </div>
+                {% if registry.gender_source and registry.gender_source|lower != 'none' and registry.gender_source|lower != '(none)' %}
+                <div class="schema-pill schema-pill--optional" title="Optional in the file">
+                    <span class="schema-pill-name">{{ registry.gender_source|default:"Gender" }}</span>
+                    <span class="schema-pill-badge schema-pill-badge--optional">Optional</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Inline Error Box for Missing Required Columns on Upload Screen -->
+        <div id="upload-error-box" class="upload-error-box" style="display: none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="upload-error-message"></span>
+        </div>
+
+        <div id="upload-dropzone-box" class="upload-dropzone-box" tabindex="0" role="button" aria-label="Upload voter spreadsheet file">
+            <div id="upload-prompt-container" style="display: flex; flex-direction: column; align-items: center;">
+                <div class="upload-icon-circle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                </div>
+                <p class="upload-prompt-text">
+                    Drag and drop your file here, or <span class="upload-prompt-browse">browse</span>
+                </p>
+                <p class="upload-subtext">Supports .csv, .xlsx, .xls</p>
+            </div>
+
+            <div id="upload-loading-overlay" class="upload-loading-overlay">
+                <div class="upload-spinner"></div>
+                <span class="upload-loading-text">Analyzing spreadsheet structure...</span>
+            </div>
+
+            <input type="file" id="state1-file-input" accept=".csv, .xlsx, .xls" style="display: none;">
+        </div>
+
+        <!-- Missing Group Prompt: Prompt admin for group value before transitioning to preview -->
+        <div id="upload-group-prompt" class="upload-group-prompt" style="display: none;">
+            <div class="group-prompt-header">
+                <div class="group-prompt-badge">Action Required</div>
+                <h3 class="group-prompt-title">The file is missing the {{ registry.group_source|default:"Department" }} column</h3>
+                <p class="group-prompt-desc">All other columns are valid. Please enter or select the {{ registry.group_source|lower|default:"department" }} name to assign to all voters in this file:</p>
+            </div>
+            <div class="group-prompt-controls">
+                <div class="group-prompt-input-wrap">
+                    <input type="text" id="upload-group-input" list="upload-groups-datalist" class="group-prompt-input" placeholder="Select or type {{ registry.group_source|lower|default:'department' }}..." autocomplete="off">
+                    <datalist id="upload-groups-datalist">
+                        {% for g in existing_groups %}
+                        <option value="{{ g }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <button type="button" id="upload-group-continue-btn" class="group-prompt-continue-btn">
+                    <span>Continue to Preview</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         STATE 2: 04_voter_import.png (File Card, Missing Fields, Preview, Submit)
+         ==================================================================== -->
+    <main id="state-import-screen" class="import-container" style="{% if not pending_file %}display: none;{% endif %}">
+        <!-- Centered Header -->
+        <div class="import-header">
+            <h1 class="import-title">Import voters</h1>
+            <p class="import-subtitle">
+                Upload a file to import voters into the {{ registry.name }} registry. Columns will be matched automatically with the existing schema.
+            </p>
+        </div>
+
+        <form id="voter-import-form" method="post" enctype="multipart/form-data" action="{% if registry %}{% url 'voters:registry_import' registry.id %}{% else %}{% url 'voters:import' %}{% endif %}" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="action" value="commit">
+            <input type="hidden" name="registry_id" id="registry-id" value="{{ registry.id }}">
+            <input type="file" id="file-input" name="file" accept=".csv, .xlsx, .xls" class="file-hidden-input">
+
+            <!-- Section 1: Upload File -->
+            <section class="import-section">
+                <h2 class="import-section-title">1. Upload file</h2>
+
+                <div id="file-card-box" class="file-card">
+                    <div class="file-card-left">
+                        <div class="file-icon-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <line x1="10" y1="9" x2="8" y2="9"></line>
+                            </svg>
+                        </div>
+                        <div class="file-info-text">
+                            <div class="file-name" id="display-filename">{{ pending_file.filename|default:"" }}</div>
+                            <div class="file-meta" id="display-filemeta">
+                                {% if pending_file %}
+                                {{ pending_file.data_rows|length }} records &middot; {{ pending_file.filesize|default:"Uploaded" }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="file-card-right">
+                        <button type="button" class="btn-replace-file" id="btn-replace-file">Replace file</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Missing Registry Fields (Dynamic: Only Group can be missing and entered manually) -->
+            <section id="missing-fields-section" class="import-section" style="{% if not pending_file or not missing_group %}display: none;{% endif %}">
+                <h2 class="import-section-title">2. Missing registry fields</h2>
+                <p class="import-section-desc">The following field was not present in the uploaded file. Provide or adjust the value to be used for all voters in this import.</p>
+
+                <div class="missing-fields-card">
+                    <!-- Missing Group Field (Required) -->
+                    <div id="missing-group-row" class="missing-field-row" style="{% if not missing_group and pending_file %}display: none;{% endif %}">
+                        <div class="missing-field-left">
+                            <div class="missing-field-heading">
+                                <span class="field-title">Group</span>
+                                <span class="field-pill" id="group-source-pill">{{ registry.group_source|default:"Department" }}</span>
+                            </div>
+                            <p class="missing-field-notice" id="missing-group-notice">The {{ registry.group_source|default:"Department" }} column is not found in the uploaded file.</p>
+                        </div>
+                        <div class="missing-field-right">
+                            <label for="default-group-input" class="missing-field-label">
+                                Group value <span class="req-star" style="color: #EF4444;">*</span>
+                            </label>
+                            <input list="existing-groups-list" id="default-group-input" name="default_group" class="missing-field-input" placeholder="Select or type {{ registry.group_source|lower|default:'department' }}..." value="{% if default_group %}{{ default_group }}{% elif prefill_group %}{{ prefill_group }}{% endif %}" autocomplete="off">
+                            <datalist id="existing-groups-list">
+                                {% for g in existing_groups %}
+                                <option value="{{ g }}"></option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: File Preview -->
+            <section id="preview-section" class="import-section" style="{% if not pending_file %}display: none;{% endif %}">
+                <h2 class="import-section-title">3. File preview</h2>
+                <p class="import-section-desc">Showing the first 5 rows from your file with the applied values.</p>
+
+                <div class="preview-card">
+                    <table class="preview-table">
+                        <thead>
+                            <tr id="preview-headers-row">
+                                <th>{{ registry.primary_id_source|upper }}</th>
+                                <th>{{ registry.name_source|upper }}</th>
+                                <th>
+                                    {{ registry.group_source|upper }}
+                                    <span id="header-group-applied" class="badge-applied" style="{% if not missing_group and pending_file %}display: none;{% endif %}">(APPLIED)</span>
+                                </th>
+                                {% if registry.has_subgroups %}
+                                <th>{{ registry.subgroup_source|upper }}</th>
+                                {% endif %}
+                                <th>{{ registry.gender_source|upper }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-body">
+                            {% if preview_rows %}
+                            {% for row in preview_rows %}
+                            <tr>
+                                <td>{{ row.primary_id }}</td>
+                                <td>{{ row.name }}</td>
+                                <td>{{ row.group }}</td>
+                                {% if registry.has_subgroups %}
+                                <td>{{ row.subgroup }}</td>
+                                {% endif %}
+                                <td>{{ row.gender }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Action Strip -->
+            <div id="import-actions-strip" class="import-actions" style="{% if not pending_file %}display: none;{% endif %}">
+                <button type="submit" id="btn-import-submit" class="btn-import-submit">
+                    <span>Import voters</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </button>
+            </div>
+        </form>
+    </main>
+</div>
+
+<!-- Registry Schema JSON for JS -->
+<script id="registry-schema-data" type="application/json">
+{
+    "id": {{ registry.id }},
+    "name": "{{ registry.name|escapejs }}",
+    "primary_id_source": "{{ registry.primary_id_source|escapejs }}",
+    "name_source": "{{ registry.name_source|escapejs }}",
+    "group_source": "{{ registry.group_source|escapejs }}",
+    "subgroup_source": "{{ registry.subgroup_source|default:''|escapejs }}",
+    "gender_source": "{{ registry.gender_source|escapejs }}"
+}
+</script>
+
+<script src="{% static 'js/import.js' %}"></script>
+{% endblock %}

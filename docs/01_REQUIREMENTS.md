@@ -54,9 +54,21 @@ The Administrator:
 - is created during the first-run installation initialization flow;
 - is represented by a standard database-backed Django `User` model with `role = ADMIN`;
 - is never identified by a hardcoded username, fixed user ID, or configuration constant;
-- manages elections, positions, candidates, the installation voter registry, voter enrollment and allocation, polling booths, device credentials, election lifecycles, live turnout, and result publication.
+- operates from a centered, authenticated **Home** landing hub with direct access to:
+  - **Start Election** (initiating the four-stage setup sequence);
+  - **Master Voter Registry** (persistent institutional voter archive);
+  - **Election History** (past completed elections and archived results);
+- configures new elections through exactly four setup stages:
+  1. **Election Voters** (selecting from master registry or direct bulk import);
+  2. **Election Details & Candidates** (single coherent workspace);
+  3. **Booths & Allocation** (booths, paired devices, credentials, voter allocation, lightweight printing);
+  4. **Review & Start** (readiness validation, Save as Draft vs Start Election);
+- monitors active polling via the dedicated **Live Election Dashboard**;
+- ends the election to review and publish candidate tallies on the **Results** page.
 
-The system currently enforces exactly one human Administrator per installation. Multi-admin support and public registration are out of scope.
+The system enforces:
+- exactly one human Administrator per installation (multi-admin and public registration are out of scope);
+- exactly **ONE active/running election** at a time.
 
 ### 2.2 Officer Station
 
@@ -124,49 +136,43 @@ Authentication rules:
 
 Elections belong to the Electra installation as a whole. There is no per-user ownership of elections and the data model must not include an `Election.owner` field.
 
-Administrators must be able to:
+The system enforces that **only one election may be active/running at any given time**.
 
-- create elections;
-- configure election details;
-- configure voting start/end times;
-- create positions;
-- add candidates to positions;
-- start elections;
-- close elections;
-- publish results after closure.
+The administrator configures elections through a four-stage setup flow:
+1. **Stage 1 — Election Voters**: Select voters from the master registry or directly bulk import election voters;
+2. **Stage 2 — Election Details & Candidates**: Single workspace configuring election name, optional description, voting hours, positions, and candidate roster (selected from election voters, with editable symbols and modal dialog support);
+3. **Stage 3 — Booths & Allocation**: Single workspace configuring physical booths, paired Officer and Kiosk devices, masked credentials, pass rotation, balanced or manual voter allocation, and lightweight print actions;
+4. **Stage 4 — Review & Start**: Comprehensive configuration and device readiness summary, distinguishing valid, incomplete, or device-unready conditions, offering **Save as Draft** or **Start Election**.
 
-Election configuration must be validated before an election can become active.
+Once started:
+- The election transitions from `DRAFT → ACTIVE`;
+- Active polling is monitored via the dedicated **Live Election Dashboard**;
+- Voting configuration is permanently frozen;
+- During active polling, normal configuration (booths, allocations, positions, candidates, eligibility rules) must not change. Credential rotation/revocation is the deliberate operational exception.
 
-Once an election becomes active, its voting configuration is frozen.
-
-During active polling, the following normal configuration must not change:
-
-- booth allocation;
-- voter election configuration;
-- positions;
-- candidates;
-- eligibility configuration;
-- booth structure.
-
-Credential rotation/revocation is the deliberate operational exception.
+After polling, the administrator ends the election:
+- Transitions from `ACTIVE → CLOSED`;
+- Candidate tallies, percentages, and winners are published on the **Results** page;
+- Navigation returns to Home.
 
 ---
 
-### FR-03 — Voter Registry
+### FR-03 — Master Voter Registry vs. Election Voters
 
-The system must maintain one central voter registry per Electra installation.
+The system maintains one persistent central voter registry per Electra installation.
 
 "Central" means central to the specific installation; the registry is not shared across independent installations, owned by individual users, or partitioned by tenants.
 
-Administrators must be able to:
+The **Master Voter Registry** is a separate, persistent administrative area:
+- It is NOT the election voter list;
+- Administrators can view grouped voters, add, edit, remove, and import voters;
+- Administrators can assign/change academic groups and search/filter;
+- Configurable primary registry identity (e.g. Student ID, University ID, Admission Number) is unique within the central registry and used to prevent duplicate records.
 
-- add voters;
-- edit voters;
-- remove voters;
-- import voters;
-- search/filter voters;
-- associate voters with academic groups;
-- enroll voters into an election.
+**Election Voters (`ElectionVoter`)**:
+- Voters participating in a specific election are configured in **Stage 1 (Election Voters)**;
+- Obtained either by selecting voters from the master registry or by direct bulk import into the election;
+- Dense/grouped display, search/filtering, and bulk selection support adding/removing election voters.
 
 Initial structured import support must include:
 
@@ -217,15 +223,15 @@ The administrator configures the relevant structure during import/configuration.
 
 ### FR-05 — Booth Management
 
+Configured within **Stage 3 (Booths & Allocation)** on a single setup page.
+
 Administrators must be able to:
 
-- create booths;
-- remove booths before polling;
-- configure booth details;
-- assign an Officer Station to a booth;
-- assign a Voting Kiosk to a booth;
-- allocate voters to booths;
-- reallocate voters before polling.
+- create, edit, and delete polling booths before polling starts;
+- view booths represented as clean, borderless/transparent sections/cards rather than generic admin tables;
+- assign and pair an Officer Station and a Voting Kiosk to each booth;
+- inspect device status and masked credentials;
+- rotate device passwords/passes on demand.
 
 Every booth must have exactly:
 
@@ -240,7 +246,9 @@ Booth configuration is frozen once polling becomes active.
 
 ---
 
-### FR-06 — Voter Allocation
+### FR-06 — Voter Allocation & Printing
+
+Configured within **Stage 3 (Booths & Allocation)** alongside booths.
 
 For every eligible voter participating in an election:
 
@@ -248,11 +256,19 @@ For every eligible voter participating in an election:
 ElectionVoter → exactly one Booth
 ```
 
-A voter must be pre-allocated before polling begins.
+Allocation rules:
+- All election voters must be allocated before polling begins;
+- Supports automatic balanced allocation as well as manual adjustment;
+- Displays allocation counts and group breakdowns per booth;
+- An Officer Station may authorize only voters allocated to its own bound booth;
+- A voter allocated to one booth must never be authorizable through another booth;
+- Allocation configuration is frozen once the election becomes active.
 
-An Officer Station may authorize only voters allocated to its own bound booth.
-
-A voter allocated to one booth must never be authorizable through another booth.
+Printing rules:
+- Printing is intentionally lightweight and non-intrusive (no bulky print materials panel);
+- Discrete print action buttons are provided directly in Stage 3:
+  - `Print voter list`
+  - `Print booth slips`
 
 ---
 
@@ -631,7 +647,47 @@ Detailed transport and consumer architecture belongs in `03-architecture.md`.
 
 ## 6. Required User Experience
 
-### Officer
+### 6.1 Administrator Workflow
+
+The administrator experiences a centered, onboarding-style sequence with editorial typography, generous whitespace, and dense data displays where appropriate. Generic sidebar layouts and card-within-card containers are strictly prohibited.
+
+The canonical flow is:
+
+```text
+HOME
+  ↓
+START ELECTION
+  ↓
+1. ELECTION VOTERS
+  ↓
+2. ELECTION DETAILS & CANDIDATES
+  ↓
+3. BOOTHS & ALLOCATION
+  ↓
+4. REVIEW & START
+  ↓
+LIVE ELECTION DASHBOARD
+  ↓
+END ELECTION
+  ↓
+RESULTS
+  ↓
+HOME
+```
+
+Key characteristics:
+- **Home**: Authenticated, centered landing hub with direct access to Start Election, Master Voter Registry, and Election History.
+- **Master Voter Registry**: Persistent administrative area separate from election setup.
+- **Election History**: Separate administrative archive of past elections and published results.
+- **Stage 1 — Election Voters**: Dense, grouped voter selection from the master registry or direct bulk import into the election.
+- **Stage 2 — Election Details & Candidates**: Single coherent workspace configuring election meta, positions, and candidate roster with modal interactions and editable symbols.
+- **Stage 3 — Booths & Allocation**: Single setup page with borderless booth cards, device pairings, masked credentials, pass rotation, auto/manual allocation, and lightweight print actions (`Print voter list`, `Print booth slips`).
+- **Stage 4 — Review & Start**: Comprehensive configuration and runtime readiness summary with clear `Valid / Ready`, `Incomplete / Invalid`, and `Device Not Ready` distinctions; actions for `Save as Draft` and `Start Election`.
+- **Live Election Dashboard**: Dedicated operational monitoring screen during active polling (not part of the wizard); real-time turnout, booth metrics, device statuses, pass management, and `End Election` action.
+- **Results**: Post-election candidate vote tallies, percentage breakdowns, visual highlight on winners, `Print Results` action, and return to Home.
+- **Active Election Constraint**: Exactly ONE election can be active at a time.
+
+### 6.2 Officer Station
 
 The expected workflow is:
 
@@ -655,7 +711,7 @@ Wait for voting result
 
 The officer receives operational status but never ballot contents.
 
-### Kiosk
+### 6.3 Voting Kiosk
 
 The expected lifecycle is:
 
@@ -685,7 +741,7 @@ The kiosk must never display a false success message.
 
 Confirmation is shown only after the server confirms the database commit.
 
-Detailed visual and interaction rules belong in `06-ui-ux-theme.md`.
+Detailed visual and interaction rules belong in `07_UI_DESIGN.md`.
 
 ---
 
@@ -766,7 +822,6 @@ The planned frontend stack uses:
 
 - HTML;
 - CSS;
-- Tailwind CSS;
 - HTMX;
 - JavaScript.
 
@@ -856,23 +911,21 @@ A change to this contract must be reflected in the relevant implementation, arch
 Electra's core product is complete only when this end-to-end workflow works:
 
 ```text
-Administrator
+Administrator logs in (Home)
     ↓
-Create election
+Start Election
     ↓
-Configure positions/candidates
+Stage 1: Configure Election Voters (from Master Registry or direct bulk import)
     ↓
-Configure booths
+Stage 2: Configure Election Details & Candidates (single workspace, modal/dialog support)
     ↓
-Configure Officer/Kiosk identities
+Stage 3: Configure Booths & Allocation (device pairings, credentials, allocation, lightweight printing)
     ↓
-Import/register voters
+Stage 4: Review & Start (validation checks, runtime device readiness)
     ↓
-Allocate voters to booths
+Start Election (transition DRAFT → ACTIVE, configuration frozen)
     ↓
-Validate election
-    ↓
-Start election
+Live Election Dashboard (real-time monitoring)
     ↓
 Officer logs in
     ↓
@@ -894,13 +947,15 @@ Authorization becomes USED
     ↓
 Kiosk locks
     ↓
-Turnout updates
+Turnout updates in real time on Live Dashboard
     ↓
-Election closes
+Administrator ends election (ACTIVE → CLOSED)
     ↓
 Further voting is rejected
     ↓
-Administrator publishes results
+Administrator inspects and publishes Results
+    ↓
+Return to Home
 ```
 
 Every security-sensitive step in this flow must be enforced by the backend.

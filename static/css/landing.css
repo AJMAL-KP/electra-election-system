@@ -1,0 +1,541 @@
+/* ==========================================================================
+   ELECTRA LANDING PAGE STYLES (Faithfully matched to references/01_landing.png)
+   Center-focused composition with responsive wide breadth:
+   - Wide floating navigation pill (~1040px)
+   - Centered focused hero text (~760px)
+   - Wide application preview window (~1260px)
+   ========================================================================== */
+
+.landing-body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #FAFAFA;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font-sans);
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-y: hidden;
+  overflow-x: auto;
+}
+
+.landing-body .main-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.landing-main {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+/* --------------------------------------------------------------------------
+   FLOATING TOP NAVIGATION PILL (Refined breadth: up to 860px)
+   -------------------------------------------------------------------------- */
+.landing-nav-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 20px 20px 0 20px;
+  box-sizing: border-box;
+}
+
+.landing-nav-pill {
+  width: 100%;
+  max-width: 860px;
+  height: 60px;
+  background: #FFFFFF;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 36px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.landing-brand {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #111827;
+  text-decoration: none;
+}
+
+.landing-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.landing-nav-link {
+  font-size: 14px;
+  font-weight: 500;
+  color: #4B5563;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.landing-nav-link:hover {
+  color: #111827;
+}
+
+/* --------------------------------------------------------------------------
+   HERO SECTION (Centered, comfortably constrained: ~640px)
+   -------------------------------------------------------------------------- */
+.landing-hero {
+  margin-top: 58px;
+  width: 100%;
+  max-width: 640px;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.landing-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #6B7280;
+  margin-bottom: 14px;
+}
+
+.landing-headline {
+  font-family: var(--font-serif);
+  font-size: clamp(32px, 3.8vw, 52px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: #111827;
+  margin: 0 0 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.landing-headline-line {
+  display: block;
+  white-space: nowrap;
+}
+
+/* Rolling Word Ticker */
+.landing-ticker-window {
+  height: 1.2em;
+  overflow: hidden;
+  position: relative;
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+.landing-ticker-list {
+  display: flex;
+  flex-direction: column;
+  animation: rollWords 8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.landing-ticker-item {
+  height: 1.2em;
+  line-height: 1.2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #111827;
+}
+
+@keyframes rollWords {
+
+  0%,
+  18% {
+    transform: translateY(0%);
+  }
+
+  25%,
+  43% {
+    transform: translateY(-20%);
+  }
+
+  50%,
+  68% {
+    transform: translateY(-40%);
+  }
+
+  75%,
+  93% {
+    transform: translateY(-60%);
+  }
+
+  100% {
+    transform: translateY(-80%);
+  }
+}
+
+.landing-subtitle {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: #6B7280;
+  max-width: 580px;
+  margin: 0 auto 24px auto;
+}
+
+.landing-btn-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 32px;
+  background-color: #111827;
+  color: #FFFFFF;
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  border-radius: 9999px;
+  text-decoration: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+}
+
+.landing-btn-start:hover {
+  background-color: #000000;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+}
+
+.landing-btn-start .btn-arrow {
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.landing-btn-start:hover .btn-arrow {
+  transform: translateX(3px);
+}
+
+/* --------------------------------------------------------------------------
+   BOTTOM PEEKING APPLICATION PREVIEW WINDOW (Refined breadth: up to 980px)
+   -------------------------------------------------------------------------- */
+.landing-preview-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 58px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.landing-preview-window {
+  width: 100%;
+  max-width: 980px;
+  background: #FFFFFF;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: none;
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.03);
+  padding: 26px 54px 0 54px;
+  box-sizing: border-box;
+}
+
+/* Window Top Bar */
+.preview-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.preview-brand {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.preview-tabs {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+
+.preview-tab {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: #6B7280;
+  text-decoration: none;
+  padding-bottom: 4px;
+}
+
+.preview-tab.active {
+  color: #111827;
+  font-weight: 600;
+  border-bottom: 2px solid #111827;
+}
+
+/* Window Content Body */
+.preview-window-body {
+  padding: 38px 0 28px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.preview-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #ECFDF5;
+  color: #059669;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  margin-bottom: 14px;
+}
+
+.preview-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #10B981;
+}
+
+.preview-title {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+
+.preview-description {
+  font-size: 14.5px;
+  color: #6B7280;
+  margin: 0 0 30px 0;
+  max-width: 580px;
+  line-height: 1.5;
+}
+
+/* Countdown Timer Box */
+.preview-timer-box {
+  background-color: #F9FAFB;
+  border: 1px solid #F3F4F6;
+  border-radius: 12px;
+  padding: 16px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 36px;
+}
+
+.preview-timer-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #6B7280;
+  margin-bottom: 6px;
+}
+
+.preview-timer-digits {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 2px;
+}
+
+.preview-timer-sublabels {
+  display: flex;
+  gap: 26px;
+  font-size: 10px;
+  color: #9CA3AF;
+}
+
+/* Stats Row */
+.preview-stats-row {
+  width: 100%;
+  max-width: 960px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.5fr;
+  align-items: center;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.preview-stats-row-turnout-only {
+  display: flex;
+  justify-content: center;
+  max-width: 540px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.preview-stats-row-turnout-only .preview-turnout-col {
+  width: 100%;
+}
+
+
+.preview-stat-item {
+  text-align: left;
+}
+
+.preview-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+
+.preview-stat-label {
+  font-size: 12.5px;
+  color: #6B7280;
+  margin-top: 2px;
+}
+
+.preview-turnout-col {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.preview-progress-bar {
+  flex: 1;
+  height: 9px;
+  background-color: #F3F4F6;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.preview-progress-fill {
+  width: 65.6%;
+  height: 100%;
+  background-color: #10B981;
+  border-radius: 9999px;
+}
+
+.preview-progress-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #6B7280;
+}
+
+/* --------------------------------------------------------------------------
+   RESPONSIVE BREAKPOINTS (Mobile & Tablet)
+   -------------------------------------------------------------------------- */
+@media (max-width: 960px) {
+  .landing-nav-pill {
+    padding: 0 28px;
+  }
+
+  .landing-nav-links {
+    gap: 24px;
+  }
+
+  .landing-preview-window {
+    padding: 22px 32px 0 32px;
+  }
+
+  .preview-stats-row {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 20px;
+  }
+
+  .preview-turnout-col {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-nav-wrapper {
+    padding: 16px 12px 0 12px;
+  }
+
+  .landing-nav-pill {
+    height: 54px;
+    padding: 0 18px;
+  }
+
+  .landing-brand {
+    font-size: 22px;
+  }
+
+  .landing-nav-links {
+    gap: 14px;
+  }
+
+  .landing-nav-link {
+    font-size: 13px;
+  }
+
+  .landing-hero {
+    margin-top: 36px;
+    padding: 0 16px;
+  }
+
+  .landing-headline {
+    font-size: 32px;
+  }
+
+  .landing-subtitle {
+    font-size: 14.5px;
+    margin-bottom: 24px;
+  }
+
+  .landing-btn-start {
+    padding: 12px 28px;
+    font-size: 14px;
+  }
+
+  .landing-preview-container {
+    margin-top: 36px;
+    padding: 0 12px;
+  }
+
+  .landing-preview-window {
+    padding: 18px 16px 0 16px;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+  }
+
+  .preview-tabs {
+    gap: 16px;
+  }
+
+  .preview-tab {
+    font-size: 12px;
+  }
+
+  .preview-title {
+    font-size: 22px;
+  }
+
+  .preview-stats-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .preview-turnout-col {
+    grid-column: span 1;
+  }
+}

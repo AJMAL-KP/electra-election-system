@@ -1,0 +1,759 @@
+/* ==========================================================================
+   ELECTRA UI THEME — DASHBOARD COMPONENT STYLES
+   Visual system meticulously matched to references/homepage_ref.jpg
+   Row 1: Hero Banner (Left) + Donut Chart Card (Right)
+   Row 2: 4 Candidate Metric Cards with colored underline accent bars
+   Row 3: Data Table Card with Header Controls and Filter Pills
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   ROW 1: TWO-COLUMN HERO & TURNOUT DONUT CHART
+   -------------------------------------------------------------------------- */
+.dashboard-hero-row {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-hero-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left: Hero Banner */
+.hero-banner {
+  position: relative;
+  border-radius: var(--radius-card, 20px);
+  overflow: hidden;
+  color: #FFFFFF;
+  padding: 32px 36px;
+  min-height: 220px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #091326 0%, #102142 55%, #1A2E56 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.hero-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(8, 15, 30, 0.88) 0%, rgba(8, 15, 30, 0.65) 60%, rgba(8, 15, 30, 0.35) 100%);
+  z-index: 1;
+}
+
+.hero-banner-content {
+  position: relative;
+  z-index: 2;
+  max-width: 520px;
+}
+
+.hero-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 8px;
+}
+
+.hero-banner-title {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+  color: #FFFFFF;
+}
+
+.hero-banner-subtitle {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+  margin-bottom: 22px;
+}
+
+.hero-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Primary Hero Button (Vibrant Blue Pill matched to reference screenshot) */
+.hero-btn-blue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: #1677E8;
+  color: #FFFFFF;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 22px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(22, 119, 232, 0.3);
+}
+
+.hero-btn-blue:hover {
+  background-color: #1264C7;
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.hero-btn-blue:active {
+  transform: translateY(0);
+}
+
+.hero-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 22px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  background-color: #EF4444;
+  color: #FFFFFF;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hero-btn-danger:hover {
+  background-color: #DC2626;
+}
+
+.hero-btn-link-white {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: #FFFFFF;
+  font-size: 13.5px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.hero-btn-link-white:hover {
+  opacity: 0.85;
+  text-decoration: underline;
+}
+
+.badge-live-active {
+  padding: 6px 14px;
+  background-color: rgba(34, 197, 94, 0.2);
+  color: #4ADE80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border-radius: var(--radius-pill, 9999px);
+}
+
+.badge-status-closed {
+  padding: 6px 14px;
+  background-color: rgba(148, 163, 184, 0.2);
+  color: #E2E8F0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border-radius: var(--radius-pill, 9999px);
+}
+
+.badge-status-published {
+  padding: 6px 14px;
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #93C5FD;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border-radius: var(--radius-pill, 9999px);
+}
+
+/* Glassmorphism Countdown Timer in Hero */
+.hero-countdown-box {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.countdown-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.countdown-units {
+  display: flex;
+  gap: 10px;
+}
+
+.countdown-unit {
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  min-width: 58px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.countdown-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #FFFFFF;
+  line-height: 1;
+}
+
+.countdown-tag {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* Right: Donut Chart Card (Voters / Turnout) */
+.donut-chart-card {
+  background-color: #FFFFFF;
+  border: 1px solid #ECEEF2;
+  border-radius: var(--radius-card, 20px);
+  padding: 22px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 2px 8px rgba(0, 0, 0, 0.015);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.donut-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.donut-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.01em;
+}
+
+.card-menu-btn {
+  background: none;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.card-menu-btn:hover {
+  color: #111827;
+}
+
+.donut-body-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 1;
+}
+
+.donut-svg-container {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+
+.donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12.5px;
+  color: #4B5563;
+}
+
+.donut-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.donut-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.donut-legend-dot.green { background-color: #00BA66; }
+.donut-legend-dot.coral { background-color: #FA5A38; }
+.donut-legend-dot.orange { background-color: #FFA000; }
+
+/* --------------------------------------------------------------------------
+   ROW 2: CANDIDATE PROFILE METRIC CARDS (4-Column Grid)
+   -------------------------------------------------------------------------- */
+.candidate-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+  .candidate-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .candidate-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.candidate-profile-card {
+  background-color: #FFFFFF;
+  border: 1px solid #ECEEF2;
+  border-radius: var(--radius-card, 20px);
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 2px 8px rgba(0, 0, 0, 0.015);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.candidate-profile-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+}
+
+.candidate-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.candidate-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.candidate-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #ECEEF2;
+}
+
+.candidate-avatar-initial {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: #F1F5F9;
+  color: #1E293B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  border: 1px solid #E2E8F0;
+}
+
+.candidate-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.candidate-position-label {
+  font-size: 11.5px;
+  color: #6B7280;
+  margin-top: 2px;
+}
+
+.party-badge-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F3F4F6;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+
+/* 2x2 Metric Grid with Underline Colored Bars */
+.candidate-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: #6B7280;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+/* Underline Colored Accent Bars */
+.metric-bar {
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.metric-bar.green { background-color: #00BA66; }
+.metric-bar.orange { background-color: #FFA000; }
+.metric-bar.coral { background-color: #FA5A38; }
+.metric-bar.blue { background-color: #1677E8; }
+
+/* --------------------------------------------------------------------------
+   ROW 3: DATA TABLE CARD WITH HEADER CONTROLS
+   -------------------------------------------------------------------------- */
+.data-table-card {
+  background-color: #FFFFFF;
+  border: 1px solid #ECEEF2;
+  border-radius: var(--radius-card, 20px);
+  padding: 22px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 2px 8px rgba(0, 0, 0, 0.015);
+  margin-bottom: 28px;
+}
+
+.table-header-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.table-title-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-section-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+
+.table-count-badge {
+  font-size: 12px;
+  color: #6B7280;
+  background-color: #F1F5F9;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+.table-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #F8F9FA;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid #ECEEF2;
+}
+
+.filter-pill {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #6B7280;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-pill:hover {
+  color: #111827;
+}
+
+.filter-pill.active {
+  background-color: #1677E8;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.styled-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 2px;
+  font-size: 13.5px;
+}
+
+.styled-table th {
+  background-color: #F8F9FA;
+  color: #6B7280;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 12px 16px;
+  text-align: left;
+  border: none;
+  letter-spacing: 0.02em;
+}
+
+.styled-table th:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.styled-table th:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.styled-table td {
+  padding: 13px 16px;
+  color: #111827;
+  border: none;
+  background: transparent;
+  vertical-align: middle;
+  transition: background-color 0.12s ease;
+}
+
+.styled-table tr:hover td {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.styled-table tr:hover td:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.styled-table tr:hover td:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.sort-arrows {
+  display: inline-block;
+  font-size: 10px;
+  color: #9CA3AF;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.table-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.table-avatar-initial {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #E2E8F0;
+  color: #1E293B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.table-candidate-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.table-party-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.symbol-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #1677E8;
+  display: inline-block;
+}
+
+.table-actions-cell {
+  text-align: right;
+  color: #9CA3AF;
+}
+
+/* --------------------------------------------------------------------------
+   EMPTY ELECTION STATE ICON & CONTROLS
+   -------------------------------------------------------------------------- */
+.empty-election-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: var(--radius-circle, 50%);
+  background-color: #F3F4F6;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px auto;
+}
+
+.icon-hero-box {
+  width: 26px;
+  height: 26px;
+}
+
+.positions-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.btn-remove-position {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  background-color: transparent;
+  color: #DC2626;
+  border: 1px solid #FEE2E2;
+  border-radius: var(--radius-pill, 9999px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-remove-position:hover {
+  background-color: #FEF2F2;
+  border-color: #FCA5A5;
+}
+
+/* Position Quick Presets */
+.preset-chips-container {
+  margin-top: 10px;
+}
+
+.preset-chips-label {
+  display: block;
+  font-size: 11.5px;
+  color: #6B7280;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.preset-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-chip {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  border-radius: var(--radius-badge, 6px);
+  background-color: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.preset-chip:hover {
+  background-color: #E2E8F0;
+  color: #0F172A;
+}
+
+/* Pre-Flight Readiness Modal List */
+.readiness-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.readiness-intro {
+  font-size: 13.5px;
+  color: #6B7280;
+}
+
+.readiness-items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.readiness-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.readiness-item.error {
+  background-color: #FEF2F2;
+  color: #B91C1C;
+}
+
+.readiness-icon {
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+}

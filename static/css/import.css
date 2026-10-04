@@ -1,0 +1,769 @@
+/* ==========================================================================
+   ELECTRA SUBSEQUENT VOTER IMPORT STYLES
+   Faithfully reproduces references/04_voter_import.png:
+   - Pure white minimalist theme
+   - Newsreader serif typography for titles
+   - Centered hierarchy
+   - Clean file upload card with "Replace file"
+   - Missing fields configuration box with pills
+   - Live 5-row preview table with (APPLIED) indicators
+   - Modern black action button
+   ========================================================================== */
+
+.import-body {
+  background-color: #FFFFFF !important;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+}
+
+.import-page-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top Bar */
+.import-top-bar {
+  padding: 24px 48px;
+  display: flex;
+  align-items: center;
+}
+
+.import-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #111827;
+  text-decoration: none;
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 6px 14px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.import-back-btn:hover {
+  border-color: #D1D5DB;
+  background-color: #F9FAFB;
+}
+
+.import-back-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Main Centered Container */
+.import-container {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 10px 24px 80px 24px;
+  box-sizing: border-box;
+}
+
+/* Header */
+.import-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.import-title {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: clamp(32px, 3.6vw, 42px);
+  font-weight: 400;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  color: #111827;
+  margin: 0 0 10px 0;
+}
+
+.import-subtitle {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #6B7280;
+  max-width: 540px;
+  margin: 0 auto;
+}
+
+/* Sections */
+.import-section {
+  margin-bottom: 32px;
+}
+
+.import-section-title {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #111827;
+  margin: 0 0 4px 0;
+}
+
+.import-section-desc {
+  font-size: 13.5px;
+  color: #6B7280;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+/* Section 1: File Upload */
+.file-hidden-input {
+  display: none;
+}
+
+.file-dropzone {
+  border: 1px dashed #D1D5DB;
+  border-radius: 12px;
+  padding: 38px 24px;
+  text-align: center;
+  background-color: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.file-dropzone:hover {
+  border-color: #9CA3AF;
+  background-color: #FAFAFA;
+}
+
+.dropzone-icon {
+  width: 36px;
+  height: 36px;
+  color: #9CA3AF;
+  margin: 0 auto 12px auto;
+  display: block;
+}
+
+.dropzone-label {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.dropzone-subtext {
+  font-size: 13px;
+  color: #6B7280;
+}
+
+/* File Card (Uploaded State) */
+.file-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 16px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.file-card-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.file-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background-color: #F3F4F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4B5563;
+  flex-shrink: 0;
+}
+
+.file-icon-box svg {
+  width: 22px;
+  height: 22px;
+}
+
+.file-info-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 2px;
+}
+
+.file-meta {
+  font-size: 13px;
+  color: #6B7280;
+}
+
+.btn-replace-file {
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.btn-replace-file:hover {
+  border-color: #D1D5DB;
+  background-color: #F9FAFB;
+}
+
+/* Section 2: Missing Registry Fields */
+.missing-fields-card {
+  background-color: #FFFDF9;
+  border: 1px solid #F6ECD8;
+  border-radius: 12px;
+  padding: 18px 24px;
+}
+
+.missing-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  gap: 20px;
+}
+
+.missing-field-row:not(:last-child) {
+  border-bottom: 1px solid #F4E7CE;
+}
+
+.missing-field-left {
+  flex: 1;
+}
+
+.missing-field-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.field-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.field-pill {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 9px;
+  border-radius: 9999px;
+  background-color: #F1F5F9;
+  color: #475569;
+}
+
+.missing-field-notice {
+  font-size: 13px;
+  color: #6B7280;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.missing-field-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+}
+
+.missing-field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 5px;
+}
+
+.missing-field-input {
+  width: 100%;
+  height: 38px;
+  background-color: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 13.5px;
+  color: #111827;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.missing-field-input:focus {
+  border-color: #111827;
+  box-shadow: 0 0 0 1px #111827;
+}
+
+/* Section 3: File Preview */
+.preview-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.preview-table th {
+  background-color: #FAFAFA;
+  padding: 12px 18px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #6B7280;
+  text-transform: uppercase;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.preview-table td {
+  padding: 12px 18px;
+  border-bottom: 1px solid #F3F4F6;
+  color: #111827;
+}
+
+.preview-table tr:last-child td {
+  border-bottom: none;
+}
+
+.badge-applied {
+  font-size: 10px;
+  font-weight: 600;
+  color: #4B5563;
+  margin-left: 4px;
+}
+
+/* Actions Row */
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 28px;
+}
+
+.btn-import-submit {
+  background-color: #111827;
+  color: #FFFFFF;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.btn-import-submit:hover {
+  background-color: #000000;
+  border-color: #000000;
+}
+
+.btn-import-submit svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Alerts */
+.import-alert-box {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+
+.import-alert-error {
+  background-color: #FEF2F2;
+  color: #991B1B;
+  border: 1px solid #FECACA;
+}
+
+.import-alert-success {
+  background-color: #ECFDF5;
+  color: #065F46;
+  border: 1px solid #A7F3D0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .import-top-bar {
+    padding: 16px 20px;
+  }
+  .import-container {
+    padding: 12px 16px 60px 16px;
+  }
+  .missing-field-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .missing-field-right {
+    width: 100%;
+  }
+}
+
+/* ==========================================================================
+   STATE 1: Central File Upload Screen
+   ========================================================================== */
+.state-upload-screen {
+  width: 100%;
+  max-width: 580px;
+  margin: 0 auto;
+  padding: 20px 24px 80px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 140px);
+  box-sizing: border-box;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.upload-hero {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.upload-hero-title {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #0F172A;
+  margin: 0 0 12px 0;
+}
+
+.upload-hero-subtitle {
+  font-size: 15px;
+  line-height: 1.55;
+  color: #64748B;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.upload-dropzone-box {
+  width: 100%;
+  background-color: #FAFAFA;
+  border: 2px dashed #E2E8F0;
+  border-radius: 14px;
+  padding: 48px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.upload-dropzone-box:hover,
+.upload-dropzone-box.drag-over {
+  background-color: #F8FAFC;
+  border-color: #0F172A;
+}
+
+.upload-icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background-color: #F1F5F9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  color: #475569;
+  transition: transform 0.2s ease;
+}
+
+.upload-dropzone-box:hover .upload-icon-circle {
+  transform: translateY(-2px);
+  background-color: #E2E8F0;
+  color: #0F172A;
+}
+
+.upload-icon-circle svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2;
+}
+
+.upload-prompt-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1E293B;
+  margin: 0 0 6px 0;
+}
+
+.upload-prompt-browse {
+  color: #2563EB;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.upload-prompt-browse:hover {
+  color: #1D4ED8;
+}
+
+.upload-subtext {
+  font-size: 13px;
+  color: #94A3B8;
+  margin: 0;
+}
+
+.upload-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.92);
+  border-radius: 12px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 10;
+}
+
+.upload-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #E2E8F0;
+  border-top-color: #0F172A;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.upload-loading-text {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #334155;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   Registry Expected Schema Configuration Card & Upload State Controls
+   ========================================================================== */
+
+.import-schema-card {
+  width: 100%;
+  background-color: #FAFAFA;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  box-sizing: border-box;
+}
+
+.import-schema-header {
+  margin-bottom: 12px;
+}
+
+.import-schema-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4B5563;
+}
+
+.import-schema-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.schema-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #111827;
+  font-weight: 500;
+}
+
+.schema-pill-name {
+  color: #111827;
+}
+
+.schema-pill-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.schema-pill-badge--required {
+  background-color: #111827;
+  color: #FFFFFF;
+}
+
+.schema-pill-badge--manual {
+  background-color: #F0FDF4;
+  color: #166534;
+  border: 1px solid #BBF7D0;
+}
+
+.schema-pill-badge--optional {
+  background-color: #F3F4F6;
+  color: #6B7280;
+}
+
+/* Inline Error Notice for Upload Screen */
+.upload-error-box {
+  width: 100%;
+  background-color: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 10px;
+  padding: 13px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #991B1B;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  box-sizing: border-box;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.upload-error-box svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #DC2626;
+}
+
+/* Missing Group Prompt on Upload Screen */
+.upload-group-prompt {
+  width: 100%;
+  background-color: #FFFFFF;
+  border: 1.5px solid #111827;
+  border-radius: 14px;
+  padding: 22px 24px;
+  margin-top: 24px;
+  box-sizing: border-box;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  animation: fadeIn 0.25s ease-out;
+}
+
+.group-prompt-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9A3412;
+  background-color: #FFEDD5;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.group-prompt-title {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: 19px;
+  font-weight: 500;
+  color: #111827;
+  margin: 0 0 6px 0;
+}
+
+.group-prompt-desc {
+  font-size: 13.5px;
+  color: #6B7280;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.group-prompt-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.group-prompt-input-wrap {
+  flex: 1;
+}
+
+.group-prompt-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #111827;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.group-prompt-input:focus {
+  border-color: #111827;
+  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.1);
+}
+
+.group-prompt-continue-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  background-color: #111827;
+  color: #FFFFFF;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.group-prompt-continue-btn:hover {
+  background-color: #27272A;
+}
+
+.group-prompt-continue-btn svg {
+  width: 15px;
+  height: 15px;
+}
+

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Official Voter Roster & Sign-in Sheet — {{ booth.display_name }} — {{ election.name }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --text-primary: #111827;
+            --text-secondary: #4B5563;
+            --border-color: #E5E7EB;
+        }
+
+        body {
+            font-family: var(--font-family);
+            color: var(--text-primary);
+            background: #FFFFFF;
+            margin: 0;
+            padding: 32px;
+            font-size: 13px;
+        }
+
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid var(--text-primary);
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+
+        .election-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 6px 0;
+            color: var(--text-primary);
+        }
+
+        .meta-line {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        .booth-tag {
+            font-size: 18px;
+            font-weight: 700;
+            background: #F3F4F6;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            text-align: right;
+        }
+
+        .roster-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 32px;
+        }
+
+        .roster-table th {
+            background: #F9FAFB;
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .roster-table td {
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 12px;
+            vertical-align: middle;
+        }
+
+        .signature-cell {
+            width: 180px;
+            height: 36px;
+            border-bottom: 1px solid #9CA3AF !important;
+        }
+
+        .footer-signoff {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .signoff-box {
+            font-size: 13px;
+        }
+
+        .signoff-line {
+            margin-top: 40px;
+            border-bottom: 1px solid var(--text-primary);
+            width: 240px;
+        }
+
+        .no-print {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-print {
+            background: #111827;
+            color: #FFFFFF;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-print:hover {
+            background: #1F2937;
+        }
+
+        @media print {
+            body {
+                padding: 16px;
+            }
+            .no-print {
+                display: none !important;
+            }
+            @page {
+                margin: 1.5cm;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print">
+        <button type="button" class="btn-print" onclick="window.print()">
+            &#x1F5B6; Print / Save as PDF
+        </button>
+    </div>
+
+    <div class="header-container">
+        <div>
+            <h1 class="election-title">{{ election.name }}</h1>
+            <p class="meta-line">Official Polling Station Sign-In Roster &bull; Total Allocated: {{ total_allocated }} Voter{{ total_allocated|pluralize }}</p>
+            <p class="meta-line">Generated on {% now "F j, Y, H:i" %}</p>
+        </div>
+        <div class="booth-tag">
+            {{ booth.display_name }}
+        </div>
+    </div>
+
+    <table class="roster-table">
+        <thead>
+            <tr>
+                <th style="width: 40px;">S/N</th>
+                <th style="width: 140px;">Registry ID</th>
+                <th>Full Name</th>
+                <th>Academic Cohort</th>
+                <th style="width: 180px;">Voter Signature</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ev in voters %}
+            <tr>
+                <td style="color: var(--text-secondary);">{{ forloop.counter }}.</td>
+                <td><code>{{ ev.voter.primary_registry_value }}</code></td>
+                <td><strong>{{ ev.voter.name }}</strong></td>
+                <td>{{ ev.voter.academic_group.name|default:"General" }}</td>
+                <td class="signature-cell"></td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 32px; color: var(--text-secondary);">
+                    No voters currently allocated to this booth.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer-signoff">
+        <div class="signoff-box">
+            <div><strong>Presiding Polling Officer</strong></div>
+            <div class="signoff-line"></div>
+            <div style="color: var(--text-secondary); margin-top: 6px; font-size: 12px;">Officer Full Name &amp; Signature</div>
+        </div>
+        <div class="signoff-box" style="text-align: right;">
+            <div><strong>Election Commission Verification</strong></div>
+            <div class="signoff-line" style="margin-left: auto;"></div>
+            <div style="color: var(--text-secondary); margin-top: 6px; font-size: 12px;">Official Stamp / Seal &amp; Date</div>
+        </div>
+    </div>
+
+</body>
+</html>

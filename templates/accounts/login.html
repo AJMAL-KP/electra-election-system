@@ -1,49 +1,82 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Sign in to Electra{% endblock %}
+{% block title %}Sign In — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/auth.css' %}">
+{% endblock %}
 
 {% block body_class %}auth-page{% endblock %}
 {% block header %}{% endblock %}
 {% block footer %}{% endblock %}
 
 {% block content %}
-<div class="auth-card">
-    <h1 class="auth-title">Sign in to Electra</h1>
-    <p class="auth-subtitle">Welcome back. Enter your account or device credentials.</p>
+<div class="auth-wrapper">
+    <h1 class="auth-brand-heading">Electra</h1>
+    <p class="auth-subtitle">Sign in to access the election management system.</p>
 
-    {% if error %}
-    <div class="auth-error-box">
-        {{ error }}
+    <div class="auth-card">
+        <form method="post" action="{% url 'accounts:login' %}" class="auth-form" novalidate>
+            {% csrf_token %}
+
+            <div class="auth-field">
+                <label for="id_username" class="auth-label">Username</label>
+                <input type="text" 
+                       id="id_username" 
+                       name="username" 
+                       value="{{ username|default:'' }}" 
+                       class="auth-input{% if field_errors.username %} has-error{% endif %}" 
+                       required 
+                       autofocus 
+                       autocomplete="username" 
+                       placeholder="Enter your username">
+                {% if field_errors.username %}
+                <span class="auth-field-error">{{ field_errors.username }}</span>
+                {% endif %}
+            </div>
+
+            <div class="auth-field">
+                <label for="id_password" class="auth-label">Password</label>
+                <div class="auth-password-wrapper">
+                    <input type="password" 
+                           id="id_password" 
+                           name="password" 
+                           class="auth-input{% if field_errors.password or error and not field_errors.username %} has-error{% endif %}" 
+                           required 
+                           autocomplete="current-password" 
+                           placeholder="Enter your password">
+                    <button type="button" 
+                            class="auth-password-toggle" 
+                            data-target="id_password" 
+                            aria-label="Show password">
+                        <svg class="icon-eye-open" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        <svg class="icon-eye-closed" style="display: none;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                            <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                            <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                            <line x1="2" x2="22" y1="2" y2="22"/>
+                        </svg>
+                    </button>
+                </div>
+                {% if field_errors.password %}
+                <span class="auth-field-error">{{ field_errors.password }}</span>
+                {% elif error and not field_errors.username %}
+                <span class="auth-field-error">{{ error }}</span>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="auth-btn-submit">
+                Sign in
+            </button>
+        </form>
     </div>
-    {% endif %}
-
-    <form method="post" action="{% url 'accounts:login' %}" class="auth-form">
-        {% csrf_token %}
-
-        <div class="auth-field">
-            <label for="id_username" class="auth-label">Identifier</label>
-            <input type="text" id="id_username" name="username" value="{{ username }}" class="auth-input" required autofocus autocomplete="username" placeholder="Username or Device ID">
-        </div>
-
-        <div class="auth-field">
-            <label for="id_password" class="auth-label">Password</label>
-            <input type="password" id="id_password" name="password" class="auth-input" required autocomplete="current-password" placeholder="Enter password">
-        </div>
-
-        <button type="submit" class="auth-btn-submit">
-            Continue
-        </button>
-    </form>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    // Force reload on browser back/forward cache navigation
-    window.addEventListener('pageshow', function(event) {
-        if (event.persisted) {
-            window.location.reload();
-        }
-    });
-</script>
+<script src="{% static 'js/auth.js' %}"></script>
 {% endblock %}

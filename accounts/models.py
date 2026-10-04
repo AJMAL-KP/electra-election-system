@@ -75,8 +75,25 @@ class Device(models.Model):
         auto_now_add=True,
         help_text="Timestamp when credentials were last generated or rotated."
     )
+    booth = models.ForeignKey(
+        'voters.Booth',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='devices',
+        help_text="Physical booth this device is bound to."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['booth', 'device_type'],
+                condition=models.Q(booth__isnull=False),
+                name='unique_device_per_booth'
+            )
+        ]
 
     def __str__(self):
         return f"{self.identifier} ({self.get_device_type_display()}) [{self.credential_status}]"

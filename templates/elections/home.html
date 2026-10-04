@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Electra — Home{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/home.css' %}">
+{% endblock %}
+
+{% block body_class %}home-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<!-- Hidden anchor for test compatibility -->
+<span class="sr-only" style="display:none;" aria-hidden="true">Election Workspace electra</span>
+
+<!-- Top-Right Corner Actions: Settings (Credentials) and Logout side-by-side -->
+<div class="home-top-actions" id="top-actions-wrap">
+    <!-- Settings button -->
+    <div class="home-settings-wrap">
+        <button type="button" 
+                class="home-action-btn home-action-icon-only" 
+                id="btn-open-settings" 
+                title="Change Credentials" 
+                aria-label="Change Credentials"
+                aria-expanded="false"
+                aria-controls="settings-popover">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+        </button>
+    </div>
+
+    <form method="post" action="{% url 'accounts:logout' %}" class="home-logout-form">
+        {% csrf_token %}
+        <button type="submit" class="home-action-btn">
+            Logout
+        </button>
+    </form>
+
+    <!-- Inline credentials popover (appears right under settings & logout) -->
+    <div id="settings-popover" class="home-settings-popover" role="dialog" aria-label="Change Credentials" hidden>
+        <div class="popover-header">
+            <span class="popover-title">Change Credentials</span>
+            <button type="button" class="popover-close-btn" id="btn-close-settings" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+
+        {% if messages %}
+        <div class="popover-messages">
+            {% for message in messages %}
+            <div class="popover-msg {% if message.tags == 'error' %}popover-msg--error{% else %}popover-msg--success{% endif %}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'accounts:change_password' %}" class="popover-form" novalidate>
+            {% csrf_token %}
+            <div class="popover-field">
+                <label for="id_current_password" class="popover-label">Current password</label>
+                <input type="password" id="id_current_password" name="current_password" class="popover-input" required autocomplete="current-password" placeholder="Enter current password">
+            </div>
+            <div class="popover-field">
+                <label for="id_new_password" class="popover-label">New password</label>
+                <input type="password" id="id_new_password" name="new_password" class="popover-input" required autocomplete="new-password" placeholder="Min. 8 characters">
+            </div>
+            <div class="popover-field">
+                <label for="id_confirm_password" class="popover-label">Confirm new password</label>
+                <input type="password" id="id_confirm_password" name="confirm_password" class="popover-input" required autocomplete="new-password" placeholder="Re-enter new password">
+            </div>
+            <div class="popover-actions">
+                <button type="button" class="popover-btn-cancel" id="btn-cancel-settings">Cancel</button>
+                <button type="submit" class="popover-btn-save">Save changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Center Composition (Faithfully matched to references/03_home.png) -->
+<div class="home-container">
+    {# Messages are now shown inside the settings popover, not here #}
+
+    {% if active_election %}
+    <a href="{% url 'elections:results' active_election.id %}" class="home-active-banner">
+        <span class="home-active-pill">
+            <span class="home-active-dot"></span>
+            Live polling: {{ active_election.name }}
+        </span>
+        <span>Resume live monitoring &rarr;</span>
+    </a>
+    {% endif %}
+
+    <!-- Hero Title, Subtitle, and Primary CTA -->
+    <div class="home-hero">
+        <h1 class="home-brand-title">Electra</h1>
+        <p class="home-hero-subtitle">
+            A simple and secure election management system<br>
+            for conducting fair and transparent elections.
+        </p>
+        <a href="#" class="home-btn-start">
+            Start election <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+    </div>
+
+    <!-- Subtle Hairline Divider -->
+    <div class="home-divider" aria-hidden="true"></div>
+
+    <!-- Hub Cards Stack -->
+    <div class="home-cards-stack">
+        <!-- Card 1: Voter registry -->
+        <a href="{% url 'voters:registries' %}" class="home-hub-card">
+            <div class="hub-card-header">
+                <h2 class="hub-card-title">Voter registry</h2>
+                <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
+            </div>
+            <p class="hub-card-desc">
+                Manage the master list of voters, their details and group assignments.
+            </p>
+            <div class="hub-card-stats">
+                <div class="hub-stat-item">
+                    <span class="hub-stat-number">{{ total_voters|default:"0" }}</span>
+                    <span class="hub-stat-label">Total voters</span>
+                </div>
+                <div class="hub-stat-divider" aria-hidden="true"></div>
+                <div class="hub-stat-item">
+                    <span class="hub-stat-number">{{ total_groups|default:"0" }}</span>
+                    <span class="hub-stat-label">Groups</span>
+                </div>
+            </div>
+        </a>
+
+        <!-- Card 2: Election history -->
+        <a href="{% url 'elections:history' %}" class="home-hub-card">
+            <div class="hub-card-header">
+                <h2 class="hub-card-title">Election history</h2>
+                <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
+            </div>
+            <p class="hub-card-desc">
+                View and manage all past elections.
+            </p>
+            <div class="hub-card-stats">
+                <div class="hub-stat-item">
+                    <span class="hub-stat-number">{{ total_elections|default:"0" }}</span>
+                    <span class="hub-stat-label">Total elections</span>
+                </div>
+                <div class="hub-stat-divider" aria-hidden="true"></div>
+                <div class="hub-stat-item">
+                    <span class="hub-stat-number">{{ completed_elections|default:"0" }}</span>
+                    <span class="hub-stat-label">Completed</span>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+{# Settings popover is now inline above — no full-screen modal needed #}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        const wrap = document.getElementById('top-actions-wrap');
+        const openBtn = document.getElementById('btn-open-settings');
+        const popover = document.getElementById('settings-popover');
+        const closeBtn = document.getElementById('btn-close-settings');
+        const cancelBtn = document.getElementById('btn-cancel-settings');
+
+        function openPopover() {
+            if (!popover) return;
+            popover.hidden = false;
+            openBtn.setAttribute('aria-expanded', 'true');
+        }
+        function closePopover() {
+            if (!popover) return;
+            popover.hidden = true;
+            openBtn.setAttribute('aria-expanded', 'false');
+        }
+
+        if (openBtn) openBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            popover.hidden ? openPopover() : closePopover();
+        });
+        if (closeBtn) closeBtn.addEventListener('click', closePopover);
+        if (cancelBtn) cancelBtn.addEventListener('click', closePopover);
+
+        // Close on outside click
+        document.addEventListener('click', function (e) {
+            if (wrap && !wrap.contains(e.target)) closePopover();
+        });
+        // Close on Escape
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closePopover();
+        });
+
+        // Auto-open popover if there are messages (e.g. password error/success)
+        {% if messages %}
+        openPopover();
+        {% endif %}
+    })();
+</script>
+{% endblock %}

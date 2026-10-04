@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Initial import configuration — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/registry_create.css' %}">
+{% endblock %}
+
+{% block body_class %}registry-create-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="registry-create-layout">
+    <!-- Top Bar: Cancel navigation -->
+    <header class="create-top-bar">
+        <a href="{% url 'voters:registries' %}?reset=1" class="btn-cancel" aria-label="Cancel and return to registries">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            <span>Cancel</span>
+        </a>
+    </header>
+
+    <!-- Global Messages Container for Toast Rendering -->
+    {% if messages %}
+    <div style="display:none;" id="django-messages-data">
+        {% for message in messages %}
+        <div data-django-message data-type="{% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- ====================================================================
+         STATE 1: File Upload Only (Centered Half Screen)
+         ==================================================================== -->
+    <div id="state-upload-screen" class="state-upload-screen" style="{% if pending_file %}display: none;{% endif %}">
+        <div class="upload-hero">
+            <h1 class="upload-hero-title">Create voter registry</h1>
+            <p class="upload-hero-subtitle">
+                Upload your institution's voter file (CSV or Excel) to configure the registry schema and import voter records.
+            </p>
+        </div>
+
+        <div id="upload-dropzone-box" class="upload-dropzone-box" tabindex="0" role="button" aria-label="Upload voter spreadsheet file">
+            <div id="upload-prompt-container" style="display: flex; flex-direction: column; align-items: center;">
+                <div class="upload-icon-circle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                </div>
+                <p class="upload-prompt-text">
+                    Drag and drop your file here, or <span class="upload-prompt-browse">browse</span>
+                </p>
+                <p class="upload-subtext">Supports .csv, .xlsx, .xls</p>
+            </div>
+
+            <div id="upload-loading-overlay" class="upload-loading-overlay">
+                <div class="upload-spinner"></div>
+                <span class="upload-loading-text">Analyzing spreadsheet structure...</span>
+            </div>
+
+            <input type="file" id="file-input" name="file" accept=".csv, .xlsx, .xls" style="display: none;">
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         STATE 2: Initial Import Configuration (references/04_voter_registry_initial.png)
+         ==================================================================== -->
+    <div id="state-config-screen" class="state-config-screen" style="{% if not pending_file %}display: none;{% endif %}">
+        <div class="config-hero">
+            <h1 class="config-title">Initial import configuration</h1>
+            <p class="config-subtitle">
+                Configure the schema for this registry using the uploaded file. This schema will be used for all future imports and cannot be changed.
+            </p>
+        </div>
+
+        <!-- In-page Error Banner -->
+        {% if messages %}
+        <div class="config-error-banner" role="alert" id="config-error-banner">
+            <div class="error-banner-icon-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <div class="error-banner-body">
+                {% for message in messages %}
+                <div class="error-banner-msg">{{ message }}</div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <form id="registry-create-form" method="POST" action="{% url 'voters:registry_create' %}" novalidate>
+            {% csrf_token %}
+
+            <!-- Uploaded file summary card -->
+            <div id="file-card-box" class="file-card" style="margin-bottom: 24px;">
+                <div class="file-card-left">
+                    <div class="file-icon-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <line x1="10" y1="9" x2="8" y2="9"></line>
+                        </svg>
+                    </div>
+                    <div class="file-info-text">
+                        <div class="file-name" id="display-filename">{{ pending_file.filename|default:"Uploaded spreadsheet" }}</div>
+                        <div class="file-meta" id="display-filemeta">
+                            {% if pending_file.data_rows %}
+                            {{ pending_file.data_rows|length }} records &middot; {{ pending_file.filesize|default:"Uploaded" }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="file-card-right">
+                    <button type="button" id="btn-change-file" class="btn-change-file" title="Upload a different spreadsheet">Change file</button>
+                </div>
+            </div>
+
+            <!-- Section 1: Registry details -->
+            <section class="config-section">
+                <h2 class="config-section-title">Registry details</h2>
+                <div class="registry-details-grid" style="grid-template-columns: 1fr; max-width: 520px;">
+                    <div class="form-group">
+                        <label for="reg-name" class="form-label">Registry name <span class="req-star">*</span></label>
+                        <input type="text" id="reg-name" name="name" class="form-input" placeholder="e.g. CET Students" value="{{ name|default:'' }}" required autocomplete="off">
+                    </div>
+                </div>
+            </section>
+
+            <hr class="config-divider">
+
+            <!-- Section 2: Map columns from file -->
+            <section class="config-section">
+                <h2 class="config-section-title">Map columns from file</h2>
+                <p class="config-section-desc">Select the column from your file that corresponds to each field in the registry schema.</p>
+
+                <div class="column-mapping-grid">
+                    <!-- Column 1: Voter ID / Student ID -->
+                    <div class="form-group">
+                        <label for="col-primary-id" class="form-label">
+                            Student ID / Voter ID <span class="req-star">*</span>
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="col-primary-id" name="primary_id_source" class="form-select" required aria-label="Select Student ID column"></select>
+                            <span class="select-arrow" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Full Name -->
+                    <div class="form-group">
+                        <label for="col-name" class="form-label">
+                            Full Name <span class="req-star">*</span>
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="col-name" name="name_source" class="form-select" required aria-label="Select Full Name column"></select>
+                            <span class="select-arrow" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Column 3: Department / Class -->
+                    <div class="form-group">
+                        <label for="col-group" class="form-label">
+                            Department / Class <span class="req-star">*</span>
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="col-group" name="group_source" class="form-select" required aria-label="Select Department column"></select>
+                            <span class="select-arrow" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Column 4: Sub-group (Semester / Division) with Yes / No Toggle -->
+                    <div class="form-group" id="subgroup-group-container">
+                        <div class="subgroup-header-row">
+                            <label class="form-label" style="margin-bottom: 0;">
+                                Sub-group <span class="subgroup-subtext">(Semester / Division)</span>
+                            </label>
+                            <div class="segmented-toggle" role="radiogroup" aria-label="Include sub-groups">
+                                <button type="button" class="toggle-pill active" id="toggle-subgroup-yes" data-val="yes" title="Registry includes sub-groups">Yes</button>
+                                <button type="button" class="toggle-pill" id="toggle-subgroup-no" data-val="no" title="No sub-groups; organize directly under department">No</button>
+                            </div>
+                            <input type="hidden" name="has_subgroups_toggle" id="has-subgroups-toggle" value="yes">
+                        </div>
+                        <div class="select-wrapper" id="subgroup-select-wrapper">
+                            <select id="col-subgroup" name="subgroup_source" class="form-select" aria-label="Select Sub-group column"></select>
+                            <span class="select-arrow" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
+                            </span>
+                        </div>
+                        <div id="subgroup-off-hint" class="subgroup-off-hint" style="display: none;">
+                            <span>No sub-groups &mdash; voters organized directly under Department.</span>
+                        </div>
+                    </div>
+
+                    <!-- Column 5: Gender -->
+                    <div class="form-group">
+                        <label for="col-gender" class="form-label">
+                            Gender <span class="req-star">*</span>
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="col-gender" name="gender_source" class="form-select" required aria-label="Select Gender column"></select>
+                            <span class="select-arrow" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: File preview -->
+            <section class="config-section">
+                <h2 class="config-section-title">File preview</h2>
+                <p class="config-section-desc">Showing the first 5 rows from your file.</p>
+
+                <div class="preview-table-card">
+                    <table class="preview-table">
+                        <thead id="preview-thead"></thead>
+                        <tbody id="preview-tbody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Actions Row -->
+            <div class="config-actions-bar">
+                <a href="{% url 'voters:registries' %}?reset=1" class="btn-cancel-secondary" aria-label="Cancel configuration and return">
+                    Cancel
+                </a>
+                <button type="submit" id="btn-continue" class="btn-continue">
+                    <span>Continue</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if initial_parse_data %}
+{{ initial_parse_data|json_script:"initial-parse-data" }}
+{% endif %}
+
+<script src="{% static 'js/registry_create.js' %}"></script>
+{% endblock %}

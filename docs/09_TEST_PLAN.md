@@ -283,9 +283,21 @@ Integration tests should exercise complete workflows across multiple layers.
 At minimum:
 
 ```text
-Admin configures election
+Admin logs in (Home)
         ↓
-Election starts
+Start Election
+        ↓
+Stage 1: Election Voters configured (from Master Registry or direct bulk import)
+        ↓
+Stage 2: Election Details & Candidates configured (single workspace, modal/dialog)
+        ↓
+Stage 3: Booths & Allocation configured (booths, paired devices, credentials, allocation, lightweight printing)
+        ↓
+Stage 4: Review & Start (validation verified, runtime readiness verified)
+        ↓
+Election starts (DRAFT → ACTIVE, configuration frozen)
+        ↓
+Live Election Dashboard active (real-time monitoring)
         ↓
 Officer logs in
         ↓
@@ -305,11 +317,15 @@ Ballot submitted over HTTP
         ↓
 Votes committed atomically
         ↓
-Turnout updated
+Turnout updated on Live Dashboard
         ↓
-Election closes
+Admin ends election (ACTIVE → CLOSED)
         ↓
-Results become available
+Further voting rejected
+        ↓
+Results calculated and published
+        ↓
+Return to Home
 ```
 
 This is the primary end-to-end lifecycle.
@@ -620,7 +636,7 @@ Do not create tests for `SCHEDULED` or `LIVE` as canonical states because those 
 
 ---
 
-# 14. Election Start Validation Tests
+# 14. Election Start Validation Tests (Stage 4 — Review & Start)
 
 Before:
 
@@ -628,9 +644,9 @@ Before:
 DRAFT → ACTIVE
 ```
 
-test the configuration checkpoint.
+test the **Stage 4 — Review & Start** configuration checkpoint (`references/06.4_review.png`).
 
-Verify rejection when:
+Verify rejection and UI reporting when:
 
 ```text
 name missing
@@ -644,8 +660,14 @@ inactive credentials
 eligible voters not enrolled
 ElectionVoter missing booth allocation
 invalid eligibility configuration
-required stations not logged in
+required stations not logged in / not ready
+another election is already ACTIVE (single active election invariant)
 ```
+
+The review interface must clearly distinguish:
+- `Valid / Ready`
+- `Incomplete / Invalid`
+- `Device Not Ready`
 
 A failed start must leave the election in:
 
@@ -822,7 +844,14 @@ Test each role independently.
 
 ### Admin
 
-Can perform permitted administrative/configuration operations across the installation.
+Can perform permitted administrative and configuration operations across the installation:
+- Access authenticated Home landing hub (`03_home.png`);
+- Access and manage the persistent Master Voter Registry (`04_voter_registry.png`) independently of any active election;
+- Access and inspect Election History (`05_election_history.png`);
+- Navigate through Stages 1–4 of election setup (`06.1`–`06.4`);
+- Cannot start a second election while an election is already `ACTIVE` (strictly enforced single active election constraint);
+- Access the Live Election Dashboard (`07_live.png`) only when an election is `ACTIVE`;
+- Close an active election to calculate and inspect Results (`08_result.png`).
 
 ### Officer
 
@@ -1116,17 +1145,22 @@ Straightforward UI work does not require test-first development for every compon
 
 Use acceptance checks for:
 
-- dashboard cards;
-- forms;
-- navigation;
-- tables;
-- filters;
-- status badges;
-- confirmation dialogs;
-- loading states;
-- empty states;
-- kiosk presentation;
-- responsive behavior.
+- **Setup Flow (Stages 1–4)**:
+  - Centered onboarding-style sequence with 4-step progress indicator;
+  - Rejection of generic SaaS admin dashboards (no permanent sidebars, no generic grid cards, no card-within-card containers);
+  - **Stage 1 (Election Voters)**: dense grouped display, search/filtering, bulk select, add/remove election voters;
+  - **Stage 2 (Election Details & Candidates)**: single coherent setup workspace (not split into multiple wizard pages), inline/modal candidate creation, editable candidate symbol;
+  - **Stage 3 (Booths & Allocation)**: single setup page, borderless/transparent booth sections/cards, paired Officer and Kiosk devices, masked credentials, pass rotation, auto/manual allocation, lightweight print action buttons (`Print voter list`, `Print booth slips`, no large print panel);
+  - **Stage 4 (Review & Start)**: comprehensive validation summary, clear visual distinction between `Valid / Ready`, `Incomplete / Invalid`, and `Device Not Ready`, Save as Draft vs Start Election actions.
+- **Operational Screens**:
+  - **Live Election Dashboard**: dedicated monitoring screen during active polling (not part of the wizard), real-time aggregate turnout, booth-wise turnout and statuses, fullscreen indicators, pass management, End Election button;
+  - **Election Results**: position breakdowns, candidate tallies and percentages, visual focus on winners, Print Results action, Return to Home;
+  - **Home**: centered landing hub connecting Start Election, Master Voter Registry, and Election History;
+  - **Master Voter Registry**: persistent administrative area with dense grouped rosters, add/edit/delete, group assignment, bulk import, search/filter;
+  - **Election History**: archived past elections and published tallies.
+- **Officer & Kiosk Interfaces**:
+  - Officer: bound booth dashboard, voter verification, authorization trigger, operational status;
+  - Kiosk: locked default, fullscreen behavior, touch-friendly ballot controls, selection visibility, duplicate-submit prevention, success/error presentation, reconnect behavior, no voter identity exposure.
 
 Check:
 
@@ -1138,16 +1172,6 @@ correct action enabled/disabled
 correct error message
 correct success message
 ```
-
-For kiosk UI, explicitly check:
-
-- fullscreen behavior;
-- touch-friendly controls;
-- selection visibility;
-- duplicate-submit prevention;
-- success/error presentation;
-- reconnect behavior;
-- no voter identity exposure.
 
 ---
 
@@ -1273,19 +1297,21 @@ Electra is not complete merely because all pages render.
 The product is complete when the full controlled polling lifecycle works:
 
 ```text
-Admin configures election
+Admin logs in (Home)
         ↓
-Voters imported/enrolled
+Start Election
         ↓
-Eligibility configured
+Stage 1: Election Voters configured (from Master Registry or direct bulk import)
         ↓
-Booths configured
+Stage 2: Election Details & Candidates configured (single workspace, modal/dialog)
         ↓
-Voters allocated
+Stage 3: Booths & Allocation configured (booths, paired devices, credentials, allocation, lightweight printing)
         ↓
-Configuration validated
+Stage 4: Review & Start (validation verified, runtime readiness verified)
         ↓
-Election starts
+Election starts (DRAFT → ACTIVE, configuration frozen)
+        ↓
+Live Election Dashboard active (real-time monitoring)
         ↓
 Officer and Kiosk authenticate
         ↓
@@ -1313,11 +1339,15 @@ Authorization = USED
         ↓
 Kiosk locks
         ↓
-Turnout updates
+Turnout updates on Live Dashboard
         ↓
-Election closes
+Admin ends election (ACTIVE → CLOSED)
         ↓
-Results become available
+Further voting rejected
+        ↓
+Results calculated and published
+        ↓
+Return to Home
 ```
 
 Every critical transition in this lifecycle must have automated verification.
