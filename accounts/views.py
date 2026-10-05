@@ -7,7 +7,13 @@ from django.views.decorators.http import require_http_methods
 from accounts.models import Role
 from accounts.permissions import admin_required
 from accounts.selectors import is_installation_initialized
-from accounts.services import initialize_installation, login_device_user, logout_user
+from accounts.services import (
+    cleanup_past_credentials,
+    get_post_login_redirect_url,
+    initialize_installation,
+    login_device_user,
+    logout_user,
+)
 
 
 @never_cache
@@ -84,11 +90,12 @@ def login_view(request):
         return redirect("accounts:setup")
 
     if request.user.is_authenticated:
-        if getattr(request.user, "role", None) == Role.ADMIN:
-            return redirect("elections:dashboard")
-        return redirect("index")
+        return redirect(get_post_login_redirect_url(request.user))
 
     if request.method == "POST":
+        # Automatically clean up non-active/draft device credentials and their sessions
+        cleanup_past_credentials()
+
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
 
@@ -115,9 +122,7 @@ def login_view(request):
 
         try:
             login_device_user(request, user)
-            if user.role == Role.ADMIN:
-                return redirect("elections:dashboard")
-            return redirect("index")
+            return redirect(get_post_login_redirect_url(user))
         except ValidationError as exc:
             err_msg = exc.message if hasattr(exc, "message") else str(exc)
             field_errors["password"] = err_msg
@@ -147,15 +152,15 @@ def change_password_view(request):
     confirm_password = request.POST.get("confirm_password", "")
 
     if not request.user.check_password(current_password):
-        messages.error(request, "Current password is incorrect.")
+        messages.error(request, "Current password is incorrect.", extra_tags="password_modal")
         return redirect("elections:dashboard")
 
     if len(new_password) < 8:
-        messages.error(request, "New password must be at least 8 characters.")
+        messages.error(request, "New password must be at least 8 characters.", extra_tags="password_modal")
         return redirect("elections:dashboard")
 
     if new_password != confirm_password:
-        messages.error(request, "New passwords do not match.")
+        messages.error(request, "New passwords do not match.", extra_tags="password_modal")
         return redirect("elections:dashboard")
 
     request.user.set_password(new_password)

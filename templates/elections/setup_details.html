@@ -1,0 +1,939 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Election Details & Candidates — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/election_setup.css' %}">
+{% endblock %}
+
+{% block body_class %}setup-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="setup-page-wrapper">
+    <!-- ====================================================================
+         FIXED TOP HEADER: Stepper & Nav Row (Back on left, Save draft + Continue on right)
+         "remove the ectra from top, move the back and continue to ends of header just like in first step.
+          place a save draft button just left to the continue button."
+         ==================================================================== -->
+    <header class="setup-fixed-top">
+        <div class="setup-fixed-inner">
+            <!-- Stepper (Active Step 2) -->
+            {% include "elections/components/setup_stepper.html" with active_step=2 %}
+
+            <!-- Top Nav Row -->
+            <div class="setup-top-nav-row">
+                <div class="setup-nav-left">
+                    <button type="button" class="setup-btn-exit" id="btn-trigger-exit-modal" aria-label="Exit setup">
+                        &times; Exit
+                    </button>
+                </div>
+                <div class="setup-nav-center">
+                    <h1 class="setup-nav-headline">Election details and candidates</h1>
+                </div>
+                <div class="setup-nav-right">
+                    <a href="{% url 'elections:setup_voters' election.id %}?from_step=2" class="setup-btn-secondary" aria-label="Back to step 1">
+                        &larr; Back
+                    </a>
+                    <button type="button" id="btn-top-continue" class="setup-btn-continue" title="Proceed to booths and allocation">
+                        Continue &rarr;
+                    </button>
+                </div>
+            </div>
+
+            <!-- Toast Messages Container -->
+            {% if messages %}
+            <div style="display:none;" id="django-messages-data">
+                {% for message in messages %}
+                <div data-django-message data-type="{% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- ====================================================================
+         SCROLLABLE CONTENT AREA
+         "this page also has two sections,
+          first section - ask for election name and description, no need of election info heading.
+          second section - Positions and candidates- add a add position button to the right of its row."
+         ==================================================================== -->
+    <main class="setup-scroll-area" id="setup-details-scroll-area">
+        <div class="setup-scroll-inner">
+            <!-- Main Election Details Form -->
+            <form method="post" action="{% url 'elections:setup_details' election.id %}" id="form-election-details">
+                {% csrf_token %}
+                <input type="hidden" name="action" id="details-form-action" value="continue">
+
+                <!-- SECTION 1: Election Name & Description (No section heading) -->
+                <section class="setup-section-box">
+                    <div class="setup-field-group">
+                        <label for="id_election_name" class="setup-field-label">
+                            Election name <span class="required-asterisk">*</span>
+                        </label>
+                        <div class="setup-input-wrap">
+                            <input type="text" 
+                                   id="id_election_name" 
+                                   name="name" 
+                                   class="setup-text-input" 
+                                   value="{{ election.name }}" 
+                                   maxlength="100" 
+                                   placeholder="e.g. Student Union Election 2026" 
+                                   required>
+                            <span class="setup-char-counter" id="name-counter">{{ election.name|length }}/100</span>
+                        </div>
+                    </div>
+
+                    <div class="setup-field-group" style="margin-top: 18px;">
+                        <label for="id_election_desc" class="setup-field-label">
+                            Description <span class="optional-label">(optional)</span>
+                        </label>
+                        <div class="setup-input-wrap">
+                            <textarea id="id_election_desc" 
+                                      name="description" 
+                                      class="setup-textarea-input" 
+                                      rows="3" 
+                                      maxlength="500" 
+                                      placeholder="Annual student union election for the academic year 2026. Conducted by the MCA Student Union.">{{ election.description }}</textarea>
+                            <span class="setup-char-counter" id="desc-counter">{{ election.description|length }}/500</span>
+                        </div>
+                    </div>
+                </section>
+            </form>
+
+            <!-- SECTION 2: Positions and candidates -->
+            <section class="setup-positions-section">
+                <!-- Section Header Row: Title on left, + Add position button on right -->
+                <div class="setup-section-header-row">
+                    <h2 class="setup-section-title">Positions and candidates</h2>
+                    <button type="button" class="btn-add-position" id="btn-trigger-add-position">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add position
+                    </button>
+                </div>
+
+                <!-- Positions List -->
+                <div class="setup-positions-stack">
+                    {% if positions %}
+                        {% for pos in positions %}
+                        <div class="position-card" id="position-card-{{ pos.id }}">
+                            <!-- Position Header Row -->
+                            <div class="position-header-row">
+                                <div class="position-title-wrap">
+                                    <h3 class="position-name">{{ pos.name }}</h3>
+                                    {% if pos.eligible_gender and pos.eligible_gender != 'ALL' %}
+                                        <span class="position-eligibility-badge gender-badge">{{ pos.get_eligible_gender_display|default:pos.eligible_gender }} only</span>
+                                    {% endif %}
+                                    {% if pos.eligible_groups.all %}
+                                        <span class="position-eligibility-badge">
+                                            Eligible: 
+                                            {% for grp in pos.eligible_groups.all %}
+                                                {{ grp.name }}{% if not forloop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="position-header-actions">
+                                    <form method="post" action="{% url 'elections:setup_details' election.id %}" class="delete-position-form" onsubmit="return confirm('Delete position \'{{ pos.name }}\' and all its candidates?');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete_position">
+                                        <input type="hidden" name="position_id" value="{{ pos.id }}">
+                                        <input type="hidden" name="current_name" class="pos-mirror-current-name">
+                                        <input type="hidden" name="current_desc" class="pos-mirror-current-desc">
+                                        <button type="submit" class="btn-position-delete" title="Delete position" aria-label="Delete {{ pos.name }}">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                                                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                            </svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Candidates Listing Under Position -->
+                            <div class="position-candidates-area">
+                                {% if pos.candidates.all %}
+                                    <div class="candidate-rows-stack">
+                                        {% for cand in pos.candidates.all %}
+                                        <div class="candidate-row" id="candidate-row-{{ cand.id }}">
+                                            <!-- Column 1: Symbol / Photo -->
+                                            <div class="candidate-col-icon">
+                                                {% if cand.photo %}
+                                                    <img src="{{ cand.photo.url }}" alt="{{ cand.name }}" class="candidate-thumb-img">
+                                                {% elif cand.symbol_image %}
+                                                    <img src="{{ cand.symbol_image.url }}" alt="{{ cand.symbol }}" class="candidate-thumb-img">
+                                                {% else %}
+                                                    {% include "elections/components/candidate_symbol_badge.html" with symbol=cand.symbol name=cand.name %}
+                                                {% endif %}
+                                            </div>
+
+                                            <!-- Column 2: Identifier -->
+                                            <div class="candidate-col-id">
+                                                {{ cand.voter.identifier|default:"—" }}
+                                            </div>
+
+                                            <!-- Column 3: Name -->
+                                            <div class="candidate-col-name">
+                                                {{ cand.name }}
+                                            </div>
+
+                                            <!-- Column 4: Academic Group -->
+                                            <div class="candidate-col-group">
+                                                {{ cand.academic_group|default:cand.voter.academic_group.name|default:"—" }}
+                                            </div>
+
+                                            <!-- Column 5: Symbol Name (if any) -->
+                                            <div class="candidate-col-symbol">
+                                                {% if cand.symbol %}
+                                                    <span class="cand-symbol-label">{{ cand.symbol }}</span>
+                                                {% endif %}
+                                            </div>
+
+                                            <!-- Column 6: Delete Red Trash Icon -->
+                                            <div class="candidate-col-action">
+                                                <form method="post" action="{% url 'elections:setup_details' election.id %}" class="delete-cand-form" onsubmit="return confirm('Remove candidate \'{{ cand.name }}\'?');">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="delete_candidate">
+                                                    <input type="hidden" name="candidate_id" value="{{ cand.id }}">
+                                                    <input type="hidden" name="current_name" class="cand-mirror-current-name">
+                                                    <input type="hidden" name="current_desc" class="cand-mirror-current-desc">
+                                                    <button type="submit" class="btn-candidate-delete" title="Delete candidate" aria-label="Delete {{ cand.name }}">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18" aria-hidden="true">
+                                                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                        </svg>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+
+                                <!-- Add Candidate Action Below Contents -->
+                                <div class="position-add-cand-row">
+                                    <button type="button" 
+                                            class="btn-trigger-add-candidate" 
+                                            data-position-id="{{ pos.id }}" 
+                                            data-position-name="{{ pos.name }}">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                        Add candidate
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <!-- Empty State when no positions exist -->
+                        <div class="setup-positions-empty">
+                            <p class="empty-positions-text">No positions created yet.</p>
+                            <button type="button" class="btn-add-position" id="btn-empty-add-position">
+                                + Add position
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<!-- ====================================================================
+     MODAL 1: ADD POSITION
+     "add position modal asks for position name and its eligibility,
+      asks to select eligible voters, options - all and seperate groups.
+      better as multi select bubbles cards"
+     ==================================================================== -->
+<div class="setup-modal-backdrop" id="modal-add-position" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-pos-title">
+    <div class="setup-modal-dialog setup-modal-wide">
+        <form method="post" action="{% url 'elections:setup_details' election.id %}" id="form-add-position" class="setup-modal-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_position">
+            <input type="hidden" name="current_name" id="pos-mirror-name">
+            <input type="hidden" name="current_desc" id="pos-mirror-desc">
+            <input type="hidden" name="eligibility_mode" id="id_eligibility_mode" value="all">
+            <div id="hidden-eligible-groups"></div>
+
+            <div class="setup-modal-header">
+                <div>
+                    <h3 class="setup-modal-title" id="modal-pos-title">Add position</h3>
+                    <span class="setup-modal-subtitle">Define elected role, gender restrictions, and voter eligibility cohorts</span>
+                </div>
+                <button type="button" class="setup-modal-close" data-close-modal aria-label="Close modal">&times;</button>
+            </div>
+
+            <div class="setup-modal-body">
+                <div class="setup-field-group">
+                    <label for="id_position_name" class="setup-field-label">
+                        Position name <span class="required-asterisk">*</span>
+                    </label>
+                    <input type="text" 
+                           id="id_position_name" 
+                           name="position_name" 
+                           class="setup-text-input" 
+                           placeholder="e.g. President, Vice President, General Secretary, Sports Secretary" 
+                           required 
+                           autocomplete="off">
+                </div>
+
+                <div class="setup-field-group" style="margin-top: 18px;">
+                    <label class="setup-field-label">Gender eligibility</label>
+                    <p class="setup-field-hint">Specify whether this post is restricted to specific gender voters.</p>
+                    <div class="eligibility-bubbles-grid gender-bubbles-grid">
+                        <div class="bubble-card is-selected gender-bubble" data-gender="ALL" role="button" tabindex="0">
+                            <div class="bubble-check-indicator">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <div class="bubble-content">
+                                <span class="bubble-name">All genders</span>
+                                <span class="bubble-sub">Open to all voters</span>
+                            </div>
+                        </div>
+                        <div class="bubble-card gender-bubble" data-gender="FEMALE" role="button" tabindex="0">
+                            <div class="bubble-check-indicator">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <div class="bubble-content">
+                                <span class="bubble-name">Female only</span>
+                                <span class="bubble-sub">Reserved for female voters</span>
+                            </div>
+                        </div>
+                        <div class="bubble-card gender-bubble" data-gender="MALE" role="button" tabindex="0">
+                            <div class="bubble-check-indicator">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <div class="bubble-content">
+                                <span class="bubble-name">Male only</span>
+                                <span class="bubble-sub">Reserved for male voters</span>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="hidden" name="eligible_gender" id="id_eligible_gender" value="ALL">
+                </div>
+
+                <div class="setup-field-group" style="margin-top: 20px;">
+                    <label class="setup-field-label">Group eligibility</label>
+                    <p class="setup-field-hint">Choose which registered voter cohorts or departments are eligible to vote for this post.</p>
+
+                    <!-- Multi-select Bubbles Cards with scrollable container if cohorts are numerous -->
+                    <div class="eligibility-bubbles-scrollable">
+                        <div class="eligibility-bubbles-grid">
+                            <!-- Universal 'All voters' Bubble -->
+                            <div class="bubble-card is-selected" id="bubble-all-voters" data-type="all" role="button" tabindex="0">
+                                <div class="bubble-check-indicator">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="bubble-content">
+                                    <span class="bubble-name">All voters</span>
+                                    <span class="bubble-sub">{{ total_enrolled_voters }} total registered</span>
+                                </div>
+                            </div>
+
+                            <!-- Individual Academic Groups -->
+                            {% for grp in available_groups %}
+                            <div class="bubble-card" data-type="group" data-group-id="{{ grp.id }}" role="button" tabindex="0">
+                                <div class="bubble-check-indicator">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="bubble-content">
+                                    <span class="bubble-name">{{ grp.name }}</span>
+                                    <span class="bubble-sub">{{ grp.voter_count|default:"0" }} voter{{ grp.voter_count|pluralize }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setup-modal-footer">
+                <button type="button" class="btn-modal-cancel" data-close-modal>Cancel</button>
+                <button type="submit" class="btn-modal-submit" id="btn-submit-position">Add position</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ====================================================================
+     MODAL 2: ADD CANDIDATE
+     "clicking on it opens a modal that can search for a voter from election voter,
+      add his photo and symbol, both optional.
+      his display information in the position contents should be photo, name , identifier and symbol."
+     ==================================================================== -->
+<div class="setup-modal-backdrop" id="modal-add-candidate" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-cand-title">
+    <div class="setup-modal-dialog setup-modal-cand">
+        <form method="post" action="{% url 'elections:setup_details' election.id %}" id="form-add-candidate" class="setup-modal-form" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_candidate">
+            <input type="hidden" name="position_id" id="cand-modal-pos-id">
+            <input type="hidden" name="current_name" id="cand-mirror-name">
+            <input type="hidden" name="current_desc" id="cand-mirror-desc">
+
+            <!-- Selected voter hidden fields -->
+            <input type="hidden" name="voter_id" id="chosen-voter-id">
+            <input type="hidden" name="candidate_name" id="chosen-candidate-name">
+            <input type="hidden" name="academic_group" id="chosen-academic-group">
+
+            <div class="setup-modal-header">
+                <div>
+                    <h3 class="setup-modal-title" id="modal-cand-title">Add candidate</h3>
+                    <span class="setup-modal-subtitle" id="cand-modal-pos-subtitle">Position: —</span>
+                </div>
+                <button type="button" class="setup-modal-close" data-close-modal aria-label="Close modal">&times;</button>
+            </div>
+
+            <div class="setup-modal-body">
+                <!-- Voter Search from Election Voter Registry -->
+                <div class="setup-field-group">
+                    <label class="setup-field-label">
+                        Search voter from election registry <span class="required-asterisk">*</span>
+                    </label>
+
+                    <!-- Search Input Box -->
+                    <div class="cand-search-container" id="cand-search-input-box">
+                        <div class="search-input-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </div>
+                        <input type="text" 
+                               id="cand-voter-search-input" 
+                               class="setup-text-input cand-search-input" 
+                               placeholder="Type student ID (e.g. CS001) or student name..." 
+                               autocomplete="off">
+                        
+                        <!-- Search Results Dropdown -->
+                        <div class="cand-search-dropdown" id="cand-search-dropdown" style="display: none;"></div>
+                    </div>
+
+                    <!-- Selected Voter Preview Card -->
+                    <div class="selected-voter-preview" id="selected-voter-preview" style="display: none;">
+                        <div class="preview-avatar-circle" id="prev-voter-avatar"></div>
+                        <div class="preview-voter-details">
+                            <div class="preview-voter-name" id="prev-voter-name"></div>
+                            <div class="preview-voter-meta">
+                                <span class="preview-voter-id" id="prev-voter-id"></span>
+                                <span class="preview-bullet">&bull;</span>
+                                <span class="preview-voter-group" id="prev-voter-group"></span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-change-selected-voter" id="btn-change-voter">Change</button>
+                    </div>
+                </div>
+
+                <!-- Two-column responsive row for Photo & Symbol -->
+                <div class="modal-two-col">
+                    <!-- Column 1: Candidate Photo (Optional) -->
+                    <div class="setup-field-group" style="margin-bottom: 0;">
+                        <label class="setup-field-label">
+                            Candidate photo <span class="optional-label">(optional)</span>
+                        </label>
+                        <p class="setup-field-hint" style="margin-bottom: 10px;">Upload a passport-sized image for the voting ballot display.</p>
+                        <div class="custom-file-upload-row">
+                            <input type="file" name="photo" id="id_candidate_photo" accept="image/*" class="file-input-native">
+                            <label for="id_candidate_photo" class="btn-file-select">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                                </svg>
+                                Choose photo
+                            </label>
+                            <span class="file-chosen-status" id="photo-filename-label">No photo chosen</span>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Ballot Symbol (Optional) -->
+                    <div class="setup-field-group" style="margin-bottom: 0;">
+                        <label class="setup-field-label">
+                            Ballot symbol <span class="optional-label">(optional)</span>
+                        </label>
+                        <p class="setup-field-hint">Select a preset symbol or specify a custom symbol / slate.</p>
+
+                        <!-- Preset Symbols Palette (matching reference 06.2) -->
+                        <div class="preset-symbols-grid">
+                            <button type="button" class="preset-symbol-pill" data-symbol="Crown" title="Crown">
+                                <span class="cand-badge badge-peach" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path>
+                                    </svg>
+                                </span>
+                                <span class="pill-name">Crown</span>
+                            </button>
+                            <button type="button" class="preset-symbol-pill" data-symbol="Leaf" title="Leaf">
+                                <span class="cand-badge badge-mint" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>
+                                        <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+                                    </svg>
+                                </span>
+                                <span class="pill-name">Leaf</span>
+                            </button>
+                            <button type="button" class="preset-symbol-pill" data-symbol="Bolt" title="Bolt">
+                                <span class="cand-badge badge-purple" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                    </svg>
+                                </span>
+                                <span class="pill-name">Bolt</span>
+                            </button>
+                            <button type="button" class="preset-symbol-pill" data-symbol="Star" title="Star">
+                                <span class="cand-badge badge-gold" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                </span>
+                                <span class="pill-name">Star</span>
+                            </button>
+                            <button type="button" class="preset-symbol-pill" data-symbol="Book" title="Book">
+                                <span class="cand-badge badge-pink" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                                    </svg>
+                                </span>
+                                <span class="pill-name">Book</span>
+                            </button>
+                            <button type="button" class="preset-symbol-pill" data-symbol="Megaphone" title="Megaphone">
+                                <span class="cand-badge badge-teal" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <path d="M3 11l19-9-9 19-2-8-8-2z"></path>
+                                    </svg>
+                                </span>
+                                <span class="pill-name">Megaphone</span>
+                            </button>
+                            <button type="button" class="preset-symbol-pill" data-symbol="Users" title="Users">
+                                <span class="cand-badge badge-blue" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                </span>
+                                <span class="pill-name">Users</span>
+                            </button>
+                        </div>
+
+                        <!-- Custom Symbol Name Input -->
+                        <div style="margin-top: 10px;">
+                            <input type="text" 
+                                   name="symbol" 
+                                   id="id_candidate_symbol" 
+                                   class="setup-text-input" 
+                                   placeholder="Or enter custom symbol name (e.g. Phoenix, Slate Alpha)">
+                        </div>
+
+                        <!-- Optional Custom Symbol Image -->
+                        <div class="custom-file-upload-row" style="margin-top: 10px;">
+                            <input type="file" name="symbol_image" id="id_candidate_symbol_img" accept="image/*" class="file-input-native">
+                            <label for="id_candidate_symbol_img" class="btn-file-select-secondary">
+                                Upload symbol icon
+                            </label>
+                            <span class="file-chosen-status" id="symbol-img-filename-label">No symbol image chosen</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setup-modal-footer">
+                <button type="button" class="btn-modal-cancel" data-close-modal>Cancel</button>
+                <button type="submit" class="btn-modal-submit" id="btn-submit-candidate" disabled>Add candidate</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- JavaScript for Modals, Dynamic Voter Search, Live Counters, and Draft Sync -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const electionId = {{ election.id }};
+    const searchVotersUrl = "{% url 'elections:setup_voters_search' election.id %}";
+
+    // -------------------------------------------------------------------------
+    // 1. Live Character Counters for Name & Description
+    // -------------------------------------------------------------------------
+    const nameInput = document.getElementById('id_election_name');
+    const nameCounter = document.getElementById('name-counter');
+    const descInput = document.getElementById('id_election_desc');
+    const descCounter = document.getElementById('desc-counter');
+
+    function updateCounters() {
+        if (nameInput && nameCounter) {
+            nameCounter.textContent = `${nameInput.value.length}/100`;
+        }
+        if (descInput && descCounter) {
+            descCounter.textContent = `${descInput.value.length}/500`;
+        }
+    }
+    if (nameInput) nameInput.addEventListener('input', updateCounters);
+    if (descInput) descInput.addEventListener('input', updateCounters);
+    updateCounters();
+
+    // -------------------------------------------------------------------------
+    // 2. Top Nav Actions: Save as Draft & Continue
+    // -------------------------------------------------------------------------
+    const mainForm = document.getElementById('form-election-details');
+    const actionInput = document.getElementById('details-form-action');
+    const btnSaveDraft = document.getElementById('btn-top-save-draft');
+    const btnContinue = document.getElementById('btn-top-continue');
+
+    if (btnSaveDraft && mainForm && actionInput) {
+        btnSaveDraft.addEventListener('click', function () {
+            actionInput.value = 'save_draft';
+            mainForm.submit();
+        });
+    }
+
+    if (btnContinue && mainForm && actionInput) {
+        btnContinue.addEventListener('click', function () {
+            actionInput.value = 'continue';
+            mainForm.submit();
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. Mirror Form State on Submissions (Positions & Candidates)
+    // -------------------------------------------------------------------------
+    function syncDraftFormState() {
+        const currentName = nameInput ? nameInput.value : '';
+        const currentDesc = descInput ? descInput.value : '';
+
+        document.querySelectorAll('.pos-mirror-current-name, #pos-mirror-name').forEach(el => el.value = currentName);
+        document.querySelectorAll('.pos-mirror-current-desc, #pos-mirror-desc').forEach(el => el.value = currentDesc);
+        document.querySelectorAll('.cand-mirror-current-name, #cand-mirror-name').forEach(el => el.value = currentName);
+        document.querySelectorAll('.cand-mirror-current-desc, #cand-mirror-desc').forEach(el => el.value = currentDesc);
+    }
+
+    document.querySelectorAll('.delete-position-form, .delete-cand-form').forEach(f => {
+        f.addEventListener('submit', syncDraftFormState);
+    });
+
+    // -------------------------------------------------------------------------
+    // 4. Modal Open & Close Utility
+    // -------------------------------------------------------------------------
+    function openModal(modalId) {
+        syncDraftFormState();
+        const m = document.getElementById(modalId);
+        if (m) {
+            m.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => {
+                const firstInput = m.querySelector('input[type="text"]:not([readonly]):not([disabled])');
+                if (firstInput) firstInput.focus();
+            }, 60);
+        }
+    }
+
+    function closeModal(modalEl) {
+        if (modalEl) {
+            modalEl.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    }
+
+    document.querySelectorAll('[data-close-modal]').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const modal = this.closest('.setup-modal-backdrop');
+            closeModal(modal);
+        });
+    });
+
+    window.addEventListener('click', function (e) {
+        if (e.target.classList.contains('setup-modal-backdrop')) {
+            closeModal(e.target);
+        }
+    });
+
+    // -------------------------------------------------------------------------
+    // 5. Add Position Modal & Eligibility Bubble Selection
+    // -------------------------------------------------------------------------
+    const btnOpenAddPos = document.getElementById('btn-trigger-add-position');
+    const btnEmptyAddPos = document.getElementById('btn-empty-add-position');
+    const modalAddPos = document.getElementById('modal-add-position');
+    const formAddPos = document.getElementById('form-add-position');
+
+    if (btnOpenAddPos) btnOpenAddPos.addEventListener('click', () => openModal('modal-add-position'));
+    if (btnEmptyAddPos) btnEmptyAddPos.addEventListener('click', () => openModal('modal-add-position'));
+
+    const bubbleAll = document.getElementById('bubble-all-voters');
+    const groupBubbles = document.querySelectorAll('.bubble-card[data-type="group"]');
+    const eligibilityModeInput = document.getElementById('id_eligibility_mode');
+    const hiddenGroupsContainer = document.getElementById('hidden-eligible-groups');
+
+    function syncEligibilityState() {
+        hiddenGroupsContainer.innerHTML = '';
+        const selectedGroupBubbles = Array.from(groupBubbles).filter(b => b.classList.contains('is-selected'));
+
+        if (bubbleAll.classList.contains('is-selected') || selectedGroupBubbles.length === 0) {
+            bubbleAll.classList.add('is-selected');
+            groupBubbles.forEach(b => b.classList.remove('is-selected'));
+            eligibilityModeInput.value = 'all';
+        } else {
+            bubbleAll.classList.remove('is-selected');
+            eligibilityModeInput.value = 'groups';
+            selectedGroupBubbles.forEach(b => {
+                const gid = b.getAttribute('data-group-id');
+                const inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = 'eligible_group_ids';
+                inp.value = gid;
+                hiddenGroupsContainer.appendChild(inp);
+            });
+        }
+    }
+
+    if (bubbleAll) {
+        bubbleAll.addEventListener('click', function () {
+            bubbleAll.classList.add('is-selected');
+            groupBubbles.forEach(b => b.classList.remove('is-selected'));
+            syncEligibilityState();
+        });
+    }
+
+    groupBubbles.forEach(b => {
+        b.addEventListener('click', function () {
+            this.classList.toggle('is-selected');
+            bubbleAll.classList.remove('is-selected');
+            syncEligibilityState();
+        });
+    });
+
+    const genderBubbles = document.querySelectorAll('.gender-bubble');
+    const eligibleGenderInput = document.getElementById('id_eligible_gender');
+    genderBubbles.forEach(b => {
+        b.addEventListener('click', function () {
+            genderBubbles.forEach(gb => gb.classList.remove('is-selected'));
+            this.classList.add('is-selected');
+            if (eligibleGenderInput) eligibleGenderInput.value = this.getAttribute('data-gender');
+        });
+    });
+
+    if (formAddPos) {
+        formAddPos.addEventListener('submit', function () {
+            syncEligibilityState();
+            syncDraftFormState();
+        });
+    }
+
+
+    // -------------------------------------------------------------------------
+    // 6. Add Candidate Modal & Live Voter Search
+    // -------------------------------------------------------------------------
+    const modalAddCand = document.getElementById('modal-add-candidate');
+    const formAddCand = document.getElementById('form-add-candidate');
+    const candModalPosId = document.getElementById('cand-modal-pos-id');
+    const candModalPosSubtitle = document.getElementById('cand-modal-pos-subtitle');
+    const candSearchInput = document.getElementById('cand-voter-search-input');
+    const candSearchDropdown = document.getElementById('cand-search-dropdown');
+    const selectedVoterPreview = document.getElementById('selected-voter-preview');
+    const candSearchInputBox = document.getElementById('cand-search-input-box');
+    const btnChangeVoter = document.getElementById('btn-change-voter');
+
+    const chosenVoterId = document.getElementById('chosen-voter-id');
+    const chosenCandName = document.getElementById('chosen-candidate-name');
+    const chosenAcademicGroup = document.getElementById('chosen-academic-group');
+    const btnSubmitCand = document.getElementById('btn-submit-candidate');
+
+    const prevVoterAvatar = document.getElementById('prev-voter-avatar');
+    const prevVoterName = document.getElementById('prev-voter-name');
+    const prevVoterId = document.getElementById('prev-voter-id');
+    const prevVoterGroup = document.getElementById('prev-voter-group');
+
+    // Trigger candidate modal for specific position
+    document.querySelectorAll('.btn-trigger-add-candidate').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const posId = this.getAttribute('data-position-id');
+            const posName = this.getAttribute('data-position-name');
+
+            candModalPosId.value = posId;
+            candModalPosSubtitle.textContent = `Position: ${posName}`;
+
+            // Reset search & selection
+            clearSelectedVoter();
+            openModal('modal-add-candidate');
+            if (candSearchInput) candSearchInput.focus();
+        });
+    });
+
+    function clearSelectedVoter() {
+        chosenVoterId.value = '';
+        chosenCandName.value = '';
+        chosenAcademicGroup.value = '';
+        if (candSearchInput) candSearchInput.value = '';
+        if (candSearchDropdown) candSearchDropdown.style.display = 'none';
+        if (selectedVoterPreview) selectedVoterPreview.style.display = 'none';
+        if (candSearchInputBox) candSearchInputBox.style.display = 'block';
+        if (btnSubmitCand) btnSubmitCand.disabled = true;
+    }
+
+    if (btnChangeVoter) {
+        btnChangeVoter.addEventListener('click', function () {
+            clearSelectedVoter();
+            if (candSearchInput) candSearchInput.focus();
+        });
+    }
+
+    // Dynamic Search with debouncing
+    let searchTimeout = null;
+    if (candSearchInput) {
+        candSearchInput.addEventListener('input', function () {
+            const q = this.value.trim();
+            clearTimeout(searchTimeout);
+
+            if (q.length < 1) {
+                candSearchDropdown.style.display = 'none';
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                fetch(`${searchVotersUrl}?q=${encodeURIComponent(q)}&position_id=${candModalPosId.value}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        renderSearchResults(data.results || []);
+                    })
+                    .catch(err => {
+                        console.error("Voter search error:", err);
+                    });
+            }, 250);
+        });
+    }
+
+    function renderSearchResults(results) {
+        if (!candSearchDropdown) return;
+        candSearchDropdown.innerHTML = '';
+
+        if (results.length === 0) {
+            candSearchDropdown.innerHTML = '<div class="cand-search-item empty">No eligible voters found.</div>';
+            candSearchDropdown.style.display = 'block';
+            return;
+        }
+
+        results.forEach(voter => {
+            const item = document.createElement('div');
+            item.className = 'cand-search-item';
+            item.setAttribute('role', 'button');
+            item.setAttribute('tabindex', '0');
+
+            const initial = voter.name ? voter.name.charAt(0).toUpperCase() : '?';
+            item.innerHTML = `
+                <div class="search-item-avatar">${initial}</div>
+                <div class="search-item-info">
+                    <span class="search-item-name">${voter.name}</span>
+                    <span class="search-item-meta">${voter.identifier} &bull; ${voter.group || 'No group'}</span>
+                </div>
+            `;
+
+            item.addEventListener('click', function () {
+                selectVoter(voter);
+            });
+            candSearchDropdown.appendChild(item);
+        });
+
+        candSearchDropdown.style.display = 'block';
+    }
+
+    function selectVoter(voter) {
+        chosenVoterId.value = voter.id;
+        chosenCandName.value = voter.name;
+        chosenAcademicGroup.value = voter.group || '';
+
+        prevVoterName.textContent = voter.name;
+        prevVoterId.textContent = voter.identifier;
+        prevVoterGroup.textContent = voter.group || 'No group';
+        prevVoterAvatar.textContent = voter.name ? voter.name.charAt(0).toUpperCase() : '?';
+
+        candSearchDropdown.style.display = 'none';
+        candSearchInputBox.style.display = 'none';
+        selectedVoterPreview.style.display = 'flex';
+
+        if (btnSubmitCand) btnSubmitCand.disabled = false;
+    }
+
+    // Preset Symbols Selection
+    const symbolInput = document.getElementById('id_candidate_symbol');
+    document.querySelectorAll('.preset-symbol-pill').forEach(pill => {
+        pill.addEventListener('click', function () {
+            const sym = this.getAttribute('data-symbol');
+            document.querySelectorAll('.preset-symbol-pill').forEach(p => p.classList.remove('is-active'));
+            this.classList.add('is-active');
+            if (symbolInput) symbolInput.value = sym;
+        });
+    });
+
+    if (symbolInput) {
+        symbolInput.addEventListener('input', function () {
+            document.querySelectorAll('.preset-symbol-pill').forEach(p => {
+                if (p.getAttribute('data-symbol').toLowerCase() === symbolInput.value.trim().toLowerCase()) {
+                    p.classList.add('is-active');
+                } else {
+                    p.classList.remove('is-active');
+                }
+            });
+        });
+    }
+
+    // Photo and Symbol File Inputs Labels
+    const photoInput = document.getElementById('id_candidate_photo');
+    const photoLabel = document.getElementById('photo-filename-label');
+    if (photoInput && photoLabel) {
+        photoInput.addEventListener('change', function () {
+            photoLabel.textContent = this.files && this.files[0] ? this.files[0].name : 'No photo chosen';
+        });
+    }
+
+    const symbolImgInput = document.getElementById('id_candidate_symbol_img');
+    const symbolImgLabel = document.getElementById('symbol-img-filename-label');
+    if (symbolImgInput && symbolImgLabel) {
+        symbolImgInput.addEventListener('change', function () {
+            symbolImgLabel.textContent = this.files && this.files[0] ? this.files[0].name : 'No symbol image chosen';
+        });
+    }
+
+    if (formAddCand) {
+        formAddCand.addEventListener('submit', syncDraftFormState);
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. Auto-expiring Toast Notifications
+    // -------------------------------------------------------------------------
+    const messagesData = document.querySelectorAll('#django-messages-data [data-django-message]');
+    if (messagesData.length > 0) {
+        const toastContainer = document.createElement('div');
+        toastContainer.className = 'setup-toast-container';
+        document.body.appendChild(toastContainer);
+
+        messagesData.forEach(msg => {
+            const toast = document.createElement('div');
+            const isError = msg.getAttribute('data-type') === 'error';
+            toast.className = `setup-toast ${isError ? 'is-error' : 'is-success'}`;
+            toast.textContent = msg.textContent;
+            toastContainer.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('is-hiding');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        });
+    }
+});
+</script>
+
+{% include "elections/components/setup_exit_modal.html" %}
+{% endblock %}

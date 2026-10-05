@@ -1,0 +1,603 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Review & Start Election — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/election_setup.css' %}">
+{% endblock %}
+
+{% block body_class %}setup-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="setup-page-wrapper">
+    <!-- ====================================================================
+         FIXED TOP HEADER: Stepper & Nav Row (Exit on left, Headline in center, Back on right)
+         "use same header, buttons etcs as used in previous pages. no electra at top,
+          to big header text and desc, only text between the buttons in header."
+         ==================================================================== -->
+    <header class="setup-fixed-top">
+        <div class="setup-fixed-inner">
+            <!-- Stepper (Active Step 4: Review & start) -->
+            {% include "elections/components/setup_stepper.html" with active_step=4 %}
+
+            <!-- Top Nav Row -->
+            <div class="setup-top-nav-row">
+                <div class="setup-nav-left">
+                    <button type="button" class="setup-btn-exit" id="btn-trigger-exit-modal" aria-label="Exit setup">
+                        &times; Exit
+                    </button>
+                </div>
+                <div class="setup-nav-center">
+                    <h1 class="setup-nav-headline">Review and start election</h1>
+                </div>
+                <div class="setup-nav-right">
+                    <a href="{% url 'elections:setup_booths' election.id %}" class="setup-btn-secondary" aria-label="Back to step 3">
+                        &larr; Back
+                    </a>
+                    <button type="button" 
+                            class="btn-review-start" 
+                            id="btn-trigger-start-election"
+                            {% if not ready_to_start %}disabled title="All station sessions must be active and validation checks passed before launching live election."{% endif %}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        Start election
+                    </button>
+                </div>
+            </div>
+
+            <!-- Toast Messages Data Container -->
+            {% if messages %}
+            <div style="display:none;" id="django-messages-data">
+                {% for message in messages %}
+                <div data-django-message data-type="{% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- ====================================================================
+         SCROLLABLE CONTENT AREA: Borderless Minimalistic Review Layout
+         Faithfully matching references/06.4_review.png with accordions on the left.
+         ==================================================================== -->
+    <main class="setup-scroll-area" id="setup-review-scroll-area">
+        <div class="setup-scroll-inner">
+            {% csrf_token %}
+
+            <div class="review-borderless-container">
+                <!-- ========================================================
+                     ROW 1: ELECTION INFORMATION
+                     ======================================================== -->
+                <section class="review-row" id="review-row-info">
+                    <div class="review-col-left" role="button" tabindex="0" aria-expanded="false" title="Click to expand/collapse election information">
+                        <span class="review-left-chevron" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </span>
+                        <div class="review-col-check" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                        <div class="review-col-title-wrap">
+                            <h2 class="review-col-title">Election information</h2>
+                            <p class="review-col-sub">Basic details about this election.</p>
+                        </div>
+                    </div>
+
+                    <div class="review-col-center">
+                        <div class="review-col-collapsed-summary">
+                            {{ election.name }}
+                        </div>
+                        <div class="review-col-details">
+                            <div class="review-details-grid">
+                                <div class="review-detail-row">
+                                    <span class="review-detail-label">Election name</span>
+                                    <span class="review-detail-val">{{ election.name }}</span>
+                                </div>
+                                <div class="review-detail-row">
+                                    <span class="review-detail-label">Description</span>
+                                    <span class="review-detail-val">{{ election.description|default:"No description provided."|linebreaksbr }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="review-col-right">
+                        <a href="{% url 'elections:setup_details' election.id %}" class="review-link-change" title="Change election details">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            Change
+                        </a>
+                    </div>
+                </section>
+
+                <!-- ========================================================
+                     ROW 2: ELECTION VOTERS
+                     ======================================================== -->
+                <section class="review-row" id="review-row-voters">
+                    <div class="review-col-left" role="button" tabindex="0" aria-expanded="false" title="Click to expand/collapse voter details">
+                        <span class="review-left-chevron" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </span>
+                        <div class="review-col-check" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                        <div class="review-col-title-wrap">
+                            <h2 class="review-col-title">Election voters</h2>
+                            <p class="review-col-sub">Voters included in this election.</p>
+                        </div>
+                    </div>
+
+                    <div class="review-col-center">
+                        <div class="review-col-collapsed-summary">
+                            {{ total_enrolled_voters }} eligible voters
+                        </div>
+                        <div class="review-col-details">
+                            <div class="review-details-grid">
+                                {% if election.voter_registry %}
+                                <div class="review-detail-row">
+                                    <span class="review-detail-label">Registry</span>
+                                    <span class="review-detail-val">{{ election.voter_registry.name }}</span>
+                                </div>
+                                {% endif %}
+                                <div class="review-detail-row">
+                                    <span class="review-detail-label">Total voters</span>
+                                    <span class="review-detail-val" style="font-weight: 700; font-size: 16px;">{{ total_enrolled_voters }}</span>
+                                </div>
+                                <div class="review-detail-row">
+                                    <span class="review-detail-label">Groups</span>
+                                    <div class="review-groups-inline">
+                                        {% for grp in group_counts %}
+                                        <span class="review-group-dot-item">
+                                            <span class="review-dot" style="background-color: {{ grp.color }};"></span>
+                                            <span class="review-group-title">{{ grp.name }}</span>
+                                            <span class="review-group-num">{{ grp.count }}</span>
+                                        </span>
+                                        {% empty %}
+                                        <span style="color: #6B7280; font-size: 14px;">All registered voters included without group division.</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="review-col-right">
+                        <a href="{% url 'elections:setup_voters' election.id %}?from_step=2" class="review-link-change" title="Change voter selection">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            Change
+                        </a>
+                    </div>
+                </section>
+
+                <!-- ========================================================
+                     ROW 3: POSITIONS AND CANDIDATES
+                     ======================================================== -->
+                <section class="review-row" id="review-row-positions">
+                    <div class="review-col-left" role="button" tabindex="0" aria-expanded="false" title="Click to expand/collapse positions and candidates">
+                        <span class="review-left-chevron" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </span>
+                        <div class="review-col-check" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                        <div class="review-col-title-wrap">
+                            <h2 class="review-col-title">Positions and candidates</h2>
+                            <p class="review-col-sub">Positions and number of candidates.</p>
+                        </div>
+                    </div>
+
+                    <div class="review-col-center">
+                        <div class="review-col-collapsed-summary">
+                            {{ positions|length }} position{{ positions|length|pluralize }} configured
+                        </div>
+                        <div class="review-col-details">
+                            <div class="review-positions-list">
+                                {% for pos in positions %}
+                                <div class="review-pos-item-row">
+                                    <div class="review-pos-badge-icon badge-{{ pos.badge_type|default:'peach' }}" aria-hidden="true">
+                                        {% if pos.badge_icon == 'crown' %}
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path>
+                                        </svg>
+                                        {% elif pos.badge_icon == 'star' %}
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                        </svg>
+                                        {% elif pos.badge_icon == 'book' %}
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                                        </svg>
+                                        {% elif pos.badge_icon == 'bolt' %}
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                        </svg>
+                                        {% elif pos.badge_icon == 'leaf' %}
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>
+                                            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+                                        </svg>
+                                        {% elif pos.badge_icon == 'megaphone' %}
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M3 11l19-9-9 19-2-8-8-2z"></path>
+                                        </svg>
+                                        {% else %}
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="9" cy="7" r="4"></circle>
+                                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                        </svg>
+                                        {% endif %}
+                                    </div>
+                                    <div class="review-pos-info-wrap">
+                                        <div class="review-pos-headline">
+                                            <span class="review-pos-item-name">{{ pos.name }}</span>
+                                            <span class="review-pos-item-count">{{ pos.candidates.count }} candidate{{ pos.candidates.count|pluralize }}</span>
+                                        </div>
+                                        {% if pos.candidates.all %}
+                                        <div class="review-pos-candidates-list">
+                                            {% for cand in pos.candidates.all %}
+                                            <span class="review-cand-pill">
+                                                <span class="cand-name">{{ cand.name }}</span>
+                                                {% if cand.symbol %}
+                                                <span class="cand-symbol">({{ cand.symbol }})</span>
+                                                {% endif %}
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <span style="color: #6B7280; font-size: 14px;">No positions created.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="review-col-right">
+                        <a href="{% url 'elections:setup_details' election.id %}" class="review-link-change" title="Change positions and candidates">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            Change
+                        </a>
+                    </div>
+                </section>
+
+                <!-- ========================================================
+                     ROW 4: BOOTHS AND ALLOCATION
+                     ======================================================== -->
+                <section class="review-row" id="review-row-booths">
+                    <div class="review-col-left" role="button" tabindex="0" aria-expanded="false" title="Click to expand/collapse booths and allocation">
+                        <span class="review-left-chevron" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </span>
+                        <div class="review-col-check" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                        <div class="review-col-title-wrap">
+                            <h2 class="review-col-title">Booths and allocation</h2>
+                            <p class="review-col-sub">Booths, devices and voter allocation.</p>
+                        </div>
+                    </div>
+
+                    <div class="review-col-center">
+                        <div class="review-col-collapsed-summary">
+                            {{ total_booths }} booth{{ total_booths|pluralize }} &bull; {{ total_allocated }} allocated ({{ allocated_percentage }}%)
+                        </div>
+                        <div class="review-col-details">
+                            <div class="review-booths-block">
+                                <div class="review-detail-row">
+                                    <span class="review-detail-label">Total booths</span>
+                                    <span class="review-detail-val" style="font-weight: 700;">{{ total_booths }}</span>
+                                </div>
+                                <div class="review-detail-row">
+                                    <span class="review-detail-label">Allocated voters</span>
+                                    <span class="review-detail-val" style="font-weight: 700;">{{ total_allocated }} ({{ allocated_percentage }}%)</span>
+                                </div>
+
+                                <div class="review-booth-lines-stack">
+                                    {% for b in booth_review_data %}
+                                    <div class="review-booth-line">
+                                        <span class="review-booth-col-num">Booth {{ b.booth_number|stringformat:"02d" }}</span>
+                                        <span class="review-booth-col-voters">{{ b.voter_count }} voters</span>
+                                        <span class="review-booth-col-sep" aria-hidden="true">|</span>
+                                        <span class="review-booth-col-name">{{ b.display_name }}</span>
+                                        <div class="review-booth-col-badges">
+                                            {% if b.officer_online %}
+                                            <span class="review-stat-pill is-online" title="Officer device has an active session">
+                                                <span class="stat-dot"></span> Officer: Online
+                                            </span>
+                                            {% else %}
+                                            <span class="review-stat-pill is-offline" title="Officer station is not currently authenticated in session">
+                                                <span class="stat-dot"></span> Officer: Not in session
+                                            </span>
+                                            {% endif %}
+
+                                            {% if b.kiosk_online %}
+                                            <span class="review-stat-pill is-online" title="Voting Kiosk has an active session">
+                                                <span class="stat-dot"></span> Kiosk: Online
+                                            </span>
+                                            {% else %}
+                                            <span class="review-stat-pill is-offline" title="Voting Kiosk is not currently authenticated in session">
+                                                <span class="stat-dot"></span> Kiosk: Not in session
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% empty %}
+                                    <span style="color: #6B7280; font-size: 14px;">No booths configured.</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="review-col-right">
+                        <a href="{% url 'elections:setup_booths' election.id %}" class="review-link-change" title="Change booths and voter allocation">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            Change
+                        </a>
+                    </div>
+                </section>
+
+                <!-- ========================================================
+                     ROW 5: VALIDATION STATUS
+                     "add validation status section aswell, build the front end exactly as the refernce image 06.4_review in references/"
+                     ======================================================== -->
+                <section class="review-row" id="review-row-validation">
+                    <div class="review-col-left" role="button" tabindex="0" aria-expanded="false" title="Click to expand/collapse validation status">
+                        <span class="review-left-chevron" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </span>
+                        <div class="review-col-check {% if not critical_passed %}is-error{% elif not all_validations_ok %}is-warning{% endif %}" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                        <div class="review-col-title-wrap">
+                            <h2 class="review-col-title">Validation status</h2>
+                            <p class="review-col-sub">All required settings and system checks.</p>
+                        </div>
+                    </div>
+
+                    <div class="review-col-center">
+                        <div class="review-col-collapsed-summary">
+                            {% if ready_to_start %}
+                            <span style="color: #059669; font-weight: 500;">All validation checks passed &bull; Ready to start</span>
+                            {% elif critical_passed %}
+                            <span style="color: #D97706; font-weight: 500;">Validation passed &bull; Station logins pending</span>
+                            {% else %}
+                            <span style="color: #DC2626; font-weight: 500;">Setup requirements incomplete</span>
+                            {% endif %}
+                        </div>
+                        <div class="review-col-details">
+                            <div class="review-validation-grid">
+                                <div class="review-val-col">
+                                    {% for item in validation_col1 %}
+                                    <div class="review-val-item">
+                                        <span class="review-val-dot {% if item.passed %}is-green{% else %}is-red{% endif %}" aria-hidden="true"></span>
+                                        <span class="review-val-text">{{ item.label }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="review-val-col">
+                                    {% for item in validation_col2 %}
+                                    <div class="review-val-item">
+                                        <span class="review-val-dot {% if item.passed %}is-green{% elif item.is_warning %}is-amber{% else %}is-red{% endif %}" aria-hidden="true"></span>
+                                        <span class="review-val-text">{{ item.label }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="review-col-right">
+                        <!-- Validation status has no Edit/Change button -->
+                    </div>
+                </section>
+            </div>
+
+
+
+        </div>
+    </main>
+</div>
+
+<!-- ========================================================================
+     MODAL: START ELECTION CONFIRMATION
+     ======================================================================== -->
+<div id="modal-start-election" class="modal-overlay" aria-hidden="true" role="dialog" aria-labelledby="start-modal-title">
+    <div class="modal-backdrop" id="start-modal-backdrop"></div>
+    <div class="modal-dialog" style="max-width: 500px; width: 92%; border-radius: 16px; padding: 28px; background: #FFFFFF;">
+        <form method="post" action="{% url 'elections:start' election.id %}" id="form-start-election">
+            {% csrf_token %}
+            <div class="modal-header" style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
+                <h2 class="modal-title" id="start-modal-title" style="font-family: 'Newsreader', Georgia, serif; font-size: 26px; font-weight: 500; margin: 0; color: #111827;">
+                    Start election live?
+                </h2>
+                <button type="button" class="modal-close" id="btn-close-start-modal" aria-label="Close dialog" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6B7280; line-height: 1;">&times;</button>
+            </div>
+            <p style="font-size: 14.5px; color: #4B5563; line-height: 1.5; margin: 0 0 20px 0;">
+                Starting the election freezes all candidate lists, ballot positions, and voter allocations. Stations will be permitted to accept authorizations.
+            </p>
+
+            <div class="setup-field-group" style="margin-bottom: 22px;">
+                <label for="id_ends_at" class="setup-field-label" style="font-size: 13.5px; font-weight: 600; color: #111827; display: block; margin-bottom: 6px;">
+                    Scheduled voting cutoff time <span class="required-asterisk" style="color: #DC2626;">*</span>
+                </label>
+                <input type="datetime-local" 
+                       id="id_ends_at" 
+                       name="ends_at" 
+                       class="setup-text-input" 
+                       value="{{ election.ends_at|date:'Y-m-d\TH:i' }}" 
+                       required
+                       style="width: 100%; padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
+                <span style="font-size: 12px; color: #6B7280; margin-top: 4px; display: block;">Voting stations will automatically stop accepting authorizations at this cutoff.</span>
+            </div>
+
+            <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
+                <button type="button" id="btn-cancel-start-modal" class="setup-btn-secondary" style="padding: 8px 16px; cursor: pointer;">
+                    Cancel
+                </button>
+                <button type="submit" class="btn-review-start" style="padding: 8px 20px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Confirm &amp; Launch Election
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Reusable Exit / Draft Confirmation Modal -->
+{% include "elections/components/setup_exit_modal.html" %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // 1. Accordion Toggle Behavior (Accordions on the Left)
+    // Clicking .review-col-left toggles .is-open on the parent .review-row
+    document.querySelectorAll('.review-col-left').forEach(leftCol => {
+        leftCol.addEventListener('click', function () {
+            const row = this.closest('.review-row');
+            if (row) {
+                const isOpen = row.classList.contains('is-open');
+                row.classList.toggle('is-open');
+                this.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+            }
+        });
+
+        // Keyboard accessibility
+        leftCol.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.click();
+            }
+        });
+    });
+
+    // 2. Save Draft Button from Bottom Action Bar
+    const btnDraft = document.getElementById('btn-review-save-draft');
+    if (btnDraft) {
+        btnDraft.addEventListener('click', function () {
+            const f = document.createElement('form');
+            f.method = 'POST';
+            f.action = window.location.href;
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = '{{ csrf_token }}';
+            f.appendChild(csrfInput);
+
+            const actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            actionInput.value = 'save_draft';
+            f.appendChild(actionInput);
+
+            document.body.appendChild(f);
+            f.submit();
+        });
+    }
+
+    // 3. Start Election Modal Triggers
+    const btnStart = document.getElementById('btn-trigger-start-election');
+    const startModal = document.getElementById('modal-start-election');
+    const startBackdrop = document.getElementById('start-modal-backdrop');
+    const btnCloseStart = document.getElementById('btn-close-start-modal');
+    const btnCancelStart = document.getElementById('btn-cancel-start-modal');
+
+    function openStartModal() {
+        if (startModal) {
+            startModal.classList.add('active');
+            startModal.setAttribute('aria-hidden', 'false');
+            // If cutoff input is empty, default to 8 hours from now
+            const endsInput = document.getElementById('id_ends_at');
+            if (endsInput && !endsInput.value) {
+                const d = new Date();
+                d.setHours(d.getHours() + 8);
+                d.setMinutes(0);
+                const pad = n => String(n).padStart(2, '0');
+                endsInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            }
+        }
+    }
+
+    function closeStartModal() {
+        if (startModal) {
+            startModal.classList.remove('active');
+            startModal.setAttribute('aria-hidden', 'true');
+        }
+    }
+
+    if (btnStart && !btnStart.disabled) btnStart.addEventListener('click', openStartModal);
+    if (startBackdrop) startBackdrop.addEventListener('click', closeStartModal);
+    if (btnCloseStart) btnCloseStart.addEventListener('click', closeStartModal);
+    if (btnCancelStart) btnCancelStart.addEventListener('click', closeStartModal);
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && startModal && startModal.classList.contains('active')) {
+            closeStartModal();
+        }
+    });
+
+    // 4. Auto-expiring Toast Notifications
+    const messagesData = document.querySelectorAll('#django-messages-data [data-django-message]');
+    if (messagesData.length > 0) {
+        let toastContainer = document.querySelector('.setup-toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'setup-toast-container';
+            document.body.appendChild(toastContainer);
+        }
+
+        messagesData.forEach(msg => {
+            const toast = document.createElement('div');
+            const isError = msg.getAttribute('data-type') === 'error';
+            toast.className = `setup-toast ${isError ? 'is-error' : 'is-success'}`;
+            toast.textContent = msg.textContent;
+            toastContainer.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('is-hiding');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        });
+    }
+});
+</script>
+{% endblock %}

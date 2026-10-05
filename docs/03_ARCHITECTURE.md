@@ -507,6 +507,19 @@ A Kiosk can receive authorization only for its server-derived booth.
 
 Cross-booth authorization must be rejected server-side.
 
+### Device Credential Distribution & Visibility
+
+To support local booth operator setup across the dedicated Local-Area Network:
+- Each generated device stores its provisioned credentials, including `Device.cleartext_password`.
+- On the Booth Management setup screen, passwords are masked by default (`••••••••`) and can be revealed, copied, or printed as slips by the Administrator for physical station operators.
+- Password rotation generates fresh credentials, updates `cleartext_password`, and immediately revokes active device sessions.
+
+### Active / Draft Login Rule & Past Credential Purge
+
+- **Exclusive Active/Draft Authentication**: Technical devices (`OFFICER` and `KIOSK`) can authenticate only if their associated election is currently in `ACTIVE` or `DRAFT` status.
+- **Automatic Cleanup**: When an election closes or when credentials rotate, device credentials belonging to inactive/closed elections are automatically purged (`Device`, `DeviceSession`, and underlying `User` records deleted), preventing stale or unauthorized access on the LAN.
+- **No Unassigned State**: Devices are strictly bound 1:1 to their booth at creation time and are never "unassigned". Any invalid, terminated, or rotated device session routes canonically to `session_revoked.html`.
+
 ---
 
 # 9. WebSocket Grouping

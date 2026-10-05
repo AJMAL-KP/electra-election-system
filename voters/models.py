@@ -92,6 +92,19 @@ class VoterRegistry(models.Model):
             return f"{self.name_source} | {self.primary_id_source} | {self.group_source} | {self.subgroup_source} | {self.gender_source}"
         return f"{self.name_source} | {self.primary_id_source} | {self.group_source} | {self.gender_source}"
 
+    @property
+    def active_elections(self):
+        """Elections using this registry that have actually started (ACTIVE, CLOSED, RESULTS_PUBLISHED).
+        
+        Per design authority: a registry is only locked when an election starts, NOT while in DRAFT.
+        """
+        return self.elections.exclude(status='DRAFT')
+
+    @property
+    def is_locked(self) -> bool:
+        """True if this registry is locked because an election has started with it."""
+        return self.active_elections.exists()
+
 
 class AcademicGroupType(models.TextChoices):
     GROUP = 'GROUP', 'Group'
@@ -223,6 +236,10 @@ class Voter(models.Model):
             self.primary_registry_value = self.primary_registry_value.strip()
         if self.name:
             self.name = self.name.strip()
+
+    @property
+    def identifier(self) -> str:
+        return self.primary_registry_value
 
 
 class Booth(models.Model):

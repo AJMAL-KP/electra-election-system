@@ -19,7 +19,7 @@ def list_voter_registries() -> QuerySet[VoterRegistry]:
             filter=Q(groups__type=AcademicGroupType.GROUP),
             distinct=True
         ),
-        election_count=Count("elections", distinct=True),
+        election_count=Count("elections", filter=~Q(elections__status="DRAFT"), distinct=True),
     ).order_by("name", "id")
 
 

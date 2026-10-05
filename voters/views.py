@@ -290,9 +290,9 @@ def registry_view(request, registry_id: Optional[int] = None):
 
     summary = get_registry_summary(registry_id=registry.id)
     draft_elections = list_elections().filter(status=ElectionStatus.DRAFT)
-    is_linked_to_election = bool(registry and registry.elections.exists())
+    is_linked_to_election = bool(registry and registry.is_locked)
 
-    linked_elections = list(registry.elections.all()) if registry else []
+    linked_elections = list(registry.active_elections) if registry else []
 
     return render(request, "voters/registry.html", {
         "registry": registry,
@@ -344,8 +344,8 @@ def voter_create_view(request):
 
     if registry_id:
         reg = VoterRegistry.objects.filter(id=registry_id).first()
-        if reg and reg.elections.exists():
-            messages.error(request, "Cannot add voters: this registry is linked to one or more elections.")
+        if reg and reg.is_locked:
+            messages.error(request, "Cannot add voters: this registry is linked to an active or completed election.")
             return _redirect_registry(registry_id)
 
     try:
@@ -377,8 +377,8 @@ def voter_edit_view(request, voter_id: int):
     registry_id = int(registry_id_str) if registry_id_str.isdigit() else None
 
     voter = Voter.objects.filter(id=voter_id).select_related("registry").first()
-    if voter and voter.registry and voter.registry.elections.exists():
-        messages.error(request, "Cannot modify voter: this registry is linked to one or more elections.")
+    if voter and voter.registry and voter.registry.is_locked:
+        messages.error(request, "Cannot modify voter: this registry is linked to an active or completed election.")
         return _redirect_registry(voter.registry_id or registry_id)
 
     try:
@@ -429,8 +429,8 @@ def voter_bulk_delete_view(request):
 
     if target_reg_id:
         reg = VoterRegistry.objects.filter(id=target_reg_id).first()
-        if reg and reg.elections.exists():
-            messages.error(request, "Cannot delete voters: this registry is linked to one or more elections.")
+        if reg and reg.is_locked:
+            messages.error(request, "Cannot delete voters: this registry is linked to an active or completed election.")
             return _redirect_registry(target_reg_id)
 
     id_list = []
@@ -473,8 +473,8 @@ def group_create_view(request):
 
     if registry_id:
         reg = VoterRegistry.objects.filter(id=registry_id).first()
-        if reg and reg.elections.exists():
-            messages.error(request, "Cannot add groups: this registry is linked to one or more elections.")
+        if reg and reg.is_locked:
+            messages.error(request, "Cannot add groups: this registry is linked to an active or completed election.")
             return _redirect_registry(registry_id)
 
     target_reg_id = registry_id
@@ -497,8 +497,8 @@ def group_edit_view(request, group_id: int):
     group = get_object_or_404(AcademicGroup, id=group_id)
     target_reg_id = group.registry_id
 
-    if group.registry and group.registry.elections.exists():
-        messages.error(request, "Cannot rename group: this registry is linked to one or more elections.")
+    if group.registry and group.registry.is_locked:
+        messages.error(request, "Cannot rename group: this registry is linked to an active or completed election.")
         return _redirect_registry(target_reg_id)
 
     try:
@@ -518,8 +518,8 @@ def group_delete_view(request, group_id: int):
     group = get_object_or_404(AcademicGroup, id=group_id)
     target_reg_id = group.registry_id
 
-    if group.registry and group.registry.elections.exists():
-        messages.error(request, "Cannot delete group: this registry is linked to one or more elections.")
+    if group.registry and group.registry.is_locked:
+        messages.error(request, "Cannot delete group: this registry is linked to an active or completed election.")
         return _redirect_registry(target_reg_id)
 
     # 1. Identify all voter rows belonging to this group (and child subgroups if top-level)
@@ -565,8 +565,8 @@ def subgroup_create_view(request, group_id: int):
     parent = get_object_or_404(AcademicGroup, id=group_id)
     target_reg_id = parent.registry_id
 
-    if parent.registry and parent.registry.elections.exists():
-        messages.error(request, "Cannot add sub groups: this registry is linked to one or more elections.")
+    if parent.registry and parent.registry.is_locked:
+        messages.error(request, "Cannot add sub groups: this registry is linked to an active or completed election.")
         return _redirect_registry(target_reg_id)
 
     try:
@@ -724,8 +724,8 @@ def voter_import_view(request, registry_id: Optional[int] = None):
         if not registry:
             return redirect("voters:registry_create")
 
-    if registry.elections.exists():
-        messages.error(request, "Cannot import voters: this registry is linked to an active or past election and is locked against modifications.")
+    if registry.is_locked:
+        messages.error(request, "Cannot import voters: this registry is linked to an active or completed election and is locked against modifications.")
         return redirect("voters:registry_detail", registry_id=registry.id)
 
     prefill_group = request.GET.get("default_group", "").strip()

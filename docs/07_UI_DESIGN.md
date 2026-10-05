@@ -242,11 +242,13 @@ The election setup wizard guides the administrator from an empty draft to a full
 - **Purpose**: Final pre-election verification and readiness screen before activation.
 - **UI Elements**:
   - Four-step progress stepper: **Step 4: Review & Start** active.
-  - **Comprehensive Election Summary**:
-    - Election meta (name, scheduled hours).
-    - Total election voters enrolled.
-    - Positions and candidate roster count.
+  - **Top Navigation Row**: Contains **&times; Exit** on the left, centered page headline, and **&larr; Back** alongside the primary **Start election** button on the right. No sticky bottom bar is used, keeping the review layout clean and scrollable.
+  - **Comprehensive Election Summary (Left Accordions)**:
+    - Election meta (name, scheduled hours, description).
+    - Total election voters enrolled and academic groups.
+    - Positions and candidate roster count with candidate names.
     - Booths count and allocation completeness (100% voters allocated check).
+    - Validation checklist status.
   - **Validation & Device Readiness Status**:
     - Clear distinction between:
       - `Valid / Ready` (green accent)
@@ -255,8 +257,8 @@ The election setup wizard guides the administrator from an empty draft to a full
     - Automated configuration checks (duplicate rules, orphan positions, unallocated voters).
     - Runtime check: verify Officer Stations and Kiosks are logged in and connected.
   - **Primary Actions**:
-    - **Save as Draft**: Persists configuration in `DRAFT` state for later resumption.
-    - **Start Election**: Explicit, prominent transition from `DRAFT` to `ACTIVE`.
+    - **Save as Draft**: Available via the Exit modal workflow, recording progress in `DRAFT` state (`Election.is_saved_draft = true`) for later resumption.
+    - **Start Election**: Prominent button in the top navigation row that opens the cutoff confirmation modal, allowing the admin to set `ends_at` and trigger the atomic transition from `DRAFT` to `ACTIVE`.
     - Once started, the configuration is frozen per system invariants.
 
 ---
@@ -299,51 +301,56 @@ The election setup wizard guides the administrator from an empty draft to a full
 
 ---
 
-**## 9. Officer Voting Desk (`references/officer_01.png`)**
+## 9. Officer Voting Desk (`references/officer_01.png`)
 
-* ****Purpose****: Primary operational interface for the polling officer to identify allocated voters and authorize them for voting.
-
-* ****UI Elements****:
-
-  * Context: Electra branding, current election, booth identifier, and officer context.
-  * Kiosk Status:
-    * Current kiosk readiness/status indicator.
-    * Keep this visually subtle and consistent with the Electra status language.
-
-  * Voter Search & Filters:
-    * Search by voter ID or name.
-    * Filter by voting status-voted, not voted,all.
-    * Filter by voter group where applicable.
-
-  * Allocated Voter List:
-    * Voter ID.
-    * Voter name.
-    * Voter group.
-    * Voting status.
-    * Statuses: **Not voted**, **In progress**, and **Voted**.
-
-  * Voter Details:
-    * Display details for the currently selected voter alongside the voter list.
-    * Show the selected voter's current voting/authorization status.
-    * Provide the **Authorize voter** action when appropriate.
-
-  * Authorization Feedback:
-    * Display the appropriate success or error confirmation after authorization.
-    * Return to the voter list only after the confirmation state has been shown/acknowledged.
-
-* ****Visual Rules****:
-  * Preserve the centered, typography-heavy Electra composition.
-  * Use transparent/borderless grouping rather than conventional cards.
-  * No permanent sidebar.
-  * No generic dashboard layout.
-  * No unnecessary header/footer.
-  * Maintain the same whitespace, typography, muted palette, and restrained visual hierarchy as the approved Electra references.
-
-* ****Integrity Rule****: The officer interface reflects the authoritative voter/authorization state provided by the application and does not independently fabricate or modify voting state.
+- **Purpose**: Primary operational interface for the polling officer to identify allocated voters at their designated booth and authorize them for voting on the linked kiosk.
+- **Viewport & Responsive Architecture**:
+  - On standard desktop terminals, the viewport is strictly fixed (`height: 100vh; overflow: hidden;`), with the header, search, tabs, and details panel stationary and only the voter roster scrollable.
+  - **Responsive Behavior on Smaller Screens / Tablets (`<= 920px`)**: The workspace adapts to a vertical single-column flow with full-page scrolling: the **Voter Details & Action Panel is displayed first** (`order: 1`), followed by the **Voter Search, Filter Tabs, and Scrollable Roster below it** (`order: 2`), enabling comfortable physical verification on touch or tablet terminals.
+- **Header Structure**:
+  - Clean, compact editorial header featuring `Voting Desk` in *Newsreader* serif directly at the top, pushing workspace content upwards to maximize voter roster visibility.
+  - Subtitle with current active or draft election name.
+  - Contextual meta line: `Booth XX · Officer` alongside kiosk runtime readiness indicator (`● Kiosk Ready` / `● Kiosk Offline`) and live last-updated timestamp (`Updated: <time>`).
+  - Subtle top-right navigation action: `Log out`.
+- **Voter Search & Filter Controls**:
+  - Minimal search input: `"Search voter by name or ID..."` with live keystroke filtering.
+  - Three state filter tabs:
+    - **Not voted**: Filters to allocated voters who have not yet cast their ballot (`has_voted = false` and no active authorization).
+    - **Voted**: Filters to voters who have completed ballot submission (`has_voted = true`).
+    - **All**: Displays all allocated voters for this booth.
+  - Note: There is no separate "In progress" filter tab because only one voter may have an active authorization at any moment, and that voter is highlighted and locked into the right-hand inspection panel. Group filtering dropdowns are removed from the live desk to maximize focus and speed.
+- **Allocated Voter List (Left Column)**:
+  - Scrollable card/row list for allocated booth voters.
+  - Displays: Voter ID, Full Name, and voting status pill (`NOT VOTED`, `VOTED`, or `ACTIVE`).
+  - Keyboard navigation or row click selects the voter and immediately populates the right panel.
+- **Voter Details & Action Panel (Right Column)**:
+  - Fixed right-hand panel with small uppercase section title: `VOTER DETAILS`.
+  - Large *Newsreader* serif voter name and voter ID headline.
+  - Academic metadata grid/table: Roll Number, Academic Group, and Gender.
+  - Dynamic status indicator box: Displays current state (`NOT VOTED - Eligible to vote`, `AUTHORIZATION IN PROGRESS`, or `VOTED`).
+  - Primary Action Button: Full-width high-contrast **`Authorize voter`** button.
+    - Disabled if the kiosk is offline or not ready.
+    - Disabled if another authorization is active on this booth.
+    - Disabled if the voter has already voted or the election is not active.
+    - On click, issues an atomic server-side POST request to create a `VoterAuthorization` (`ACTIVE`), locking the record and emitting the `kiosk.unlock` WebSocket event.
+- **Draft State Lockdown & Blur**:
+  - If the election is in `DRAFT` status:
+    - Officer login is permitted so the officer can inspect setup and connection.
+    - The underlying Voting Desk UI renders in the background but is completely blurred (`filter: blur(8px); pointer-events: none;`).
+    - A centered institutional notice card displays the *Newsreader* serif `Electra` wordmark, the title `Election Not Active Yet`, explanatory text ("Voting has not started. You will be able to search and authorize voters once the administrator starts the election."), and a solid black **`Log Out Station`** button.
+    - All voter authorization actions are strictly disabled on both client and server (`Election = ACTIVE` server-authoritative invariant).
+- **Session Revocation & Credential Lifecycle**:
+  - Devices are bound 1:1 to booths; there is no "unassigned" device state.
+  - Officers can only authenticate using credentials associated with `ACTIVE` or `DRAFT` elections.
+  - When an election closes, all device credentials and active sessions for that election are automatically purged.
+  - If a device session is terminated, revoked, or invalid, the interface canonicalizes to `session_revoked.html`.
+- **Integrity & Ballot Secrecy Rule**:
+  - The officer interface reflects authoritative allocation and voting status from the server.
+  - The officer station never receives, displays, or logs any candidate selections, maintaining absolute ballot secrecy.
 
 ---
 
-**## 10. Kiosk Ballot (`references/kiosk_01.png`)**
+## 10. Kiosk Ballot (`references/kiosk_01.png`)
 
 * ****Purpose****: Voting interface through which an authorized voter selects candidates for each election position.
 
@@ -383,7 +390,7 @@ The election setup wizard guides the administrator from an empty draft to a full
 
 ---
 
-**## 11. Kiosk Ballot Review (`references/kiosk_02.png`)**
+## 11. Kiosk Ballot Review (`references/kiosk_02.png`)
 
 * ****Purpose****: Final review screen allowing the voter to verify all selections before submitting the vote.
 
@@ -418,9 +425,7 @@ The election setup wizard guides the administrator from an empty draft to a full
 
 ---
 
-
-
-## 9. Development Workflow Rules
+## 12. Development Workflow Rules
 
 1. Before modifying templates or stylesheets, review this contract and the visual references in `references/`.
 2. Do not introduce permanent sidebars, generic card dashboards, or multi-step wizard splits that violate the 4-stage setup architecture.

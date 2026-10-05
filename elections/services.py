@@ -7,9 +7,10 @@ Owns:
 - Start, close, and publish_results operations (atomic with select_for_update)
 - Server-side deadline expiry enforcement
 """
-from typing import Optional
+from typing import List, Optional
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Max
 from django.utils import timezone
 
 from elections.models import Candidate, Election, ElectionStatus, Position
@@ -88,9 +89,19 @@ def delete_election(*, election_id: int) -> None:
         if not election.is_draft:
             raise ValidationError("Cannot delete election: configuration is frozen once activated.")
         election.delete()
+        from accounts.services import cleanup_past_credentials
+        cleanup_past_credentials()
+        transaction.on_commit(cleanup_past_credentials)
 
 
-def create_position(*, election_id: int, name: str, display_order: int = 1) -> Position:
+def create_position(
+    *,
+    election_id: int,
+    name: str,
+    display_order: Optional[int] = None,
+    eligible_group_ids: Optional[List[int]] = None,
+    eligible_gender: str = 'ALL',
+) -> Position:
     """Add an elected position to an election. Permitted ONLY when election is in DRAFT."""
     with transaction.atomic():
         election = Election.objects.select_for_update().get(id=election_id)
@@ -101,16 +112,24 @@ def create_position(*, election_id: int, name: str, display_order: int = 1) -> P
         if Position.objects.filter(election=election, name__iexact=cleaned_name).exists():
             raise ValidationError(f"A position named '{cleaned_name}' already exists in this election.")
 
-        if Position.objects.filter(election=election, display_order=display_order).exists():
+        if display_order is None:
+            max_order = Position.objects.filter(election=election).aggregate(Max('display_order'))['display_order__max']
+            display_order = (max_order or 0) + 1
+        elif Position.objects.filter(election=election, display_order=display_order).exists():
             raise ValidationError(f"Ballot order #{display_order} is already assigned to another position in this election.")
 
         position = Position(
             election=election,
             name=cleaned_name,
             display_order=display_order,
+            eligible_gender=eligible_gender or 'ALL',
         )
         position.full_clean()
         position.save()
+
+        if eligible_group_ids is not None:
+            position.eligible_groups.set(eligible_group_ids)
+
         return position
 
 
@@ -150,6 +169,7 @@ def create_candidate(
     name: str = "",
     academic_group: str = "",
     symbol: str = "",
+    symbol_image=None,
     photo=None,
     voter_id: Optional[int] = None,
 ) -> Candidate:
@@ -172,6 +192,10 @@ def create_candidate(
                     name = voter_obj.name
                 if not academic_group and voter_obj.academic_group:
                     academic_group = voter_obj.academic_group.name
+
+                if position.eligible_gender and position.eligible_gender != 'ALL':
+                    if voter_obj.gender and voter_obj.gender.strip().upper() != position.eligible_gender.strip().upper():
+                        raise ValidationError(f"Candidate '{voter_obj.name}' does not meet the gender eligibility requirement ({position.eligible_gender}) for this position.")
             except Voter.DoesNotExist:
                 raise ValidationError("Specified voter does not exist in registry.")
 
@@ -192,6 +216,7 @@ def create_candidate(
             name=cleaned_name,
             academic_group=academic_group.strip(),
             symbol=cleaned_symbol,
+            symbol_image=symbol_image,
             photo=photo,
         )
         candidate.full_clean()
@@ -355,6 +380,9 @@ def close_election(*, election_id: int) -> Election:
         election.status = ElectionStatus.CLOSED
         election.closed_at = timezone.now()
         election.save(update_fields=["status", "closed_at", "updated_at"])
+        from accounts.services import cleanup_past_credentials
+        cleanup_past_credentials()
+        transaction.on_commit(cleanup_past_credentials)
         return election
 
 
@@ -373,6 +401,9 @@ def publish_results(*, election_id: int) -> Election:
         election.status = ElectionStatus.RESULTS_PUBLISHED
         election.results_published_at = timezone.now()
         election.save(update_fields=["status", "results_published_at", "updated_at"])
+        from accounts.services import cleanup_past_credentials
+        cleanup_past_credentials()
+        transaction.on_commit(cleanup_past_credentials)
         return election
 
 
@@ -392,6 +423,9 @@ def close_if_expired(*, election_id: int) -> bool:
             election.status = ElectionStatus.CLOSED
             election.closed_at = timezone.now()
             election.save(update_fields=["status", "closed_at", "updated_at"])
+            from accounts.services import cleanup_past_credentials
+            cleanup_past_credentials()
+            transaction.on_commit(cleanup_past_credentials)
             return True
 
     return False

@@ -302,10 +302,13 @@ Device
     device_type
     booth
     identifier
+    cleartext_password
     credential_status
     created_at
     updated_at
 ```
+
+`cleartext_password` stores the clear visible password for initial distribution and masked reveal/copy/print on the Booth Management setup page for LAN polling station operators. Password rotation updates this field and revokes active device sessions.
 
 Device types:
 
@@ -657,10 +660,15 @@ Election
     starts_at
     ends_at
     status
+    setup_stage
+    is_saved_draft
     created_at
     closed_at
     results_published_at
 ```
+
+`setup_stage` tracks wizard progression (Stage 1: Voters, Stage 2: Details & Candidates, Stage 3: Booths & Allocation, Stage 4: Review & Start).  
+`is_saved_draft` records whether the administrator explicitly saved setup progress to return to the dashboard later.
 
 ---
 
@@ -754,7 +762,13 @@ Position
     name
     description
     display_order
+    eligible_groups
+    eligible_gender
 ```
+
+Direct eligibility attributes:
+* `eligible_groups`: Many-to-many relationship with `AcademicGroup` defining which academic groups are eligible to vote for this position.
+* `eligible_gender`: Choice field (`ALL`, `MALE`, `FEMALE`, `OTHER`) defining gender qualification for this position.
 
 ---
 

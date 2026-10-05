@@ -1,0 +1,117 @@
+{# Reusable Exit Setup Confirmation Modal #}
+<div id="exit-confirm-modal" class="modal-overlay" aria-hidden="true" role="dialog" aria-labelledby="exit-modal-title">
+    <div class="modal-backdrop" id="exit-modal-backdrop"></div>
+    <div class="modal-dialog" style="max-width: 480px; width: 90%; border-radius: 16px; padding: 28px; background: #FFFFFF;">
+        <div class="modal-header" style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
+            <h2 class="modal-title" id="exit-modal-title" style="font-family: 'Newsreader', Georgia, serif; font-size: 26px; font-weight: 500; margin: 0; color: #111827;">Exit election setup?</h2>
+            <button type="button" class="modal-close" id="btn-close-exit-modal" aria-label="Close dialog" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6B7280; line-height: 1;">&times;</button>
+        </div>
+        <p style="font-size: 14.5px; color: #4B5563; line-height: 1.5; margin: 0 0 24px 0;">
+            Would you like to save this election as a draft so you can resume later, or discard this setup?
+        </p>
+        <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
+            <a href="{% url 'elections:setup_discard' election.id %}" 
+               class="setup-btn-discard-exit" 
+               style="text-decoration: none; padding: 8px 16px; border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: #DC2626; background: #FEF2F2;"
+               onclick="return confirm('Are you sure you want to discard this election setup? All changes will be lost.');">
+                Discard &amp; exit
+            </a>
+            <button type="button" 
+                    id="btn-confirm-save-draft"
+                    class="setup-btn-save-draft" 
+                    style="padding: 8px 16px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: #374151; background: #FFF; cursor: pointer;">
+                Save as draft
+            </button>
+            <button type="button" 
+                    id="btn-cancel-exit-modal"
+                    class="setup-btn-continue" 
+                    style="padding: 8px 18px; background: #111827; color: #FFF; border-radius: 8px; font-size: 13.5px; font-weight: 500; border: none; cursor: pointer;">
+                Keep editing
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const exitModal = document.getElementById('exit-confirm-modal');
+    const exitBackdrop = document.getElementById('exit-modal-backdrop');
+    const btnTriggerExit = document.getElementById('btn-trigger-exit-modal');
+    const btnCloseExit = document.getElementById('btn-close-exit-modal');
+    const btnCancelExit = document.getElementById('btn-cancel-exit-modal');
+    const btnConfirmSaveDraft = document.getElementById('btn-confirm-save-draft');
+
+    function openExitModal() {
+        if (exitModal) {
+            exitModal.classList.add('active');
+            exitModal.setAttribute('aria-hidden', 'false');
+        }
+    }
+
+    function closeExitModal() {
+        if (exitModal) {
+            exitModal.classList.remove('active');
+            exitModal.setAttribute('aria-hidden', 'true');
+        }
+    }
+
+    if (btnTriggerExit) btnTriggerExit.addEventListener('click', openExitModal);
+    if (exitBackdrop) exitBackdrop.addEventListener('click', closeExitModal);
+    if (btnCloseExit) btnCloseExit.addEventListener('click', closeExitModal);
+    if (btnCancelExit) btnCancelExit.addEventListener('click', closeExitModal);
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && exitModal && exitModal.classList.contains('active')) {
+            closeExitModal();
+        }
+    });
+
+    if (btnConfirmSaveDraft) {
+        btnConfirmSaveDraft.addEventListener('click', function() {
+            // Check for known setup forms
+            const boothsNavForm = document.getElementById('form-setup-booths-nav');
+            const detailsMainForm = document.getElementById('form-election-details') || document.getElementById('details-main-form');
+            const votersForm = document.getElementById('setup-voters-form');
+
+            if (boothsNavForm) {
+                const actionInput = document.getElementById('setup-booths-nav-action');
+                if (actionInput) actionInput.value = 'save_draft';
+                boothsNavForm.submit();
+                return;
+            }
+
+            if (detailsMainForm) {
+                const actionInput = detailsMainForm.querySelector('input[name="action"]') || document.getElementById('details-form-action');
+                if (actionInput) actionInput.value = 'save_draft';
+                detailsMainForm.submit();
+                return;
+            }
+
+            if (votersForm) {
+                let actionInput = votersForm.querySelector('input[name="action"]');
+                if (!actionInput) {
+                    actionInput = document.createElement('input');
+                    actionInput.type = 'hidden';
+                    actionInput.name = 'action';
+                    votersForm.appendChild(actionInput);
+                }
+                actionInput.value = 'save_draft';
+                votersForm.submit();
+                return;
+            }
+
+            // Fallback: POST action=save_draft to current URL
+            const f = document.createElement('form');
+            f.method = 'POST';
+            f.action = window.location.href;
+            const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+            f.innerHTML = `
+                <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+                <input type="hidden" name="action" value="save_draft">
+            `;
+            document.body.appendChild(f);
+            f.submit();
+        });
+    }
+});
+</script>

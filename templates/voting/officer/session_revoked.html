@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ error_title|default:"Session Inactive" }} — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/officer.css' %}">
+{% endblock %}
+
+{% block body_class %}officer-page{% endblock %}
+
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="officer-body">
+    <!-- Top utility bar -->
+    <header class="officer-topbar">
+        <div class="officer-topbar-left">
+            <span>Officer Station</span>
+            <span style="color: #D1D5DB;">&bull;</span>
+            <span>Authentication</span>
+        </div>
+        <div class="officer-topbar-right">
+            <a href="{% url 'accounts:login' %}" class="officer-btn-exit" title="Return to station login">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                    <polyline points="10 17 15 12 10 7"></polyline>
+                    <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+                Return to Login
+            </a>
+        </div>
+    </header>
+
+    <!-- Error Centered Card -->
+    <div class="officer-error-wrapper">
+        <div class="officer-error-card">
+            <div class="officer-brand-wordmark" style="font-size: 22px; color: #6B7280; margin-bottom: 2px;">Electra</div>
+            <h1 class="officer-error-title">{{ error_title|default:"Session Inactive or Revoked" }}</h1>
+            <div class="officer-card-badge is-danger">
+                <span class="badge-dot"></span>
+                <span>Session Inactive</span>
+            </div>
+            <p class="officer-error-desc">
+                {{ error_message|default:"Your station session has expired, been terminated, or credentials have been rotated by an administrator. Please log in again to continue." }}
+            </p>
+
+            <div class="officer-error-actions">
+                <a href="{% url 'accounts:login' %}" class="officer-btn-primary-action">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                        <polyline points="10 17 15 12 10 7"></polyline>
+                        <line x1="15" y1="12" x2="3" y2="12"></line>
+                    </svg>
+                    Return to Login
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

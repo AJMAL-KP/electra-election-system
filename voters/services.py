@@ -62,13 +62,13 @@ def delete_voter_registry(*, registry_id: int) -> None:
         except VoterRegistry.DoesNotExist:
             raise ValidationError(f"Voter registry #{registry_id} does not exist.")
 
-        # Check if any election is linked to this registry
-        linked_elections = Election.objects.filter(voter_registry=registry)
+        # Check if any started election is linked to this registry
+        linked_elections = Election.objects.filter(voter_registry=registry).exclude(status=ElectionStatus.DRAFT)
         if linked_elections.exists():
             election_names = ", ".join(e.name for e in linked_elections[:3])
             more = f" and {linked_elections.count() - 3} more" if linked_elections.count() > 3 else ""
             raise ValidationError(
-                f"Cannot delete registry '{registry.name}': it is linked to election(s): {election_names}{more}."
+                f"Cannot delete registry '{registry.name}': it is linked to started election(s): {election_names}{more}."
             )
 
         # Invariant check: no cast ballots from voters in this registry
@@ -77,7 +77,15 @@ def delete_voter_registry(*, registry_id: int) -> None:
                 f"Cannot delete registry '{registry.name}': voters in this registry have already cast ballots."
             )
 
+        # Unlink any unstarted draft elections so they don't block deletion
+        Election.objects.filter(voter_registry=registry, status=ElectionStatus.DRAFT).update(voter_registry=None)
+
         registry.delete()
+
+        # If all registries have been deleted, sweep any dangling unlinked voters or groups
+        if not VoterRegistry.objects.exists():
+            Voter.objects.filter(registry__isnull=True).delete()
+            AcademicGroup.objects.filter(registry__isnull=True).delete()
 
 
 def create_voter(
@@ -116,7 +124,7 @@ def create_voter(
         else:
             registry = VoterRegistry.objects.first()
 
-    if registry and registry.elections.exists():
+    if registry and registry.is_locked:
         raise ValidationError("Cannot add voters: this registry is linked to one or more elections.")
 
     # Scope primary registry identifier uniqueness to this registry
@@ -152,7 +160,7 @@ def update_voter(
         except Voter.DoesNotExist:
             raise ValidationError(f"Voter #{voter_id} does not exist.")
 
-        if voter.registry and voter.registry.elections.exists():
+        if voter.registry and voter.registry.is_locked:
             raise ValidationError("Cannot modify voter: this registry is linked to one or more elections.")
 
         clean_name = name.strip()
@@ -182,14 +190,14 @@ def delete_voter(*, voter_id: int) -> None:
         except Voter.DoesNotExist:
             raise ValidationError(f"Voter #{voter_id} does not exist.")
 
-        # Prevent deletion if voter belongs to a registry linked to existing election(s)
-        if voter.registry and voter.registry.elections.exists():
-            linked_elections = voter.registry.elections.all()
+        # Prevent deletion if voter belongs to a registry linked to active/completed election(s)
+        if voter.registry and voter.registry.is_locked:
+            linked_elections = voter.registry.active_elections
             election_names = ", ".join(e.name for e in linked_elections[:3])
             more = f" and {linked_elections.count() - 3} more" if linked_elections.count() > 3 else ""
             raise ValidationError(
                 f"Cannot delete voter: this registry is linked to one or more elections ({election_names}{more}). "
-                "Voters cannot be deleted while linked to an election."
+                "Voters cannot be deleted while linked to an active or completed election."
             )
 
         # Prevent deletion if voter is enrolled in any election
@@ -242,7 +250,7 @@ def create_academic_group(
         else:
             registry = VoterRegistry.objects.first()
 
-    if registry and registry.elections.exists():
+    if registry and registry.is_locked:
         raise ValidationError("Cannot add groups: this registry is linked to one or more elections.")
 
     dup_query = AcademicGroup.objects.filter(name__iexact=clean_name, parent=parent)
@@ -281,7 +289,7 @@ def update_academic_group(
         except AcademicGroup.DoesNotExist:
             raise ValidationError(f"Academic group #{group_id} does not exist.")
 
-        if group.registry and group.registry.elections.exists():
+        if group.registry and group.registry.is_locked:
             raise ValidationError("Cannot rename group: this registry is linked to one or more elections.")
 
         if AcademicGroup.objects.filter(
@@ -310,8 +318,8 @@ def delete_academic_group(*, group_id: int) -> None:
         except AcademicGroup.DoesNotExist:
             raise ValidationError(f"Academic group #{group_id} does not exist.")
 
-        # Check if group belongs to a registry linked to existing elections
-        if group.registry and group.registry.elections.exists():
+        # Check if group belongs to a registry linked to active/completed elections
+        if group.registry and group.registry.is_locked:
             raise ValidationError("Cannot delete group: this registry is linked to one or more elections.")
 
         # Check voters assigned directly to this group
@@ -495,6 +503,96 @@ def auto_distribute_unallocated_voters(*, election_id: int) -> dict:
         return {"distributed": len(unallocated_voters), "counts": counts}
 
 
+def customize_booth_allocation(
+    *,
+    election_id: int,
+    booth_id: int,
+    academic_group_ids: List[int],
+    auto_distribute_remaining: bool = False,
+) -> dict:
+    """Assign specific academic groups to a polling booth.
+    
+    Enforces:
+    - Election must be in DRAFT (configuration freeze).
+    - Booth must belong to this election.
+    - All voters in the specified academic groups in this election are assigned to this booth.
+    - Any voters previously assigned to this booth who are NOT in academic_group_ids are deallocated (booth=None).
+    - If auto_distribute_remaining is True, any unallocated voters in the election are evenly distributed across all other booths in the election.
+    """
+    from voters.models import Booth
+    with transaction.atomic():
+        try:
+            election = Election.objects.select_for_update().get(id=election_id)
+        except Election.DoesNotExist:
+            raise ValidationError(f"Election #{election_id} does not exist.")
+
+        if not election.is_draft:
+            raise ValidationError("Configuration is frozen. Voter allocations cannot be modified once election is activated.")
+
+        try:
+            booth = Booth.objects.get(id=booth_id, election=election)
+        except Booth.DoesNotExist:
+            raise ValidationError(f"Booth #{booth_id} does not exist in this election.")
+
+        # Deallocate voters currently assigned to this booth whose group is not in academic_group_ids
+        ElectionVoter.objects.filter(
+            election=election,
+            booth=booth
+        ).exclude(
+            voter__academic_group_id__in=academic_group_ids
+        ).update(booth=None)
+
+        # Assign voters in the specified academic groups to this booth
+        if academic_group_ids:
+            ElectionVoter.objects.filter(
+                election=election,
+                voter__academic_group_id__in=academic_group_ids
+            ).update(booth=booth)
+
+        # Auto-distribute unallocated voters to other booths if requested
+        if auto_distribute_remaining:
+            other_booths = list(Booth.objects.filter(election=election).exclude(id=booth.id).order_by('booth_number'))
+            if other_booths:
+                unallocated = list(ElectionVoter.objects.filter(election=election, booth__isnull=True).order_by('voter__primary_registry_value'))
+                for i, ev in enumerate(unallocated):
+                    ev.booth = other_booths[i % len(other_booths)]
+                if unallocated:
+                    ElectionVoter.objects.bulk_update(unallocated, ['booth'])
+
+        return {
+            "booth_id": booth.id,
+            "booth_number": booth.booth_number,
+            "allocated_count": booth.allocated_voters.count(),
+        }
+
+
+def rebalance_election_voters(*, election_id: int) -> dict:
+    """Evenly rebalance all enrolled ElectionVoters across all available booths. Permitted ONLY in DRAFT."""
+    from voters.models import Booth
+    with transaction.atomic():
+        try:
+            election = Election.objects.select_for_update().get(id=election_id)
+        except Election.DoesNotExist:
+            raise ValidationError(f"Election #{election_id} does not exist.")
+
+        if not election.is_draft:
+            raise ValidationError("Configuration is frozen. Voter allocations cannot be modified once election is activated.")
+
+        booths = list(Booth.objects.filter(election=election).order_by('booth_number'))
+        if not booths:
+            raise ValidationError("Cannot distribute voters: no booths have been configured.")
+
+        voters = list(ElectionVoter.objects.filter(election=election).order_by('voter__primary_registry_value'))
+        if not voters:
+            return {"distributed": 0}
+
+        for i, ev in enumerate(voters):
+            ev.booth = booths[i % len(booths)]
+
+        ElectionVoter.objects.bulk_update(voters, ['booth'])
+        return {"distributed": len(voters)}
+
+
 def create_booth(
     *,
     election_id: int,
@@ -539,12 +637,29 @@ def create_booth(
         booth.full_clean()
         booth.save()
 
-        # Deterministic station identifiers
-        base_officer_id = f"booth-{booth.booth_number}-officer"
-        officer_id = base_officer_id if not Device.objects.filter(identifier=base_officer_id).exists() else f"e{election.id}-booth-{booth.booth_number}-officer"
+        import secrets
+        from accounts.models import User
+        from accounts.services import READABLE_WORDS, cleanup_past_credentials, create_device
 
-        base_kiosk_id = f"booth-{booth.booth_number}-kiosk"
-        kiosk_id = base_kiosk_id if not Device.objects.filter(identifier=base_kiosk_id).exists() else f"e{election.id}-booth-{booth.booth_number}-kiosk"
+        # Automatically remove past credentials not in use by any draft or ongoing election
+        cleanup_past_credentials()
+
+        # Randomly generate readable station usernames (e.g. officer-river-1, kiosk-river-1)
+        # Ensure guaranteed uniqueness against both User and Device
+        word = secrets.choice(READABLE_WORDS)
+        officer_id = f"officer-{word}-{booth.booth_number}"
+        if Device.objects.filter(identifier=officer_id).exists() or User.objects.filter(username=officer_id).exists():
+            officer_id = f"officer-{word}-{booth.booth_number}-{secrets.randbelow(900)+100}"
+        while Device.objects.filter(identifier=officer_id).exists() or User.objects.filter(username=officer_id).exists():
+            w = secrets.choice(READABLE_WORDS)
+            officer_id = f"officer-{w}-{booth.booth_number}-{secrets.randbelow(900)+100}"
+
+        kiosk_id = f"kiosk-{word}-{booth.booth_number}"
+        if Device.objects.filter(identifier=kiosk_id).exists() or User.objects.filter(username=kiosk_id).exists():
+            kiosk_id = f"kiosk-{word}-{booth.booth_number}-{secrets.randbelow(900)+100}"
+        while Device.objects.filter(identifier=kiosk_id).exists() or User.objects.filter(username=kiosk_id).exists():
+            w = secrets.choice(READABLE_WORDS)
+            kiosk_id = f"kiosk-{w}-{booth.booth_number}-{secrets.randbelow(900)+100}"
 
         officer_device, officer_pw = create_device(
             identifier=officer_id,
@@ -593,7 +708,7 @@ def update_booth(
         return booth
 
 
-def remove_booth(*, booth_id: int) -> None:
+def remove_booth(*, booth_id: int, auto_distribute: bool = True) -> None:
     """Remove a polling booth prior to election start.
     
     Enforces:
@@ -601,6 +716,7 @@ def remove_booth(*, booth_id: int) -> None:
     - Sets booth=None on any previously allocated voters (requiring reallocation before start).
     - Deletes paired devices and their underlying user accounts.
     - Deletes the booth.
+    - If auto_distribute is True, distributes unallocated voters across remaining booths.
     """
     from voters.models import Booth
 
@@ -620,12 +736,29 @@ def remove_booth(*, booth_id: int) -> None:
         devices = list(booth.devices.select_related('user').all())
         users_to_delete = [d.user for d in devices if d.user]
 
+        election = booth.election
+
         # Deleting booth cascades to devices
         booth.delete()
 
         # Delete associated users
         for u in users_to_delete:
             u.delete()
+
+        # Renumber remaining booths sequentially to accommodate the loss: 1, 2, 3...
+        remaining_booths = list(Booth.objects.filter(election=election).order_by('booth_number', 'id'))
+        for idx, b in enumerate(remaining_booths, start=1):
+            if b.booth_number != idx:
+                b.booth_number = idx
+                b.save(update_fields=['booth_number'])
+
+        # Auto-distribute unallocated voters to the remaining booths if auto_distribute is True
+        if auto_distribute and remaining_booths:
+            unallocated = list(ElectionVoter.objects.filter(election=election, booth__isnull=True).order_by('voter__primary_registry_value'))
+            for i, ev in enumerate(unallocated):
+                ev.booth = remaining_booths[i % len(remaining_booths)]
+            if unallocated:
+                ElectionVoter.objects.bulk_update(unallocated, ['booth'])
 
 
 def rotate_booth_device_credentials(*, device_id: int) -> Tuple['Device', str]:

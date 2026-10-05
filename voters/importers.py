@@ -213,7 +213,7 @@ def process_voter_import(
     elif registry_id is None:
         registry_id = registry.id
 
-    if registry and registry.elections.exists():
+    if registry and registry.is_locked:
         raise ValidationError("Cannot import voters: this registry is linked to one or more elections.")
 
     col_map = resolve_column_indices(

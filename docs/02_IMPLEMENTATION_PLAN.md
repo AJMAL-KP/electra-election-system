@@ -170,7 +170,7 @@ The election setup flow guides the administrator through the locked four-stage w
 - **Test Scenarios**: Position CRUD, candidate selection from enrolled voters, candidate validation, eligibility rule persistence.
 
 ### Slice 4: Configure Booths and Devices (Stage 3 — Setup)
-- **Workflow**: In Stage 3 (`references/06.3_booth&allocation.png`), Admin adds/configures polling booths. For each booth, system generates exactly one paired Officer Station device and one Voting Kiosk device, complete with masked credentials and one-click credential rotation. Lightweight printing actions (`Print voter list`, `Print booth slips`) are available.
+- **Workflow**: In Stage 3 (`references/06.3_booth&allocation.png`), Admin adds/configures polling booths. For each booth, system generates exactly one paired Officer Station device and one Voting Kiosk device, complete with visible credentials (`••••••••`), reveal/copy actions (`Device.cleartext_password`), and one-click credential rotation. Lightweight printing actions (`Print voter list`, `Print booth slips` via `templates/elections/voter_slips_print.html`) are available for physical LAN operator setup.
 - **Architecture & Invariants**: Exactly one Officer and one Kiosk per booth. Derived booth isolation. Credential rotation revokes previous sessions.
 - **Backend / Domain**: `voters.services.create_booth()`, `accounts.services.provision_booth_devices()`, `accounts.services.rotate_device_credentials()`.
 - **Frontend**: Stage 3 template (`references/06.3_booth&allocation.png`): borderless booth cards, device pairing display, masked passwords, rotate pass button, discrete print buttons.
@@ -191,10 +191,10 @@ The election setup flow guides the administrator through the locked four-stage w
 - **Test Scenarios**: Missing candidates rejection, unallocated voters rejection, unauthenticated devices warning/blocker, fully valid election confirmation.
 
 ### Slice 7: Save as Draft / Start Election (Stage 4 → ACTIVE)
-- **Workflow**: On Stage 4 (`references/06.4_review.png`), Admin can choose **Save as Draft** (returns to Home) or **Start Election** (transitions `DRAFT → ACTIVE`).
+- **Workflow**: On Stage 4 (`references/06.4_review.png`), the layout provides an unobstructed scrollable accordion review. The **Start election** launch button is positioned in the top navigation row next to **&larr; Back**, opening the cutoff time confirmation modal. Progress is recorded in `Election.setup_stage` (1..4), and **Save as Draft** (`Election.is_saved_draft = true`) allows safely returning to Home and resuming later.
 - **Architecture & Invariants**: Atomic transition `DRAFT → ACTIVE`. Locks election configuration completely (freeze on booths, candidates, positions, voter allocation, eligibility). Only credential rotation remains permitted. Exclusivity: exactly one active election across installation.
 - **Backend / Domain**: `elections.services.start_election()`, atomic state transition, configuration freeze enforcement.
-- **Frontend**: Start Election confirmation modal, redirect to Live Election Dashboard (`references/07_live.png`).
+- **Frontend**: Top-bar Start Election button, cutoff confirmation modal, redirect to Live Election Dashboard (`references/07_live.png`).
 - **Test Scenarios**: Transition validation, concurrent start prevention, configuration freeze validation (mutations rejected once active).
 
 ---
@@ -204,11 +204,18 @@ The election setup flow guides the administrator through the locked four-stage w
 Operational workflows execute live polling over the LAN with strict booth isolation, server authority, and ballot secrecy.
 
 ### Slice 8: Officer Authentication and Booth Readiness
-- **Workflow**: Officer launches browser on their station (`http://192.168.x.x:8000/login/`) → logs in with device credentials → server identifies device, derives its bound Booth, locks session exclusivity, and connects Officer WebSocket. Officer sees the bound Officer Station Dashboard (`voting/officer/dashboard.html`).
+- **Workflow**: Officer launches browser on station (`http://192.168.x.x:8000/login/`) → logs in with device credentials (permitted only for `ACTIVE` or `DRAFT` elections) → server derives bound Booth, enforces one active session exclusivity, and connects Officer WebSocket. Officer sees the Voting Desk (`templates/voting/officer/dashboard.html`) faithfully matching `references/officer_01.png`.
+- **Design & Layout (`references/officer_01.png`)**:
+  - Centered header: Newsreader serif `Electra` wordmark above `Voting Desk`, election subtitle, `Booth XX · Officer`, `● Kiosk Ready/Offline`, last updated text;
+  - Left column: Search input, filter tabs (`Not voted`, `Voted`, `All`), scrollable voter list with status dot;
+  - Right column: Fixed voter details panel (`VOTER DETAILS`, large serif voter ID/name, academic meta table, status callout, authorize voter button, helper footnote);
+  - Fixed viewport: `height: 100vh; overflow: hidden;` (only voter list scrolls);
+  - Draft State: If election is in `DRAFT`, officer can log in, but desk workspace is blurred (`is-draft-blurred`), authorizations locked, and a centered "Election Not Active Yet" notice card is displayed allowing only "Log Out Station";
+  - Revocation & Closure: Devices are never in an "unassigned" state; invalid or revoked sessions route canonically to `session_revoked.html`. When election transitions to `CLOSED`, past credentials are automatically purged.
 - **Architecture & Invariants**: Technical identity authentication. Derived booth (Officer A → Booth A only). One active session enforcement.
 - **Backend / Domain**: `accounts.services.authenticate_device()`, `accounts.consumers.OfficerConsumer`.
 - **Frontend**: Officer Station dashboard: booth indicator, voter search box, kiosk status indicator.
-- **Test Scenarios**: Successful login, booth derivation, reject concurrent second login on same device, WebSocket channel subscription.
+- **Test Scenarios**: Successful login, booth derivation, reject concurrent second login on same device, WebSocket channel subscription, draft blur lockdown.
 
 ### Slice 9: Voter Authorization
 - **Workflow**: Voter arrives at Officer Station. Officer searches voter by identity/name → verifies eligibility and booth allocation → checks that Kiosk is connected, ready, and fullscreen → clicks **Authorize**. Server transactionally creates single-use `VoterAuthorization(status = ACTIVE)`.

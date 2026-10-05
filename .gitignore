@@ -219,3 +219,7 @@ media/
 .env*
 !.env.example
 
+# AI Agent configuration
+AGENTS.md
+.agents/
+references/

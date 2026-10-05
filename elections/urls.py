@@ -11,8 +11,20 @@ urlpatterns = [
     path("<int:election_id>/edit/", views.election_edit_view, name="edit"),
     path("<int:election_id>/delete/", views.election_delete_view, name="delete"),
     path("<int:election_id>/start/", views.election_start_view, name="start"),
-    path("<int:election_id>/close/", views.election_close_view, name="close"),
     path("<int:election_id>/publish-results/", views.election_publish_results_view, name="publish_results"),
+
+    # 4-Stage Election Setup Workflow
+    path("setup/", views.election_setup_start_view, name="setup_start"),
+    path("<int:election_id>/setup/resume/", views.election_setup_resume_view, name="setup_resume"),
+    path("<int:election_id>/setup/save-draft/", views.election_setup_save_draft_view, name="setup_save_draft"),
+    path("<int:election_id>/setup/discard/", views.election_setup_discard_view, name="setup_discard"),
+    path("<int:election_id>/setup/voters/", views.election_setup_voters_view, name="setup_voters"),
+    path("<int:election_id>/setup/voters/search/", views.election_setup_voters_search_view, name="setup_voters_search"),
+    path("<int:election_id>/setup/details/", views.election_setup_details_view, name="setup_details"),
+    path("<int:election_id>/setup/booths/", views.election_setup_booths_view, name="setup_booths"),
+    path("<int:election_id>/setup/voter-slips/pdf/", views.election_voter_slips_pdf_view, name="setup_voter_slips_pdf"),
+    path("<int:election_id>/setup/voter-slips/print/", views.election_voter_slips_print_view, name="setup_voter_slips_print"),
+    path("<int:election_id>/setup/review/", views.election_setup_review_view, name="setup_review"),
     
     # Position endpoints
     path("<int:election_id>/positions/create/", views.position_create_view, name="position_create"),

@@ -139,10 +139,14 @@ Elections belong to the Electra installation as a whole. There is no per-user ow
 The system enforces that **only one election may be active/running at any given time**.
 
 The administrator configures elections through a four-stage setup flow:
-1. **Stage 1 — Election Voters**: Select voters from the master registry or directly bulk import election voters;
-2. **Stage 2 — Election Details & Candidates**: Single workspace configuring election name, optional description, voting hours, positions, and candidate roster (selected from election voters, with editable symbols and modal dialog support);
-3. **Stage 3 — Booths & Allocation**: Single workspace configuring physical booths, paired Officer and Kiosk devices, masked credentials, pass rotation, balanced or manual voter allocation, and lightweight print actions;
-4. **Stage 4 — Review & Start**: Comprehensive configuration and device readiness summary, distinguishing valid, incomplete, or device-unready conditions, offering **Save as Draft** or **Start Election**.
+1. **Stage 1 — Election Voters** (`references/06.1_voter_list.png`): Select voters from the master registry or directly bulk import election voters;
+2. **Stage 2 — Election Details & Candidates** (`references/06.2_election_details.png`): Single workspace configuring election name, optional description, voting hours, positions, and candidate roster (selected from election voters, with editable symbols and modal dialog support);
+3. **Stage 3 — Booths & Allocation** (`references/06.3_booth&allocation.png`): Single workspace configuring physical booths, paired Officer and Kiosk devices, masked credentials with reveal/copy, pass rotation, balanced or manual voter allocation, and lightweight print actions;
+4. **Stage 4 — Review & Start** (`references/06.4_review.png`): Comprehensive configuration and device readiness summary via borderless accordion cards, with the **Start election** launch button positioned in the top navigation bar alongside **&larr; Back**, triggering the cutoff confirmation modal.
+
+Progress and draft state:
+- The setup flow stores `Election.setup_stage` (1..4) to record the current step and restore progress;
+- The administrator can choose **Save as Draft** (`Election.is_saved_draft = true`) at any point to exit to the Home dashboard and resume later.
 
 Once started:
 - The election transitions from `DRAFT → ACTIVE`;
@@ -153,6 +157,7 @@ Once started:
 After polling, the administrator ends the election:
 - Transitions from `ACTIVE → CLOSED`;
 - Candidate tallies, percentages, and winners are published on the **Results** page;
+- Device credentials from the closed election are automatically purged from the database;
 - Navigation returns to Home.
 
 ---
@@ -230,8 +235,8 @@ Administrators must be able to:
 - create, edit, and delete polling booths before polling starts;
 - view booths represented as clean, borderless/transparent sections/cards rather than generic admin tables;
 - assign and pair an Officer Station and a Voting Kiosk to each booth;
-- inspect device status and masked credentials;
-- rotate device passwords/passes on demand.
+- inspect device status and masked credentials (`••••••••`) with one-click reveal/copy for operator distribution (`Device.cleartext_password`);
+- rotate device passwords/passes on demand, immediately revoking active sessions.
 
 Every booth must have exactly:
 
@@ -241,6 +246,8 @@ Every booth must have exactly:
 ```
 
 A physical computer may be replaced without changing the logical booth/device identity by logging the replacement computer into the same device identity.
+
+Device login is strictly permitted only if the election is in `ACTIVE` or `DRAFT` status; devices are never in an "unassigned" state.
 
 Booth configuration is frozen once polling becomes active.
 
@@ -268,7 +275,7 @@ Printing rules:
 - Printing is intentionally lightweight and non-intrusive (no bulky print materials panel);
 - Discrete print action buttons are provided directly in Stage 3:
   - `Print voter list`
-  - `Print booth slips`
+  - `Print booth slips`: renders dedicated printable voter slips (`templates/elections/voter_slips_print.html`) displaying voter name, ID, roll number, booth number, and a physical signature line for station verification.
 
 ---
 

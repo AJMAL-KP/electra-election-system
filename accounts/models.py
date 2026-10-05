@@ -71,6 +71,12 @@ class Device(models.Model):
         default=1,
         help_text="Incremented on each credential rotation."
     )
+    cleartext_password = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text="Stored readable password for station booth operators."
+    )
     last_rotated_at = models.DateTimeField(
         auto_now_add=True,
         help_text="Timestamp when credentials were last generated or rotated."

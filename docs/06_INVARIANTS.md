@@ -354,6 +354,7 @@ Credential rotation changes:
 
 ```text
 password/credential
+Device.cleartext_password
 session validity
 ```
 
@@ -363,6 +364,13 @@ but does not change:
 logical device identity
 booth association
 ```
+
+### Active / Draft Login Exclusivity & Credential Auto-Purge
+
+1. **Active/Draft Exclusivity**: Technical devices (`OFFICER` and `KIOSK`) may authenticate only if their parent election is in `ACTIVE` or `DRAFT` status. Login attempts for closed elections are strictly rejected.
+2. **Automatic Cleanup of Past Credentials**: When an election transitions to `CLOSED`, all technical device credentials (`Device`, `DeviceSession`, and underlying `User` accounts) associated with the closed election are automatically purged from the database, eliminating residual credentials on the LAN.
+3. **No Unassigned State**: Devices are strictly bound 1:1 to their booth at creation time and are never in an "unassigned" state. Any invalid, terminated, or rotated device session routes canonically to `session_revoked.html`.
+4. **Cleartext Password Distribution**: `Device.cleartext_password` persists the provisioned clear visible password exclusively to permit masked reveal/copy/print on the Booth Management setup screen for LAN station operators.
 
 ---
 
@@ -403,7 +411,7 @@ revoke credentials
 invalidate sessions
 ```
 
-The logical Device identity remains unchanged.
+The logical Device identity remains unchanged. Rotating credentials updates `cleartext_password` and immediately terminates active device sessions.
 
 ---
 

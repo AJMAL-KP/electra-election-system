@@ -1,0 +1,1021 @@
+/* ==========================================================================
+   ELECTRA OFFICER VOTING DESK
+   Faithfully matching references/officer_01.png
+   ========================================================================== */
+/* Layout Reset when embedded inside base.html */
+html, body.officer-page {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden !important;
+    margin: 0;
+    padding: 0;
+    background-color: #FFFFFF;
+}
+
+body.officer-page .main-content {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden !important;
+}
+
+.officer-body {
+    background-color: #FFFFFF;
+    color: #111827;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+/* Top bar with Station exit / status */
+.officer-topbar {
+    width: 100%;
+    padding: 6px 28px 0px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.officer-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #6B7280;
+}
+
+.officer-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.officer-btn-exit {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #6B7280;
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #E5E7EB;
+    background: #FFFFFF;
+    transition: all 0.15s ease;
+}
+
+.officer-btn-exit:hover {
+    color: #111827;
+    border-color: #9CA3AF;
+    background: #F9FAFB;
+}
+
+/* Centered Header Section */
+.officer-header-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 0px 16px 8px;
+    flex-shrink: 0;
+}
+
+.officer-page-title {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 30px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: #111827;
+    margin: 0 0 1px 0;
+    line-height: 1.1;
+}
+
+.officer-election-name {
+    font-size: 13px;
+    color: #6B7280;
+    margin-bottom: 4px;
+}
+
+.officer-station-pill-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #374151;
+    background: #F3F4F6;
+    border: 1px solid #E5E7EB;
+    border-radius: 9999px;
+    padding: 2px 12px;
+    margin-bottom: 3px;
+}
+
+.officer-kiosk-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.officer-kiosk-status-pill.is-online {
+    color: #15803D;
+}
+
+.officer-kiosk-status-pill.is-offline {
+    color: #64748B;
+}
+
+.officer-kiosk-status-pill .kiosk-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.officer-kiosk-status-pill.is-online .kiosk-dot {
+    background-color: #10B981;
+}
+
+.officer-kiosk-status-pill.is-offline .kiosk-dot {
+    background-color: #94A3B8;
+}
+
+.officer-header-meta {
+    font-size: 11.5px;
+    color: #9CA3AF;
+}
+
+/* Container for workspace and draft overlay */
+.officer-workspace-container {
+    position: relative;
+    max-width: 1140px;
+    width: 92%;
+    margin: 0 auto;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 16px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Two-Column Workspace Container */
+.officer-workspace {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1.45fr 1fr;
+    gap: 40px;
+    align-items: stretch;
+}
+
+/* Blurred & Non-interactive Workspace in Draft mode */
+.officer-workspace.is-draft-blurred {
+    filter: blur(8px);
+    opacity: 0.38;
+    pointer-events: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    cursor: not-allowed;
+    transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.officer-workspace.is-draft-blurred * {
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+}
+
+/* Centered Draft Overlay Modal */
+.officer-draft-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    pointer-events: auto;
+    background: rgba(250, 250, 250, 0.45);
+}
+
+.officer-draft-card {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    padding: 36px 36px;
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.officer-draft-badge,
+.officer-card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    background: #F3F4F6;
+    color: #4B5563;
+    margin-bottom: 18px;
+    letter-spacing: 0.01em;
+}
+
+.officer-draft-dot,
+.officer-card-badge .badge-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #64748B;
+}
+
+.officer-card-badge.is-danger .badge-dot {
+    background-color: #EF4444;
+}
+
+.officer-card-badge.is-warning .badge-dot {
+    background-color: #F59E0B;
+}
+
+.officer-card-badge.is-neutral .badge-dot,
+.officer-card-badge.is-draft .badge-dot {
+    background-color: #64748B;
+}
+
+.officer-draft-title {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: #111827;
+    margin: 0 0 10px 0;
+    line-height: 1.25;
+}
+
+.officer-draft-desc {
+    font-size: 14px;
+    color: #4B5563;
+    line-height: 1.55;
+    margin: 0 0 20px 0;
+    max-width: 420px;
+}
+
+.officer-draft-station-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: #64748B;
+    background: #F9FAFB;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 8px 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.officer-draft-station-info code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    color: #1E293B;
+    background: #EDF2F7;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.officer-draft-actions {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.officer-btn-draft-logout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 20px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #FFFFFF;
+    background-color: #111827;
+    border: 1px solid #111827;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.2;
+}
+
+.officer-btn-draft-logout:hover {
+    background-color: #374151;
+    border-color: #374151;
+    color: #FFFFFF;
+}
+
+/* Header pill for draft status */
+.officer-header-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.officer-header-status-pill.is-draft {
+    background-color: #F1F5F9;
+    color: #475569;
+}
+
+.officer-header-status-pill.is-active {
+    background-color: #F0FDF4;
+    color: #15803D;
+}
+
+/* LEFT COLUMN: Search, Filter Tabs, Voter Table */
+.officer-voters-col {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    gap: 12px;
+}
+
+/* Search Box */
+.officer-search-wrap {
+    position: relative;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+.officer-search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9CA3AF;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+}
+
+.officer-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px 10px 40px;
+    font-size: 14px;
+    font-family: inherit;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    background-color: #FFFFFF;
+    color: #111827;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.officer-search-input:focus {
+    border-color: #111827;
+    box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.05);
+}
+
+.officer-search-input::placeholder {
+    color: #9CA3AF;
+}
+
+/* Filter Tabs Row */
+.officer-filters-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.officer-tabs-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.officer-tab-btn {
+    background: none;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #4B5563;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+}
+
+.officer-tab-btn:hover {
+    color: #111827;
+    background-color: #F3F4F6;
+}
+
+.officer-tab-btn.is-active {
+    background-color: #E5E7EB;
+    color: #111827;
+    font-weight: 600;
+}
+
+/* Voter Rows List */
+.officer-voter-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    padding-right: 6px;
+}
+
+.officer-voter-list::-webkit-scrollbar {
+    width: 6px;
+}
+.officer-voter-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.officer-voter-list::-webkit-scrollbar-thumb {
+    background-color: #E2E8F0;
+    border-radius: 9999px;
+}
+.officer-voter-list::-webkit-scrollbar-thumb:hover {
+    background-color: #CBD5E1;
+}
+
+.officer-voter-row {
+    display: grid;
+    grid-template-columns: 105px 1.4fr 1.1fr 105px;
+    column-gap: 20px;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    user-select: none;
+    border: 1px solid transparent;
+    flex-shrink: 0;
+}
+
+.officer-voter-row:hover {
+    background-color: #F8FAFC;
+}
+
+.officer-voter-row.is-selected {
+    background-color: #F1F5F9;
+    border-color: transparent;
+}
+
+.officer-voter-id {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #111827;
+    letter-spacing: 0.01em;
+}
+
+.officer-voter-name {
+    font-size: 14.5px;
+    font-weight: 500;
+    color: #111827;
+}
+
+.officer-voter-group {
+    font-size: 13.5px;
+    color: #6B7280;
+}
+
+.officer-voter-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    justify-self: flex-start;
+}
+
+.officer-voter-status.is-not-voted {
+    color: #64748B;
+}
+
+.officer-voter-status.is-voted {
+    color: #15803D;
+}
+
+.officer-voter-status.is-in-progress {
+    color: #D97706;
+}
+
+.officer-voter-status .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.officer-voter-status.is-not-voted .status-dot {
+    background-color: #94A3B8;
+}
+
+.officer-voter-status.is-voted .status-dot {
+    background-color: #10B981;
+}
+
+.officer-voter-status.is-in-progress .status-dot {
+    background-color: #F59E0B;
+}
+
+.officer-empty-voters {
+    padding: 36px 20px;
+    text-align: center;
+    color: #9CA3AF;
+    font-size: 14px;
+}
+
+/* RIGHT COLUMN: Voter Details Panel */
+.officer-details-col {
+    position: static;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-left: 10px;
+}
+
+.officer-details-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.officer-details-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #9CA3AF;
+    margin: 0 0 10px 0;
+}
+
+.officer-details-voter-id {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 36px;
+    font-weight: 400;
+    color: #111827;
+    line-height: 1.1;
+    margin: 0 0 2px 0;
+}
+
+.officer-details-voter-name {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 26px;
+    font-weight: 400;
+    color: #111827;
+    margin: 0 0 18px 0;
+    line-height: 1.25;
+}
+
+.officer-meta-table {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.officer-meta-row {
+    display: flex;
+    align-items: baseline;
+    font-size: 13.5px;
+}
+
+.officer-meta-key {
+    width: 120px;
+    color: #6B7280;
+    font-weight: 400;
+    flex-shrink: 0;
+}
+
+.officer-meta-val {
+    color: #111827;
+    font-weight: 500;
+    flex: 1;
+}
+
+/* Status Banner Cards */
+.officer-status-box {
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.officer-status-box.is-in-progress {
+    background-color: #FFFBEB;
+    border: 1px solid #FEF3C7;
+}
+
+.officer-status-box.is-in-progress .status-title {
+    color: #D97706;
+    font-weight: 600;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.officer-status-box.is-in-progress .status-desc {
+    color: #92400E;
+    font-size: 13.5px;
+    line-height: 1.4;
+}
+
+.officer-status-box.is-voted {
+    background-color: #F0FDF4;
+    border: 1px solid #DCFCE7;
+}
+
+.officer-status-box.is-voted .status-title {
+    color: #16A34A;
+    font-weight: 600;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.officer-status-box.is-voted .status-desc {
+    color: #166534;
+    font-size: 13.5px;
+    line-height: 1.4;
+}
+
+.officer-status-box.is-not-voted {
+    background-color: #F8FAFC;
+    border: 1px solid #E2E8F0;
+}
+
+.officer-status-box.is-not-voted .status-title {
+    color: #334155;
+    font-weight: 600;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.officer-status-box.is-not-voted .status-desc {
+    color: #64748B;
+    font-size: 13.5px;
+    line-height: 1.4;
+}
+
+/* Action Button: Authorize Voter */
+.officer-btn-authorize {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 13px 20px;
+    font-size: 14.5px;
+    font-weight: 500;
+    color: #FFFFFF;
+    background-color: #111827;
+    border: 1px solid #111827;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.officer-btn-authorize:hover:not([disabled]) {
+    background-color: #1F2937;
+}
+
+.officer-btn-authorize[disabled] {
+    background-color: #E5E7EB;
+    border-color: #E5E7EB;
+    color: #9CA3AF;
+    cursor: not-allowed;
+}
+
+.officer-details-footnote {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    font-size: 13px;
+    color: #6B7280;
+    margin-top: 14px;
+    line-height: 1.45;
+}
+
+.officer-details-footnote svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+/* Placeholder when no voter is selected */
+.officer-no-selection {
+    padding: 60px 20px;
+    text-align: center;
+    color: #9CA3AF;
+}
+
+.officer-no-selection svg {
+    margin-bottom: 12px;
+    color: #CBD5E1;
+}
+
+.officer-no-selection-text {
+    font-size: 14.5px;
+    color: #6B7280;
+}
+
+/* ==========================================================================
+   Officer Error & System Notice States
+   ========================================================================== */
+.officer-error-wrapper {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+    text-align: center;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+.officer-error-card {
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    padding: 36px 36px;
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.officer-error-title {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 28px;
+    font-weight: 500;
+    color: #111827;
+    margin: 0 0 10px 0;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+}
+
+.officer-error-desc {
+    font-size: 14px;
+    color: #4B5563;
+    line-height: 1.55;
+    margin: 0 0 20px 0;
+    max-width: 420px;
+}
+
+.officer-error-meta-box {
+    background-color: #F9FAFB;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 12.5px;
+    color: #64748B;
+    margin-bottom: 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.officer-error-meta-box code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    color: #1E293B;
+    background: #EDF2F7;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.officer-error-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    gap: 12px;
+}
+
+.officer-btn-primary-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 20px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #FFFFFF;
+    background-color: #111827;
+    border: 1px solid #111827;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.2;
+}
+
+.officer-btn-primary-action:hover {
+    background-color: #374151;
+    border-color: #374151;
+    color: #FFFFFF;
+}
+
+.officer-btn-secondary-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #374151;
+    background-color: #FFFFFF;
+    border: 1px solid #D1D5DB;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    line-height: 1.2;
+}
+
+.officer-btn-secondary-action:hover {
+    background-color: #F9FAFB;
+    border-color: #9CA3AF;
+    color: #111827;
+}
+
+/* ==========================================================================
+   Responsive Adaptations for Smaller Screens
+   (Tablets & Mobile: Voter details rendered first, search & list below)
+   ========================================================================== */
+@media (max-width: 920px) {
+    html, body.officer-page, body.officer-page .main-content, .officer-body {
+        height: auto !important;
+        max-height: none !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+
+    .officer-body {
+        min-height: 100vh;
+    }
+
+    .officer-topbar {
+        padding: 8px 16px 0px;
+    }
+
+    .officer-header-section {
+        padding: 2px 16px 10px;
+    }
+
+    .officer-workspace-container {
+        width: 95%;
+        max-width: 680px;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        padding-bottom: 40px;
+    }
+
+    .officer-workspace {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+        gap: 24px;
+    }
+
+    /* Requirement: In smaller screens, make the voter details first */
+    .officer-details-col {
+        order: 1;
+        padding-left: 0;
+        height: auto;
+        overflow: visible;
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 12px;
+        padding: 20px 22px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    /* Requirement: And the search and list below it */
+    .officer-voters-col {
+        order: 2;
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+        gap: 12px;
+    }
+
+    .officer-voter-list {
+        max-height: 480px;
+        min-height: 240px;
+        overflow-y: auto;
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 10px;
+        padding: 6px;
+    }
+}
+
+@media (max-width: 600px) {
+    .officer-topbar {
+        padding: 6px 12px 0px;
+    }
+
+    .officer-topbar-left {
+        font-size: 11.5px;
+    }
+
+    .officer-page-title {
+        font-size: 25px;
+    }
+
+    .officer-details-voter-id {
+        font-size: 28px;
+    }
+
+    .officer-details-voter-name {
+        font-size: 22px;
+    }
+
+    .officer-voter-row {
+        grid-template-columns: 85px 1fr auto;
+        column-gap: 12px;
+        padding: 10px 10px;
+    }
+
+    .officer-voter-group {
+        display: none;
+    }
+
+    .officer-tabs-group {
+        width: 100%;
+        display: flex;
+        gap: 4px;
+    }
+
+    .officer-tab-btn {
+        flex: 1;
+        padding: 6px 4px;
+        font-size: 12px;
+        text-align: center;
+    }
+}

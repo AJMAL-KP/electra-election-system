@@ -390,6 +390,18 @@ Use the actual election timestamps (`starts_at`, `ends_at`) plus server-side val
 
 The election may be configured while in `DRAFT`.
 
+### Setup Wizard Stages (`Election.setup_stage`)
+
+Election setup is organized into four sequential wizard stages:
+1. **Stage 1: Voters** (`setup_stage = 1`, `references/06.1_voter_list.png`): Enroll voters from the central registry into the election roster.
+2. **Stage 2: Details & Candidates** (`setup_stage = 2`, `references/06.2_election_details.png`): Define election name, description, scheduled voting period, positions, and candidates.
+3. **Stage 3: Booths & Allocation** (`setup_stage = 3`, `references/06.3_booth&allocation.png`): Configure polling booths, paired officer and kiosk devices, masked cleartext credential distribution, and allocate voters to booths.
+4. **Stage 4: Review & Start** (`setup_stage = 4`, `references/06.4_review.png`): Review complete configuration via accordion cards, verify validation status, and launch live election via the top navigation action.
+
+### Save as Draft (`Election.is_saved_draft`)
+
+At any stage of the wizard, the administrator may choose **Save as Draft** to record progress (`is_saved_draft = true`) and return to the main dashboard. The wizard may be resumed at any time from its stored `setup_stage`.
+
 Before changing:
 
 ```text
@@ -472,6 +484,13 @@ election closure
 deterministic.
 
 No vote may be accepted based only on a stale client-side belief that the election is still open.
+
+### Automatic Post-Closure Device Credential Purge
+
+Upon transitioning to `CLOSED`:
+- Any dangling active `VoterAuthorization` records are immediately cancelled (`CANCELLED`).
+- All technical device credentials (`Device`, `DeviceSession`, and underlying `User` accounts) associated with the closed election are automatically purged from the database.
+- Devices are strictly bound to booths and are never in an "unassigned" state; any invalid or revoked device session routes canonically to `session_revoked.html`.
 
 ---
 

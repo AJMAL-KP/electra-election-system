@@ -49,6 +49,14 @@ class Election(models.Model):
         related_name='elections',
         help_text="The single voter registry selected as the voter source for this election."
     )
+    setup_stage = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Current stage in the 4-step setup workflow (1 to 4)."
+    )
+    is_saved_draft = models.BooleanField(
+        default=False,
+        help_text="True if administrator explicitly saved this election draft."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     closed_at = models.DateTimeField(null=True, blank=True)
@@ -85,6 +93,16 @@ class Election(models.Model):
     def is_expired(self) -> bool:
         return self.is_active and timezone.now() >= self.ends_at
 
+    @property
+    def stage_url_name(self) -> str:
+        stage_map = {
+            1: "elections:setup_voters",
+            2: "elections:setup_details",
+            3: "elections:setup_booths",
+            4: "elections:setup_review",
+        }
+        return stage_map.get(self.setup_stage, "elections:setup_voters")
+
 
 class Position(models.Model):
     """Represents an elected post on the ballot for an election."""
@@ -98,6 +116,23 @@ class Position(models.Model):
     display_order = models.PositiveIntegerField(
         default=1,
         help_text="Presentation order on the voting kiosk ballot."
+    )
+    eligible_groups = models.ManyToManyField(
+        'voters.AcademicGroup',
+        blank=True,
+        related_name='positions',
+        help_text="Specific academic groups eligible to vote for this position. If empty, all voters are eligible."
+    )
+    eligible_gender = models.CharField(
+        max_length=20,
+        choices=[
+            ('ALL', 'All'),
+            ('FEMALE', 'Female'),
+            ('MALE', 'Male'),
+        ],
+        default='ALL',
+        blank=True,
+        help_text="Gender restriction for voters eligible to vote for this position. If 'ALL', all genders are eligible."
     )
 
     class Meta:
@@ -144,11 +179,17 @@ class Candidate(models.Model):
         blank=True,
         help_text="Ballot symbol or slate/party name."
     )
+    symbol_image = models.ImageField(
+        upload_to='candidates/symbols/',
+        blank=True,
+        null=True,
+        help_text="Candidate symbol image (optional)."
+    )
     photo = models.ImageField(
         upload_to='candidates/',
         blank=True,
         null=True,
-        help_text="Candidate photo displayed on kiosk."
+        help_text="Candidate photo displayed on kiosk (optional)."
     )
 
     class Meta:

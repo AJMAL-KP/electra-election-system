@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Voter Slip — {{ election.name }} — Electra{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Printable Voter Slips Styles (Real-life 3x12 Grid holding 36 slips per A4 sheet) */
+@page {
+    size: A4 portrait;
+    margin: 6mm 6mm;
+}
+
+body.print-slips-body {
+    background-color: #F3F4F6;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #111827;
+}
+
+.print-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #FFFFFF;
+    border-bottom: 1px solid #E5E7EB;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.print-toolbar-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.print-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-print-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+.btn-print-primary {
+    background-color: #111827;
+    color: #FFFFFF;
+    border: 1px solid #111827;
+}
+.btn-print-primary:hover {
+    background-color: #374151;
+}
+
+.btn-print-secondary {
+    background-color: #FFFFFF;
+    color: #374151;
+    border: 1px solid #D1D5DB;
+}
+.btn-print-secondary:hover {
+    background-color: #F9FAFB;
+    border-color: #9CA3AF;
+}
+
+/* Page Canvas (A4 simulation on screen) */
+.slips-container {
+    max-width: 210mm;
+    margin: 15px auto;
+    background: #FFFFFF;
+    padding: 6mm 6mm;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07);
+    box-sizing: border-box;
+}
+
+/* 3-Column x 11-Row Grid (33 slips per A4 sheet - width preserved) */
+.slips-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5mm;
+}
+
+.voter-slip-card {
+    border: 1px solid #9CA3AF;
+    background: #FFFFFF;
+    border-radius: 3px;
+    padding: 2mm 3.5mm;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3mm;
+    height: 21.5mm;
+    max-height: 22mm;
+    overflow: hidden;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.slip-content-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+}
+
+.slip-photo-box {
+    width: 14mm;
+    height: 16.5mm;
+    border: 1px solid #9CA3AF;
+    background: #FFFFFF;
+    border-radius: 2px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slip-header-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 0.5px solid #E5E7EB;
+    padding-top: 0;
+    margin-top: 0;
+    padding-bottom: 1px;
+    margin-bottom: 1px;
+}
+
+.slip-election-name {
+    font-size: 7px;
+    font-weight: 500;
+    color: #6B7280;
+    line-height: 1.1;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 105px;
+}
+
+.slip-number {
+    font-size: 7px;
+    font-weight: 600;
+    color: #9CA3AF;
+    line-height: 1.1;
+    margin: 0;
+}
+
+.slip-voter-name {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.15;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.slip-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 8px;
+    line-height: 1.1;
+    color: #374151;
+    margin: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.slip-booth-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 8.5px;
+    font-weight: 600;
+    color: #111827;
+    line-height: 1.1;
+    border-top: 0.5px dashed #E5E7EB;
+    padding-top: 1px;
+    margin-top: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Print Optimization */
+@media print {
+    body.print-slips-body {
+        background: #FFFFFF !important;
+    }
+    .print-toolbar {
+        display: none !important;
+    }
+    .slips-container {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+    }
+    .slips-grid {
+        gap: 1.2mm !important;
+    }
+    .voter-slip-card {
+        border-color: #6B7280 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .slip-photo-box {
+        border-color: #6B7280 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+</style>
+{% endblock %}
+
+{% block body_class %}print-slips-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<!-- Top Floating Toolbar (Hidden during print) -->
+<div class="print-toolbar">
+    <div class="print-toolbar-title">
+        Voter Slip &bull; {{ election.name }} <span style="display:none;">Official Voter Slips</span>
+    </div>
+    <div class="print-toolbar-actions">
+        <a href="{% url 'elections:setup_booths' election.id %}" class="btn-print-action btn-print-secondary">
+            &larr; Back to setup
+        </a>
+        <a href="{% url 'elections:setup_voter_slips_pdf' election.id %}" class="btn-print-action btn-print-secondary" download="{{ voter_slip_filename }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            Download PDF
+        </a>
+        <button type="button" onclick="window.print()" class="btn-print-action btn-print-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            Print slips
+        </button>
+    </div>
+</div>
+
+<!-- Slips Canvas -->
+<div class="slips-container">
+    <div class="slips-grid">
+        {% for ev in election_voters %}
+        <div class="voter-slip-card">
+            <div class="slip-content-col">
+                <div class="slip-header-row">
+                    <span class="slip-election-name" title="{{ election.name }}">{{ election.name }}</span>
+                    <span class="slip-number">#{{ forloop.counter }}</span>
+                </div>
+                
+                <div class="slip-voter-name" title="{{ ev.voter.name }}">{{ ev.voter.name|default:"Voter" }}</div>
+                
+                <div class="slip-meta-row">
+                    <span>ID: <strong>{{ ev.voter.identifier|default:"—" }}</strong></span>
+                    <span>&bull;</span>
+                    <span>{{ ev.voter.academic_group.name|default:"General" }}</span>
+                </div>
+                
+                <div class="slip-booth-row">
+                    {% if ev.booth %}
+                        Booth {{ ev.booth.booth_number }}{% if ev.booth.name %} ({{ ev.booth.name }}){% endif %}
+                    {% elif booth %}
+                        Booth {{ booth.booth_number }}{% if booth.name %} ({{ booth.name }}){% endif %}
+                    {% else %}
+                        Unallocated
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="slip-photo-box" aria-label="Photo box"></div>
+        </div>
+        {% empty %}
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6B7280;">
+            No voters enrolled in this election.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

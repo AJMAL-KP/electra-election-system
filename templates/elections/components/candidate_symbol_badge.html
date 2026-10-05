@@ -1,0 +1,57 @@
+{# Candidate Symbol / Avatar Badge (Matching reference 06.2 pastel badges) #}
+{% if symbol|lower == 'crown' %}
+    <span class="cand-badge badge-peach" title="Crown">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+            <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path>
+        </svg>
+    </span>
+{% elif symbol|lower == 'leaf' %}
+    <span class="cand-badge badge-mint" title="Leaf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+        </svg>
+    </span>
+{% elif symbol|lower == 'bolt' or symbol|lower == 'lightning' %}
+    <span class="cand-badge badge-purple" title="Bolt">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+    </span>
+{% elif symbol|lower == 'star' %}
+    <span class="cand-badge badge-gold" title="Star">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+        </svg>
+    </span>
+{% elif symbol|lower == 'book' %}
+    <span class="cand-badge badge-pink" title="Book">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </svg>
+    </span>
+{% elif symbol|lower == 'megaphone' %}
+    <span class="cand-badge badge-teal" title="Megaphone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+            <path d="M3 11l19-9-9 19-2-8-8-2z"></path>
+        </svg>
+    </span>
+{% elif symbol|lower == 'users' or symbol|lower == 'team' %}
+    <span class="cand-badge badge-blue" title="Users">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+    </span>
+{% elif symbol %}
+    <span class="cand-badge badge-neutral" title="{{ symbol }}">
+        <span class="cand-badge-text">{{ symbol|slice:":2"|upper }}</span>
+    </span>
+{% else %}
+    <span class="cand-badge badge-neutral" title="{{ name }}">
+        <span class="cand-badge-text">{{ name|slice:":1"|upper }}</span>
+    </span>
+{% endif %}

@@ -52,7 +52,9 @@
         {% if messages %}
         <div class="popover-messages">
             {% for message in messages %}
-            <div class="popover-msg {% if message.tags == 'error' %}popover-msg--error{% else %}popover-msg--success{% endif %}">{{ message }}</div>
+            {% if "password_modal" in message.tags %}
+            <div class="popover-msg popover-msg--error">{{ message }}</div>
+            {% endif %}
             {% endfor %}
         </div>
         {% endif %}
@@ -81,7 +83,15 @@
 
 <!-- Center Composition (Faithfully matched to references/03_home.png) -->
 <div class="home-container">
-    {# Messages are now shown inside the settings popover, not here #}
+    {% if messages %}
+    <div style="display: none;">
+        {% for message in messages %}
+        {% if "password_modal" not in message.tags %}
+        <div data-django-message data-type="{{ message.tags }}">{{ message }}</div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
 
     {% if active_election %}
     <a href="{% url 'elections:results' active_election.id %}" class="home-active-banner">
@@ -100,9 +110,15 @@
             A simple and secure election management system<br>
             for conducting fair and transparent elections.
         </p>
-        <a href="#" class="home-btn-start">
+        {% if active_draft_election %}
+        <button type="button" class="home-btn-start" id="btn-start-election-prompt">
+            Start election <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+        </button>
+        {% else %}
+        <a href="{% url 'elections:setup_start' %}" class="home-btn-start">
             Start election <span class="btn-arrow" aria-hidden="true">&rarr;</span>
         </a>
+        {% endif %}
     </div>
 
     <!-- Subtle Hairline Divider -->
@@ -143,13 +159,13 @@
             </p>
             <div class="hub-card-stats">
                 <div class="hub-stat-item">
-                    <span class="hub-stat-number">{{ total_elections|default:"0" }}</span>
-                    <span class="hub-stat-label">Total elections</span>
+                    <span class="hub-stat-number">{{ completed_elections|default:"0" }}</span>
+                    <span class="hub-stat-label">Completed elections</span>
                 </div>
                 <div class="hub-stat-divider" aria-hidden="true"></div>
                 <div class="hub-stat-item">
-                    <span class="hub-stat-number">{{ completed_elections|default:"0" }}</span>
-                    <span class="hub-stat-label">Completed</span>
+                    <span class="hub-stat-number">{{ total_votes_registered|default:"0" }}</span>
+                    <span class="hub-stat-label">Votes registered</span>
                 </div>
             </div>
         </a>
@@ -157,6 +173,36 @@
 </div>
 
 {# Settings popover is now inline above — no full-screen modal needed #}
+
+{% if active_draft_election %}
+<!-- Resume Draft Prompt Modal (Clean Electra Theme) -->
+<div id="draft-prompt-modal" class="modal-overlay" aria-hidden="true" role="dialog" aria-labelledby="draft-modal-title">
+    <div class="modal-backdrop" id="draft-modal-backdrop"></div>
+    <div class="modal-dialog" style="max-width: 480px; border-radius: 16px; padding: 28px;">
+        <div class="modal-header" style="margin-bottom: 14px;">
+            <h2 class="modal-title" id="draft-modal-title" style="font-family: 'Newsreader', Georgia, serif; font-size: 26px; font-weight: 500;">Resume Election Setup?</h2>
+            <button type="button" class="modal-close" id="btn-close-draft-modal" aria-label="Close dialog">&times;</button>
+        </div>
+        <p style="font-size: 14.5px; color: #4B5563; line-height: 1.5; margin: 0 0 24px 0;">
+            You have an unfinished election draft: <strong>{{ active_draft_election.name }}</strong> (Stage {{ active_draft_election.setup_stage }}).
+            Would you like to resume where you left off or start a new election?
+        </p>
+        <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
+            <a href="{% url 'elections:setup_start' %}?discard=1" 
+               class="setup-btn-save-draft" 
+               style="text-decoration: none; padding: 9px 16px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 13.5px; color: #4B5563; background: #FFF;"
+               onclick="return confirm('Starting a new election will discard the current draft ({{ active_draft_election.name|escapejs }}). Proceed?');">
+                Start fresh
+            </a>
+            <a href="{% url 'elections:setup_resume' active_draft_election.id %}" 
+               class="setup-btn-continue" 
+               style="text-decoration: none; padding: 10px 20px; background: #111827; color: #FFF; border-radius: 8px; font-size: 14px; font-weight: 500;">
+                Resume draft &rarr;
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -195,10 +241,37 @@
             if (e.key === 'Escape') closePopover();
         });
 
-        // Auto-open popover if there are messages (e.g. password error/success)
+        // Auto-open popover ONLY if there is an explicit password change error
         {% if messages %}
-        openPopover();
+            {% for message in messages %}
+                {% if "password_modal" in message.tags %}
+                openPopover();
+                {% endif %}
+            {% endfor %}
         {% endif %}
+
+        // Draft prompt modal handling
+        const startPromptBtn = document.getElementById('btn-start-election-prompt');
+        const draftModal = document.getElementById('draft-prompt-modal');
+        const closeDraftModalBtn = document.getElementById('btn-close-draft-modal');
+        const draftBackdrop = document.getElementById('draft-modal-backdrop');
+
+        function openDraftModal() {
+            if (draftModal) {
+                draftModal.classList.add('active');
+                draftModal.setAttribute('aria-hidden', 'false');
+            }
+        }
+        function closeDraftModal() {
+            if (draftModal) {
+                draftModal.classList.remove('active');
+                draftModal.setAttribute('aria-hidden', 'true');
+            }
+        }
+
+        if (startPromptBtn) startPromptBtn.addEventListener('click', openDraftModal);
+        if (closeDraftModalBtn) closeDraftModalBtn.addEventListener('click', closeDraftModal);
+        if (draftBackdrop) draftBackdrop.addEventListener('click', closeDraftModal);
     })();
 </script>
 {% endblock %}

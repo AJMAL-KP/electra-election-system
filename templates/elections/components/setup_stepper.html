@@ -1,0 +1,55 @@
+{# Setup Stepper Component (Faithfully matching references/06.1 to 06.4 with clean top stepper) #}
+<div class="setup-stepper-wrap" role="navigation" aria-label="Election Setup Progress">
+    <div class="setup-stepper">
+        {# Step 1: Election voters #}
+        <div class="stepper-item {% if active_step == 1 %}is-active{% elif active_step > 1 %}is-completed{% endif %}">
+            <div class="stepper-node-row">
+                <div class="stepper-circle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="stepper-check-icon" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+                <div class="stepper-line {% if active_step >= 2 %}is-completed{% endif %}"></div>
+            </div>
+            <span class="stepper-label">1. Election voters</span>
+        </div>
+
+        {# Step 2: Election & candidates #}
+        <div class="stepper-item {% if active_step == 2 %}is-active{% elif active_step > 2 %}is-completed{% endif %}">
+            <div class="stepper-node-row">
+                <div class="stepper-circle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="stepper-check-icon" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+                <div class="stepper-line {% if active_step >= 3 %}is-completed{% endif %}"></div>
+            </div>
+            <span class="stepper-label">2. Election &amp; candidates</span>
+        </div>
+
+        {# Step 3: Booths & allocation #}
+        <div class="stepper-item {% if active_step == 3 %}is-active{% elif active_step > 3 %}is-completed{% endif %}">
+            <div class="stepper-node-row">
+                <div class="stepper-circle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="stepper-check-icon" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+                <div class="stepper-line {% if active_step >= 4 %}is-completed{% endif %}"></div>
+            </div>
+            <span class="stepper-label">3. Booths &amp; allocation</span>
+        </div>
+
+        {# Step 4: Review & start #}
+        <div class="stepper-item {% if active_step == 4 %}is-active{% endif %}">
+            <div class="stepper-node-row">
+                <div class="stepper-circle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="stepper-check-icon" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+            </div>
+            <span class="stepper-label">4. Review &amp; start</span>
+        </div>
+    </div>
+</div>

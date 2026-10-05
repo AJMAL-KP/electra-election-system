@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Kiosk Unassigned — Electra{% endblock %}
+
+{% block content %}
+<div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 20px;">
+    <div style="max-width: 480px; width: 100%; background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 14px; padding: 36px 32px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+        <h1 style="font-family: 'Newsreader', Georgia, serif; font-size: 26px; font-weight: 500; color: #111827; margin: 0 0 10px 0;">
+            Kiosk Unassigned
+        </h1>
+        <p style="font-size: 14px; color: #6B7280; line-height: 1.5; margin: 0 0 24px 0;">
+            {{ error|default:"This Kiosk is not currently bound to an active polling booth." }}
+        </p>
+        <a href="{% url 'accounts:logout' %}" style="display: inline-block; padding: 9px 20px; font-size: 13.5px; font-weight: 500; color: #374151; background: #FFFFFF; border: 1px solid #D1D5DB; border-radius: 8px; text-decoration: none;">
+            Sign out
+        </a>
+    </div>
+</div>
+{% endblock %}

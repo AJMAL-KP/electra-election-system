@@ -105,12 +105,14 @@ class VoterModelAndRegistryTests(TestCase):
         now = timezone.now()
         registry = VoterRegistry.objects.create(name="College Registry")
         voter = create_voter(primary_registry_value="STU004", name="Eve Clark", registry_id=registry.id)
-        create_election(
+        el = create_election(
             name="College Election",
             starts_at=now + timedelta(hours=1),
             ends_at=now + timedelta(hours=8),
             voter_registry=registry,
         )
+        el.status = ElectionStatus.ACTIVE
+        el.save()
         with self.assertRaises(ValidationError) as ctx:
             delete_voter(voter_id=voter.id)
         self.assertIn("linked to one or more elections", str(ctx.exception))
@@ -120,12 +122,14 @@ class VoterModelAndRegistryTests(TestCase):
         now = timezone.now()
         registry = VoterRegistry.objects.create(name="Univ Registry")
         group = create_academic_group(name="Physics", registry_id=registry.id)
-        create_election(
+        el = create_election(
             name="Univ Election",
             starts_at=now + timedelta(hours=1),
             ends_at=now + timedelta(hours=8),
             voter_registry=registry,
         )
+        el.status = ElectionStatus.ACTIVE
+        el.save()
         from voters.services import delete_academic_group
         with self.assertRaises(ValidationError) as ctx:
             delete_academic_group(group_id=group.id)
@@ -423,7 +427,8 @@ class BoothServiceTests(TestCase):
 
         # Verify Officer Device & User
         officer_dev = result['officer_device']
-        self.assertEqual(officer_dev.identifier, "booth-1-officer")
+        self.assertTrue(officer_dev.identifier.startswith("officer-"))
+        self.assertTrue(officer_dev.identifier.endswith(f"-{booth.booth_number}"))
         self.assertEqual(officer_dev.device_type, DeviceType.OFFICER)
         self.assertEqual(officer_dev.booth, booth)
         auth_officer = authenticate(username=result['officer_username'], password=result['officer_password'])
@@ -432,7 +437,8 @@ class BoothServiceTests(TestCase):
 
         # Verify Kiosk Device & User
         kiosk_dev = result['kiosk_device']
-        self.assertEqual(kiosk_dev.identifier, "booth-1-kiosk")
+        self.assertTrue(kiosk_dev.identifier.startswith("kiosk-"))
+        self.assertTrue(kiosk_dev.identifier.endswith(f"-{booth.booth_number}"))
         self.assertEqual(kiosk_dev.device_type, DeviceType.KIOSK)
         self.assertEqual(kiosk_dev.booth, booth)
         auth_kiosk = authenticate(username=result['kiosk_username'], password=result['kiosk_password'])
@@ -1166,12 +1172,12 @@ class MultipleVoterRegistriesTests(TestCase):
         self.assertFalse(AcademicGroup.objects.filter(id=grp.id).exists())
         self.assertFalse(Voter.objects.filter(id=voter.id).exists())
 
-        # Cannot delete registry linked to election
+        # Cannot delete registry linked to started election
         reg2 = create_voter_registry(name="Protected Registry")
-        election = Election.objects.create(name="Campus Vote", voter_registry=reg2)
+        election = Election.objects.create(name="Campus Vote", voter_registry=reg2, status=ElectionStatus.ACTIVE)
         with self.assertRaises(ValidationError) as ctx:
             delete_voter_registry(registry_id=reg2.id)
-        self.assertIn("linked to election(s)", str(ctx.exception))
+        self.assertIn("linked to started election(s)", str(ctx.exception))
         self.assertTrue(VoterRegistry.objects.filter(id=reg2.id).exists())
 
     def test_registry_delete_view_post(self):
@@ -1265,6 +1271,7 @@ class VoterRegistryElectionLockAndImportEnforcementTests(TestCase):
             voter_registry=self.registry,
             starts_at=now + datetime.timedelta(days=1),
             ends_at=now + datetime.timedelta(days=2),
+            status=ElectionStatus.ACTIVE,
         )
 
         # 1. Cannot add voter

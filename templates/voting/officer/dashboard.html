@@ -1,0 +1,614 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Voting Desk — Booth {{ booth.booth_number|stringformat:"02d" }} — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/officer.css' %}">
+{% endblock %}
+
+{% block body_class %}officer-page{% endblock %}
+
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="officer-body">
+    <!-- Top utility bar with Station identity & Logout -->
+    <header class="officer-topbar">
+        <div class="officer-topbar-left">
+            <span style="font-weight: 600; color: #111827;">Electra Station</span>
+            <span style="color: #D1D5DB;">&bull;</span>
+            <span>Device: <code>{{ device.identifier }}</code></span>
+        </div>
+        <div class="officer-topbar-right">
+            <a href="{% url 'accounts:logout' %}" class="officer-btn-exit" title="Log out and end station session">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                Exit Station
+            </a>
+        </div>
+    </header>
+
+    <!-- Centered Editorial Header (matching references/officer_01.png) -->
+    <section class="officer-header-section">
+        <h1 class="officer-page-title">Voting Desk</h1>
+        <div class="officer-election-name">{{ election.name }}</div>
+
+        <div class="officer-station-pill-row">
+            <span>Booth {{ booth.booth_number|stringformat:"02d" }}{% if booth.name %} ({{ booth.name }}){% endif %}</span>
+            <span style="color: #9CA3AF;">&bull;</span>
+            <span>Officer</span>
+        </div>
+
+        <div class="officer-kiosk-status-pill {% if kiosk_online %}is-online{% else %}is-offline{% endif %}" id="officer-kiosk-status-badge">
+            <span class="kiosk-dot"></span>
+            <span id="officer-kiosk-status-text">{% if kiosk_online %}Kiosk Ready{% else %}Kiosk Offline{% endif %}</span>
+        </div>
+
+        {% if is_draft %}
+        <div class="officer-header-status-pill is-draft" id="officer-election-status-badge">
+            <span class="officer-draft-dot"></span>
+            <span>Election in Draft &bull; Polling Standby</span>
+        </div>
+        {% endif %}
+
+        <div class="officer-header-meta" id="officer-last-updated-text">Last updated just now</div>
+    </section>
+
+    <!-- Workspace Container (Supports Draft Overlay & Blur) -->
+    <div class="officer-workspace-container">
+        {% if is_draft %}
+        <!-- Draft Overlay Card -->
+        <div class="officer-draft-overlay" role="region" aria-label="Election Inactive Notice">
+            <div class="officer-draft-card">
+                <div class="officer-brand-wordmark" style="font-size: 22px; color: #6B7280; margin-bottom: 2px;">Electra</div>
+                <h2 class="officer-draft-title">Election Not Active Yet</h2>
+                <div class="officer-card-badge is-draft">
+                    <span class="badge-dot"></span>
+                    <span>Election in Draft</span>
+                </div>
+                <p class="officer-draft-desc">
+                    This election is currently in <strong>Draft</strong> status and has not been started by the Administrator. 
+                    The voting desk is locked. You cannot interact with voter records or issue voting authorizations until the election is officially started.
+                </p>
+                <div class="officer-draft-station-info">
+                    <span>Booth {{ booth.booth_number|stringformat:"02d" }}{% if booth.name %} ({{ booth.name }}){% endif %}</span>
+                    <span style="color: #CBD5E1;">&bull;</span>
+                    <span>Officer Station: <code>{{ device.identifier }}</code></span>
+                </div>
+                <div class="officer-draft-actions">
+                    <a href="{% url 'accounts:logout' %}" class="officer-btn-primary-action" id="btn-draft-logout">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        Log Out Station
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Two-Column Interactive Workspace -->
+        <main class="officer-workspace {% if is_draft %}is-draft-blurred{% endif %}" {% if is_draft %}aria-hidden="true"{% endif %}>
+            <!-- LEFT COLUMN: Search, Filters, Voter List -->
+            <section class="officer-voters-col" aria-label="Booth Voters Registry">
+                <!-- Search bar -->
+                <div class="officer-search-wrap">
+                    <span class="officer-search-icon" aria-hidden="true">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                    </span>
+                    <input type="text" 
+                           id="officer-voter-search" 
+                           class="officer-search-input" 
+                           placeholder="Search by voter ID or name..." 
+                           autocomplete="off"
+                           aria-label="Search voters by ID or name"
+                           {% if is_draft %}disabled tabindex="-1"{% endif %}>
+                </div>
+
+                <!-- Filters: Tabs -->
+                <div class="officer-filters-row">
+                    <div class="officer-tabs-group" role="tablist" aria-label="Voter status filters">
+                        <button type="button" class="officer-tab-btn is-active" data-filter="not_voted" role="tab" aria-selected="true" {% if is_draft %}disabled tabindex="-1"{% endif %}>
+                            Not voted ({{ not_voted_count }})
+                        </button>
+                        <button type="button" class="officer-tab-btn" data-filter="voted" role="tab" aria-selected="false" {% if is_draft %}disabled tabindex="-1"{% endif %}>
+                            Voted ({{ voted_count }})
+                        </button>
+                        <button type="button" class="officer-tab-btn" data-filter="all" role="tab" aria-selected="false" {% if is_draft %}disabled tabindex="-1"{% endif %}>
+                            All ({{ total_voters }})
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Voter Rows List -->
+                <div class="officer-voter-list" id="officer-voter-list" role="listbox" aria-label="Allocated voters list">
+                    {% for v in voters %}
+                    <div class="officer-voter-row"
+                         role="option"
+                         {% if is_draft %}tabindex="-1"{% else %}tabindex="0"{% endif %}
+                         aria-selected="false"
+                         data-index="{{ forloop.counter0 }}"
+                         data-voter-id="{{ v.voter_id }}"
+                         data-name="{{ v.name }}"
+                         data-group="{{ v.group }}"
+                         data-status="{{ v.status_code }}"
+                         data-has-voted="{{ v.has_voted|yesno:'true,false' }}"
+                         data-voted-at="{{ v.voted_at|default:'' }}">
+                        <span class="officer-voter-id">{{ v.voter_id }}</span>
+                        <span class="officer-voter-name">{{ v.name }}</span>
+                        <span class="officer-voter-group">{{ v.group }}</span>
+                        <span class="officer-voter-status is-{{ v.status_code|slugify }}">
+                            <span class="status-dot"></span>
+                            <span class="status-label">{{ v.status_display }}</span>
+                        </span>
+                    </div>
+                    {% empty %}
+                    <div class="officer-empty-voters">
+                        No voters allocated to this booth.
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: Voter Details Panel -->
+            <aside class="officer-details-col" aria-label="Selected Voter Details">
+                <div class="officer-details-card" id="officer-details-card">
+                    <div class="officer-details-label">VOTER DETAILS</div>
+
+                    <!-- Default Placeholder when no voter is selected -->
+                    <div id="voter-details-empty" class="officer-no-selection" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 16px; text-align: center;">
+                        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.5" style="margin-bottom: 12px;" aria-hidden="true">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <div style="font-size: 15px; font-weight: 500; color: #374151; margin-bottom: 4px;">No voter selected</div>
+                        <div style="font-size: 13px; color: #6B7280; max-width: 260px; line-height: 1.45;">Select a voter from the roster to view their registry details and authorize voting.</div>
+                    </div>
+
+                    <!-- Active Voter Details Container -->
+                    <div id="voter-details-content" style="display: none;">
+                        <div class="officer-details-voter-id" id="voter-detail-id">—</div>
+                        <div class="officer-details-voter-name" id="voter-detail-name">—</div>
+
+                        <!-- Dynamic Metadata Rows strictly from Registry Schema -->
+                        <div class="officer-meta-table" id="voter-detail-meta-table">
+                            <!-- Populated dynamically via JavaScript from voter.meta_fields -->
+                        </div>
+
+                        <!-- Dynamic Status Box -->
+                        <div class="officer-status-box is-not-voted" id="voter-detail-status-box">
+                            <div class="status-title" id="voter-detail-status-title">
+                                <span class="status-dot"></span>
+                                <span id="voter-detail-status-heading">Ready to authorize</span>
+                            </div>
+                            <div class="status-desc" id="voter-detail-status-desc">
+                                Verify voter identity before issuing voting authorization.
+                            </div>
+                        </div>
+
+                        <!-- Authorize Button -->
+                        <button type="button" 
+                                class="officer-btn-authorize" 
+                                id="btn-authorize-voter"
+                                disabled>
+                            Authorize voter
+                        </button>
+
+                        <div class="officer-details-footnote" id="voter-detail-footnote">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                            <span id="voter-detail-footnote-text">
+                                {% if is_draft %}
+                                Election is currently in draft mode. Voting desk authorizations are locked.
+                                {% elif not kiosk_online %}
+                                Voting Kiosk is currently offline or unauthenticated.
+                                {% else %}
+                                Verify the voter's physical identification badge before authorization.
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+</div>
+
+<!-- Raw JSON Data Payload for Fast Instant Filtering & Dynamic Schema Fields -->
+{{ voters|json_script:"officer-voters-data" }}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const isDraft = {{ is_draft|yesno:"true,false" }};
+    const btnAuthorize = document.getElementById('btn-authorize-voter');
+
+    if (isDraft) {
+        if (btnAuthorize) btnAuthorize.disabled = true;
+        return;
+    }
+
+    const rawDataElement = document.getElementById('officer-voters-data');
+    const votersData = rawDataElement ? JSON.parse(rawDataElement.textContent) : [];
+
+    const searchInput = document.getElementById('officer-voter-search');
+    const tabButtons = document.querySelectorAll('.officer-tab-btn');
+    const voterListContainer = document.getElementById('officer-voter-list');
+
+    // Detail Panel Elements
+    const emptyPanel = document.getElementById('voter-details-empty');
+    const contentPanel = document.getElementById('voter-details-content');
+    const detailId = document.getElementById('voter-detail-id');
+    const detailName = document.getElementById('voter-detail-name');
+    const metaTable = document.getElementById('voter-detail-meta-table');
+    const detailStatusBox = document.getElementById('voter-detail-status-box');
+    const detailStatusHeading = document.getElementById('voter-detail-status-heading');
+    const detailStatusDesc = document.getElementById('voter-detail-status-desc');
+    const footnoteText = document.getElementById('voter-detail-footnote-text');
+
+    const kioskOnline = {{ kiosk_online|yesno:"true,false" }};
+
+    let activeFilter = 'not_voted';
+    let searchQuery = '';
+    let selectedVoterId = null;
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function renderDetails(voter) {
+        if (!voter) {
+            selectedVoterId = null;
+            if (emptyPanel) emptyPanel.style.display = 'flex';
+            if (contentPanel) contentPanel.style.display = 'none';
+            if (btnAuthorize) btnAuthorize.disabled = true;
+            return;
+        }
+
+        selectedVoterId = voter.voter_id;
+        if (emptyPanel) emptyPanel.style.display = 'none';
+        if (contentPanel) contentPanel.style.display = 'block';
+
+        detailId.textContent = voter.voter_id;
+        detailName.textContent = voter.name;
+
+        // Render metadata rows strictly matching the registry schema
+        if (metaTable) {
+            metaTable.innerHTML = '';
+            if (voter.meta_fields && voter.meta_fields.length > 0) {
+                voter.meta_fields.forEach(field => {
+                    const row = document.createElement('div');
+                    row.className = 'officer-meta-row';
+                    row.innerHTML = `<span class="officer-meta-key">${escapeHtml(field.label)}</span><span class="officer-meta-val">${escapeHtml(field.val || '—')}</span>`;
+                    metaTable.appendChild(row);
+                });
+            }
+            if (voter.voted_at) {
+                const row = document.createElement('div');
+                row.className = 'officer-meta-row';
+                row.innerHTML = `<span class="officer-meta-key">Voted At</span><span class="officer-meta-val">${escapeHtml(voter.voted_at)}</span>`;
+                metaTable.appendChild(row);
+            }
+        }
+
+        detailStatusBox.className = 'officer-status-box';
+        if (voter.has_voted) {
+            detailStatusBox.classList.add('is-voted');
+            detailStatusHeading.textContent = 'Voted';
+            detailStatusDesc.textContent = 'This voter has already cast their ballot for this election.';
+            btnAuthorize.disabled = true;
+            footnoteText.textContent = 'This voter has already voted and cannot be re-authorized.';
+        } else if (voter.status_code === 'in_progress') {
+            detailStatusBox.classList.add('is-in-progress');
+            detailStatusHeading.textContent = 'In progress';
+            detailStatusDesc.textContent = 'Voter has been authorized and is currently voting at the kiosk.';
+            btnAuthorize.disabled = true;
+            footnoteText.textContent = 'This voter is already authorized. Please wait for the vote to be completed.';
+        } else {
+            detailStatusBox.classList.add('is-not-voted');
+            detailStatusHeading.textContent = 'Ready to authorize';
+            detailStatusDesc.textContent = 'Verify voter identity before issuing voting authorization.';
+            
+            if (!kioskOnline) {
+                btnAuthorize.disabled = true;
+                footnoteText.textContent = 'Voting Kiosk is offline or unauthenticated. Cannot issue authorization.';
+            } else {
+                btnAuthorize.disabled = false;
+                footnoteText.textContent = "Verify the voter's physical identification badge before authorization.";
+            }
+        }
+    }
+
+    function getSearchScore(vId, vName, query) {
+        if (!query) return 1;
+        const idLower = vId.toLowerCase();
+        const nameLower = vName.toLowerCase();
+        const q = query.toLowerCase();
+
+        // Exact matches (highest priority)
+        if (idLower === q) return 1000;
+        if (nameLower === q) return 900;
+
+        // Prefix match on ID or Name
+        if (idLower.startsWith(q)) return 800 - (idLower.length - q.length);
+        if (nameLower.startsWith(q)) return 700 - (nameLower.length - q.length);
+
+        // Word boundary match in full name (e.g. searching last name or first name)
+        const words = nameLower.split(/\s+/);
+        for (let i = 0; i < words.length; i++) {
+            if (words[i].startsWith(q)) {
+                return 600 - (words[i].length - q.length) - (i * 10);
+            }
+        }
+
+        // Substring matches
+        const idIdx = idLower.indexOf(q);
+        if (idIdx !== -1) return 400 - idIdx;
+
+        const nameIdx = nameLower.indexOf(q);
+        if (nameIdx !== -1) return 300 - nameIdx;
+
+        return 0; // No match
+    }
+
+    function filterVoters() {
+        const rows = Array.from(voterListContainer.querySelectorAll('.officer-voter-row'));
+        const scoredRows = [];
+
+        rows.forEach(row => {
+            const vId = row.getAttribute('data-voter-id') || '';
+            const vName = row.getAttribute('data-name') || '';
+            const vStatus = row.getAttribute('data-status') || '';
+            const origIndex = parseInt(row.getAttribute('data-index') || '0', 10);
+
+            const matchesTab = (activeFilter === 'all') || (vStatus === activeFilter);
+            const score = getSearchScore(vId, vName, searchQuery);
+
+            if (matchesTab && (searchQuery === '' || score > 0)) {
+                row.style.display = 'grid';
+                scoredRows.push({ row, score: searchQuery ? score : 0, origIndex });
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Reorder closest matches to the top
+        scoredRows.sort((a, b) => {
+            if (searchQuery) {
+                if (b.score !== a.score) return b.score - a.score;
+            }
+            return a.origIndex - b.origIndex;
+        });
+
+        scoredRows.forEach(item => {
+            voterListContainer.appendChild(item.row);
+        });
+
+        // Maintain selection if currently selected voter is still visible, else keep unselected
+        if (selectedVoterId) {
+            const currentSelectedRow = voterListContainer.querySelector(`.officer-voter-row[data-voter-id="${selectedVoterId}"]`);
+            if (currentSelectedRow && currentSelectedRow.style.display !== 'none') {
+                highlightRow(currentSelectedRow);
+            } else {
+                unhighlightAllRows();
+                renderDetails(null);
+            }
+        } else {
+            renderDetails(null);
+        }
+    }
+
+    function highlightRow(row) {
+        unhighlightAllRows();
+        row.classList.add('is-selected');
+        row.setAttribute('aria-selected', 'true');
+    }
+
+    function unhighlightAllRows() {
+        voterListContainer.querySelectorAll('.officer-voter-row').forEach(r => {
+            r.classList.remove('is-selected');
+            r.setAttribute('aria-selected', 'false');
+        });
+    }
+
+    // Attach click events to rows
+    voterListContainer.addEventListener('click', function (e) {
+        const row = e.target.closest('.officer-voter-row');
+        if (row) {
+            highlightRow(row);
+            const vId = row.getAttribute('data-voter-id');
+            const voter = votersData.find(v => v.voter_id === vId);
+            renderDetails(voter);
+        }
+    });
+
+    // Search event with instant closest-match ranking
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            searchQuery = this.value.trim().toLowerCase();
+            filterVoters();
+        });
+    }
+
+    // Tab buttons event
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', function () {
+            tabButtons.forEach(b => {
+                b.classList.remove('is-active');
+                b.setAttribute('aria-selected', 'false');
+            });
+            this.classList.add('is-active');
+            this.setAttribute('aria-selected', 'true');
+            activeFilter = this.getAttribute('data-filter');
+            filterVoters();
+        });
+    });
+
+    // Handle Authorize Voter button click
+    if (btnAuthorize) {
+        btnAuthorize.addEventListener('click', async function () {
+            if (!selectedVoterId || btnAuthorize.disabled) return;
+
+            const originalText = btnAuthorize.textContent;
+            btnAuthorize.disabled = true;
+            btnAuthorize.textContent = 'Authorizing...';
+
+            try {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+                const response = await fetch("{% url 'voting:officer_authorize' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                    },
+                    body: JSON.stringify({ voter_id: selectedVoterId }),
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const voter = votersData.find(v => v.voter_id === selectedVoterId);
+                    if (voter) {
+                        voter.status_code = 'in_progress';
+                        voter.status_display = 'In progress';
+                    }
+                    const row = voterListContainer.querySelector(`.officer-voter-row[data-voter-id="${selectedVoterId}"]`);
+                    if (row) {
+                        row.setAttribute('data-status', 'in_progress');
+                        const statusPill = row.querySelector('.officer-voter-status');
+                        if (statusPill) {
+                            statusPill.className = 'officer-voter-status is-in-progress';
+                            statusPill.innerHTML = '<span class="status-dot"></span><span class="status-label">In progress</span>';
+                        }
+                    }
+                    renderDetails(voter);
+                } else {
+                    alert(data.error || 'Failed to issue authorization.');
+                    btnAuthorize.disabled = false;
+                    btnAuthorize.textContent = originalText;
+                }
+            } catch (err) {
+                console.error('Authorization request failed:', err);
+                alert('A network error occurred while contacting the voting server.');
+                btnAuthorize.disabled = false;
+                btnAuthorize.textContent = originalText;
+            }
+        });
+    }
+
+    // Connect Officer WebSocket for real-time Kiosk presence and status updates
+    let officerSocket = null;
+    function connectOfficerSocket() {
+        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${wsScheme}://${window.location.host}/ws/officer/`;
+
+        try {
+            officerSocket = new WebSocket(wsUrl);
+
+            officerSocket.onmessage = function (e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.event === 'kiosk.status') {
+                        updateKioskStatus(data.online);
+                    } else if (data.event === 'authorization.updated') {
+                        handleRemoteAuthUpdate(data.voter_id, data.status);
+                    }
+                } catch (err) {
+                    console.error('Officer WS error parsing message:', err);
+                }
+            };
+
+            officerSocket.onclose = function () {
+                setTimeout(connectOfficerSocket, 3000);
+            };
+        } catch (e) {
+            console.warn('Could not establish Officer WebSocket:', e);
+        }
+    }
+
+    function updateKioskStatus(online) {
+        const badge = document.getElementById('officer-kiosk-status-badge');
+        const text = document.getElementById('officer-kiosk-status-text');
+        if (badge && text) {
+            if (online) {
+                badge.className = 'officer-kiosk-status-pill is-online';
+                text.textContent = 'Kiosk ' + 'Ready';
+            } else {
+                badge.className = 'officer-kiosk-status-pill is-offline';
+                text.textContent = 'Kiosk ' + 'Offline';
+            }
+        }
+        if (selectedVoterId) {
+            const voter = votersData.find(v => v.voter_id === selectedVoterId);
+            if (voter && !voter.has_voted && voter.status_code !== 'in_progress') {
+                btnAuthorize.disabled = !online;
+                if (!online) {
+                    footnoteText.textContent = 'Voting Kiosk is offline or unauthenticated. Cannot issue authorization.';
+                } else {
+                    footnoteText.textContent = "Verify the voter's physical identification badge before authorization.";
+                }
+            }
+        }
+    }
+
+    function handleRemoteAuthUpdate(voterId, status) {
+        const voter = votersData.find(v => v.voter_id === voterId);
+        if (voter) {
+            voter.status_code = status;
+            voter.status_display = (status === 'voted') ? 'Voted' : (status === 'in_progress' ? 'In progress' : 'Not voted');
+            if (status === 'voted') voter.has_voted = true;
+        }
+        const row = voterListContainer.querySelector(`.officer-voter-row[data-voter-id="${voterId}"]`);
+        if (row) {
+            row.setAttribute('data-status', status);
+            const statusPill = row.querySelector('.officer-voter-status');
+            if (statusPill) {
+                statusPill.className = `officer-voter-status is-${status}`;
+                statusPill.innerHTML = `<span class="status-dot"></span><span class="status-label">${voter ? voter.status_display : status}</span>`;
+            }
+        }
+        if (selectedVoterId === voterId && voter) {
+            renderDetails(voter);
+        }
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    connectOfficerSocket();
+
+    // Initial filter run: filters to 'not_voted' with default 'no voter selected'
+    filterVoters();
+    renderDetails(null);
+});
+</script>
+{% endblock %}

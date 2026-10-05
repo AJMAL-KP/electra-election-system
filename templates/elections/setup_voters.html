@@ -1,0 +1,597 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Election Voters — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/election_setup.css' %}">
+{% endblock %}
+
+{% block body_class %}setup-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="setup-page-wrapper">
+    <!-- ====================================================================
+         FIXED TOP HEADER: Stepper, Nav Row (Back & Save as draft), Title & Cards
+         "make the header stepup fixed,no outline."
+         "add back button just below it on left, add save as draft button, just below it on right."
+         "only make the section below the functionality scroll, rest remain fixed and responsive."
+         ==================================================================== -->
+    <header class="setup-fixed-top">
+        <div class="setup-fixed-inner">
+            <!-- Stepper (Clean, borderless, no outline) -->
+            {% include "elections/components/setup_stepper.html" with active_step=1 %}
+
+            <!-- Top Nav Row: Exit on left, Headline in center, Back on right -->
+            <div class="setup-top-nav-row">
+                <div class="setup-nav-left">
+                    <button type="button" class="setup-btn-exit" id="btn-trigger-exit-modal" aria-label="Exit setup">
+                        &times; Exit
+                    </button>
+                </div>
+                <div class="setup-nav-center">
+                    <h1 class="setup-nav-headline">Election voters</h1>
+                </div>
+                <div class="setup-nav-right">
+                    {% if came_from_step_2 %}
+                    <a href="{% url 'elections:setup_details' election.id %}" class="setup-btn-continue" id="btn-top-next" aria-label="Next to step 2">
+                        Next &rarr;
+                    </a>
+                    {% elif preview_registry %}
+                    <a href="{% url 'elections:setup_voters' election.id %}?mode={{ mode }}" class="setup-btn-secondary" aria-label="Back to registry list">
+                        &larr; Back
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Hidden Django Messages Container for Toast Rendering -->
+            {% if messages %}
+            <div style="display:none;" id="django-messages-data">
+                {% for message in messages %}
+                <div data-django-message data-type="{% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Two Main Functionality Cards -->
+            <div class="setup-source-cards">
+                <!-- Card 1: From master registry -->
+                <div class="setup-source-card {% if mode != 'direct' %}is-active{% endif %}" id="card-from-master" role="button" tabindex="0">
+                    <div class="source-card-radio" aria-hidden="true">
+                        {% if mode != 'direct' %}
+                        <div class="source-card-radio-dot" id="radio-master-dot"></div>
+                        {% else %}
+                        <div class="source-card-radio-empty" id="radio-master-dot"></div>
+                        {% endif %}
+                    </div>
+                    <div class="source-card-body">
+                        <span class="source-card-title">From master registry</span>
+                        <span class="source-card-desc">Choose existing voters from the master registry.</span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Import directly -->
+                <div class="setup-source-card {% if mode == 'direct' %}is-active{% endif %}" id="card-import-direct" role="button" tabindex="0">
+                    <div class="source-card-radio" aria-hidden="true">
+                        {% if mode == 'direct' %}
+                        <div class="source-card-radio-dot" id="radio-direct-dot"></div>
+                        {% else %}
+                        <div class="source-card-radio-empty" id="radio-direct-dot"></div>
+                        {% endif %}
+                    </div>
+                    <div class="source-card-body">
+                        <span class="source-card-title">Import directly</span>
+                        <span class="source-card-desc">Upload a spreadsheet file and configure a new registry.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ====================================================================
+         ONLY THIS SECTION SCROLLS: Everything below functionality cards
+         "only make the section below the functionality scroll, rest remain fixed and responsive. no visible scrollbar, electra's theme."
+         ==================================================================== -->
+    <main class="setup-scroll-area">
+        <div class="setup-scroll-inner">
+            <form method="post" action="{% url 'elections:setup_voters' election.id %}" id="setup-voters-form" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                {% if preview_registry %}
+                    <!-- ================================================================
+                         PREVIEW MODE: Shows only registry groups and count, no tables
+                         "inside the preview of a registry, add use this registry below change registry button and on clicking it proceeds to step 2 of the workflow"
+                         ================================================================ -->
+                    <input type="hidden" name="registry_id" id="selected-registry-id" value="{{ preview_registry.id }}">
+                    <div class="setup-preview-card">
+                        <div class="setup-preview-header">
+                            <div class="preview-title-wrap">
+                                <span class="preview-badge">Selected Registry</span>
+                                <h2 class="preview-registry-name">{{ preview_registry.name }}</h2>
+                            </div>
+                            <!-- Right side: Change registry & Use this registry -->
+                            <div class="preview-actions-col">
+                                <a href="{% url 'elections:setup_voters' election.id %}?mode={{ mode }}{% if came_from_step_2 %}&from_step=2{% endif %}" class="preview-change-btn">
+                                    &larr; Change registry
+                                </a>
+                                <button type="submit" name="action" value="continue" class="setup-btn-use-registry" id="btn-use-registry">
+                                    Use this registry &rarr;
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="preview-stats-bar">
+                            <div class="preview-stat-item">
+                                <span class="stat-number">{{ total_preview_voters }}</span>
+                                <span class="stat-label">Total voters</span>
+                            </div>
+                            <div class="preview-stat-divider" aria-hidden="true"></div>
+                            <div class="preview-stat-item">
+                                <span class="stat-number">{{ preview_groups|length }}</span>
+                                <span class="stat-label">{{ preview_registry.group_source|default:"Groups" }}</span>
+                            </div>
+                        </div>
+
+                        <div class="preview-groups-section">
+                            <h3 class="preview-groups-title">Configured {{ preview_registry.group_source|default:"Groups" }}</h3>
+                            {% if preview_groups %}
+                            <div class="preview-groups-grid">
+                                {% for grp in preview_groups %}
+                                <div class="preview-group-pill">
+                                    <span class="group-pill-name">{{ grp.name }}</span>
+                                    <span class="group-pill-count">{{ grp.voter_count|default:"0" }} voter{{ grp.voter_count|pluralize }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="preview-groups-empty">No departments or cohorts configured in this registry.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                {% else %}
+                    <!-- ================================================================
+                         PANE 1: Master Registry List
+                         ================================================================ -->
+                    <div id="pane-master-registry" style="{% if mode == 'direct' %}display: none;{% endif %}">
+                        {% if registries %}
+                            <div class="setup-registries-stack">
+                                {% for reg in registries %}
+                                <a href="{% url 'elections:setup_voters' election.id %}?preview={{ reg.id }}&mode=master" 
+                                   class="setup-registry-card" 
+                                   aria-label="Preview and select {{ reg.name }}">
+                                    <span class="setup-registry-name">{{ reg.name }}</span>
+                                    <span class="setup-registry-arrow" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                                        </svg>
+                                    </span>
+                                </a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <!-- Empty placeholder when no master registries exist -->
+                            <div class="setup-empty-placeholder">
+                                <div class="empty-icon-wrap" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="36" height="36">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                </div>
+                                <h2 class="empty-title">No voter registries found</h2>
+                                <p class="empty-desc">
+                                    You have not created any voter registries yet. Upload voters directly using the option above or create a master registry.
+                                </p>
+                                <div class="empty-actions">
+                                    <a href="{% url 'voters:registry_create' %}" class="setup-btn-create-reg">
+                                        + Create voter registry
+                                    </a>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- ================================================================
+                         PANE 2: Direct Import Workflow
+                         "when error happens in direct import, it should retain the file contents and its last mappings."
+                         ================================================================ -->
+                    <div id="pane-import-direct" style="{% if mode != 'direct' %}display: none;{% endif %}" class="direct-import-container">
+                        
+                        <!-- Sub-step A: File Dropzone (Shown when no file is uploaded/parsed) -->
+                        <div id="direct-upload-section" class="direct-upload-box" tabindex="0" role="button" aria-label="Upload voter spreadsheet file" style="{% if pending_file %}display: none;{% endif %}">
+                            <div id="direct-upload-prompt" style="display: flex; flex-direction: column; align-items: center;">
+                                <div class="direct-upload-icon-circle">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="17 8 12 3 7 8"/>
+                                        <line x1="12" y1="3" x2="12" y2="15"/>
+                                    </svg>
+                                </div>
+                                <p class="direct-upload-prompt-text">
+                                    Drag and drop your file here, or <span class="direct-upload-prompt-browse">browse</span>
+                                </p>
+                                <p class="direct-upload-subtext">Supports .csv, .xlsx, .xls</p>
+                            </div>
+
+                            <div id="direct-upload-loading" class="direct-upload-loading-overlay">
+                                <div class="direct-upload-spinner"></div>
+                                <span class="direct-upload-loading-text">Analyzing spreadsheet structure...</span>
+                            </div>
+
+                            <input type="file" id="direct-file-input" name="file" accept=".csv, .xlsx, .xls" style="display: none;">
+                        </div>
+
+                        <!-- Sub-step B: Configuration & Column Mapping (Retains file & last mappings on error) -->
+                        <div id="direct-config-section" class="direct-config-card" style="{% if not pending_file %}display: none;{% endif %}">
+                            <!-- Uploaded file summary card -->
+                            <div class="direct-file-card">
+                                <div class="direct-file-info">
+                                    <div class="direct-file-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div class="direct-file-name" id="direct-display-filename">{{ pending_file.filename|default:"Uploaded spreadsheet" }}</div>
+                                        <div class="direct-file-meta" id="direct-display-filemeta">
+                                            {% if pending_file.data_rows %}
+                                            {{ pending_file.data_rows|length }} records &middot; {{ pending_file.filesize|default:"Uploaded" }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="button" id="btn-direct-change-file" class="direct-btn-change-file">Change file</button>
+                            </div>
+
+                            <!-- Registry Details -->
+                            <div class="direct-section">
+                                <h3 class="direct-section-title">Registry details</h3>
+                                <div class="direct-form-group" style="max-width: 480px;">
+                                    <label for="direct-reg-name" class="direct-form-label">Registry name <span class="req-star">*</span></label>
+                                    <input type="text" id="direct-reg-name" name="name" class="direct-form-input" placeholder="e.g. CET Students 2026" value="{{ direct_form_data.name|default:'' }}" autocomplete="off">
+                                </div>
+                            </div>
+
+                            <hr class="direct-divider">
+
+                            <!-- Column Mapping -->
+                            <div class="direct-section">
+                                <h3 class="direct-section-title">Map columns from file</h3>
+                                <p class="direct-section-desc">Select the column from your spreadsheet that corresponds to each voter field.</p>
+
+                                <div class="direct-mapping-grid">
+                                    <!-- Student ID -->
+                                    <div class="direct-form-group">
+                                        <label for="direct-col-primary-id" class="direct-form-label">Student ID / Voter ID <span class="req-star">*</span></label>
+                                        <div class="direct-select-wrapper">
+                                            <select id="direct-col-primary-id" name="primary_id_source" class="direct-form-select"></select>
+                                            <span class="direct-select-arrow" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><polyline points="6 9 12 15 18 9"/></svg>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Full Name -->
+                                    <div class="direct-form-group">
+                                        <label for="direct-col-name" class="direct-form-label">Full Name <span class="req-star">*</span></label>
+                                        <div class="direct-select-wrapper">
+                                            <select id="direct-col-name" name="name_source" class="direct-form-select"></select>
+                                            <span class="direct-select-arrow" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><polyline points="6 9 12 15 18 9"/></svg>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Department / Class -->
+                                    <div class="direct-form-group">
+                                        <label for="direct-col-group" class="direct-form-label">Department / Class <span class="req-star">*</span></label>
+                                        <div class="direct-select-wrapper">
+                                            <select id="direct-col-group" name="group_source" class="direct-form-select"></select>
+                                            <span class="direct-select-arrow" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><polyline points="6 9 12 15 18 9"/></svg>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Sub-group with Yes / No Toggle -->
+                                    <div class="direct-form-group">
+                                        <div class="direct-subgroup-header">
+                                            <label class="direct-form-label" style="margin-bottom:0;">Sub-group (Semester / Division)</label>
+                                            <div class="direct-segmented-toggle" role="radiogroup" aria-label="Include sub-groups">
+                                                <button type="button" class="direct-toggle-pill {% if direct_form_data.has_subgroups_toggle != 'no' %}active{% endif %}" id="toggle-direct-subgroup-yes" data-val="yes">Yes</button>
+                                                <button type="button" class="direct-toggle-pill {% if direct_form_data.has_subgroups_toggle == 'no' %}active{% endif %}" id="toggle-direct-subgroup-no" data-val="no">No</button>
+                                            </div>
+                                            <input type="hidden" name="has_subgroups_toggle" id="direct-has-subgroups-toggle" value="{{ direct_form_data.has_subgroups_toggle|default:'yes' }}">
+                                        </div>
+                                        <div class="direct-select-wrapper" id="direct-subgroup-select-wrap" style="{% if direct_form_data.has_subgroups_toggle == 'no' %}display: none;{% endif %}">
+                                            <select id="direct-col-subgroup" name="subgroup_source" class="direct-form-select"></select>
+                                            <span class="direct-select-arrow" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><polyline points="6 9 12 15 18 9"/></svg>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Gender (Optional) -->
+                                    <div class="direct-form-group">
+                                        <label for="direct-col-gender" class="direct-form-label">Gender <span style="font-size:12px; color:#6B7280; font-weight:normal;">(Optional)</span></label>
+                                        <div class="direct-select-wrapper">
+                                            <select id="direct-col-gender" name="gender_source" class="direct-form-select"></select>
+                                            <span class="direct-select-arrow" aria-hidden="true">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><polyline points="6 9 12 15 18 9"/></svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Direct Submit Action -->
+                            <div class="direct-actions-row">
+                                <button type="submit" name="action" value="direct_import" class="setup-btn-upload-preview">
+                                    Create & preview &rarr;
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </form>
+        </div>
+    </main>
+</div>
+
+{% include "elections/components/setup_exit_modal.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    // -------------------------------------------------------------
+    // Tab switching between "From master registry" and "Import directly"
+    // -------------------------------------------------------------
+    const cardMaster = document.getElementById('card-from-master');
+    const cardDirect = document.getElementById('card-import-direct');
+    const paneMaster = document.getElementById('pane-master-registry');
+    const paneDirect = document.getElementById('pane-import-direct');
+    const radioMasterDot = document.getElementById('radio-master-dot');
+    const radioDirectDot = document.getElementById('radio-direct-dot');
+
+    function switchToMaster() {
+        if (!paneMaster || !paneDirect) return;
+        cardMaster.classList.add('is-active');
+        cardDirect.classList.remove('is-active');
+        paneMaster.style.display = 'block';
+        paneDirect.style.display = 'none';
+        if (radioMasterDot) radioMasterDot.className = 'source-card-radio-dot';
+        if (radioDirectDot) radioDirectDot.className = 'source-card-radio-empty';
+    }
+
+    function switchToDirect() {
+        if (!paneMaster || !paneDirect) return;
+        cardDirect.classList.add('is-active');
+        cardMaster.classList.remove('is-active');
+        paneDirect.style.display = 'block';
+        paneMaster.style.display = 'none';
+        if (radioDirectDot) radioDirectDot.className = 'source-card-radio-dot';
+        if (radioMasterDot) radioMasterDot.className = 'source-card-radio-empty';
+    }
+
+    if (cardMaster) cardMaster.addEventListener('click', switchToMaster);
+    if (cardDirect) cardDirect.addEventListener('click', switchToDirect);
+
+    // -------------------------------------------------------------
+    // Direct Import File Upload & Dynamic Mapping Retention
+    // -------------------------------------------------------------
+    const dropzone = document.getElementById('direct-upload-section');
+    const fileInput = document.getElementById('direct-file-input');
+    const promptContainer = document.getElementById('direct-upload-prompt');
+    const loadingOverlay = document.getElementById('direct-upload-loading');
+    const configSection = document.getElementById('direct-config-section');
+    const changeFileBtn = document.getElementById('btn-direct-change-file');
+
+    const colPrimary = document.getElementById('direct-col-primary-id');
+    const colName = document.getElementById('direct-col-name');
+    const colGroup = document.getElementById('direct-col-group');
+    const colSubgroup = document.getElementById('direct-col-subgroup');
+    const colGender = document.getElementById('direct-col-gender');
+
+    const toggleYes = document.getElementById('toggle-direct-subgroup-yes');
+    const toggleNo = document.getElementById('toggle-direct-subgroup-no');
+    const hiddenSubgroupToggle = document.getElementById('direct-has-subgroups-toggle');
+    const subgroupSelectWrap = document.getElementById('direct-subgroup-select-wrap');
+
+    // Subgroup toggle handling
+    if (toggleYes && toggleNo) {
+        toggleYes.addEventListener('click', function() {
+            toggleYes.classList.add('active');
+            toggleNo.classList.remove('active');
+            if (hiddenSubgroupToggle) hiddenSubgroupToggle.value = 'yes';
+            if (subgroupSelectWrap) subgroupSelectWrap.style.display = 'block';
+        });
+        toggleNo.addEventListener('click', function() {
+            toggleNo.classList.add('active');
+            toggleYes.classList.remove('active');
+            if (hiddenSubgroupToggle) hiddenSubgroupToggle.value = 'no';
+            if (subgroupSelectWrap) subgroupSelectWrap.style.display = 'none';
+        });
+    }
+
+    // Dropzone drag-and-drop
+    if (dropzone && fileInput) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.add('drag-over');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.remove('drag-over');
+            }, false);
+        });
+
+        dropzone.addEventListener('drop', function(e) {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileUpload(files[0]);
+            }
+        });
+
+        dropzone.addEventListener('click', function() {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                handleFileUpload(fileInput.files[0]);
+            }
+        });
+    }
+
+    if (changeFileBtn) {
+        changeFileBtn.addEventListener('click', function() {
+            if (configSection) configSection.style.display = 'none';
+            if (dropzone) dropzone.style.display = 'flex';
+            if (fileInput) fileInput.value = '';
+        });
+    }
+
+    function populateSelect(selectEl, headers, selectedVal, isOptional = false) {
+        if (!selectEl) return;
+        selectEl.innerHTML = '';
+        if (isOptional) {
+            const optNone = document.createElement('option');
+            optNone.value = '';
+            optNone.textContent = '(None - optional)';
+            selectEl.appendChild(optNone);
+        }
+        headers.forEach(h => {
+            const opt = document.createElement('option');
+            opt.value = h;
+            opt.textContent = h;
+            if (selectedVal && selectedVal.toLowerCase() === h.toLowerCase()) {
+                opt.selected = true;
+            }
+            selectEl.appendChild(opt);
+        });
+    }
+
+    // Check if there is existing pending_file data on initial page load (e.g. after validation error)
+    {% if pending_file and pending_file.headers %}
+    (function initExistingPendingFile() {
+        const headers = {{ pending_file.headers|safe }};
+        const lastMappings = {
+            primary_id: "{{ direct_form_data.primary_id_source|default:'' }}",
+            name: "{{ direct_form_data.name_source|default:'' }}",
+            group: "{{ direct_form_data.group_source|default:'' }}",
+            subgroup: "{{ direct_form_data.subgroup_source|default:'' }}",
+            gender: "{{ direct_form_data.gender_source|default:'' }}",
+        };
+        populateSelect(colPrimary, headers, lastMappings.primary_id);
+        populateSelect(colName, headers, lastMappings.name);
+        populateSelect(colGroup, headers, lastMappings.group);
+        populateSelect(colSubgroup, headers, lastMappings.subgroup);
+        populateSelect(colGender, headers, lastMappings.gender, true);
+    })();
+    {% endif %}
+
+    function handleFileUpload(file) {
+        if (!promptContainer || !loadingOverlay) return;
+        promptContainer.style.display = 'none';
+        loadingOverlay.style.display = 'flex';
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch("{% url 'voters:import_parse' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            promptContainer.style.display = 'flex';
+            loadingOverlay.style.display = 'none';
+
+            if (!data.success) {
+                alert(data.error || 'Failed to parse file.');
+                return;
+            }
+
+            // Populate file summary
+            const nameEl = document.getElementById('direct-display-filename');
+            const metaEl = document.getElementById('direct-display-filemeta');
+            if (nameEl) nameEl.textContent = data.filename || file.name;
+            if (metaEl) metaEl.textContent = (data.row_count || 0) + ' records \u00B7 ' + (data.filesize || '');
+
+            // Pre-fill suggested registry name if empty
+            const regNameInput = document.getElementById('direct-reg-name');
+            if (regNameInput && !regNameInput.value) {
+                const baseName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, ' ');
+                regNameInput.value = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+            }
+
+            // Populate column dropdowns
+            const headers = data.headers || [];
+            const detected = data.detected || {};
+
+            populateSelect(colPrimary, headers, detected.primary_id);
+            populateSelect(colName, headers, detected.name);
+            populateSelect(colGroup, headers, detected.group);
+            populateSelect(colSubgroup, headers, detected.subgroup);
+            populateSelect(colGender, headers, detected.gender, true);
+
+            // Handle subgroups toggle based on detected subgroup
+            if (detected.subgroup) {
+                if (toggleYes) toggleYes.click();
+            }
+
+            // Show config section, hide dropzone
+            if (dropzone) dropzone.style.display = 'none';
+            if (configSection) configSection.style.display = 'block';
+        })
+        .catch(err => {
+            promptContainer.style.display = 'flex';
+            loadingOverlay.style.display = 'none';
+            alert('Upload error: ' + err.message);
+        });
+    }
+
+    // -------------------------------------------------------------
+    // Top Save as Draft Button Handler
+    // -------------------------------------------------------------
+    const topSaveDraftBtn = document.getElementById('btn-top-save-draft');
+    const mainForm = document.getElementById('setup-voters-form');
+
+    if (topSaveDraftBtn && mainForm) {
+        topSaveDraftBtn.addEventListener('click', function() {
+            let actionInput = mainForm.querySelector('input[name="action"]');
+            if (!actionInput) {
+                actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                mainForm.appendChild(actionInput);
+            }
+            actionInput.value = 'save_draft';
+            mainForm.submit();
+        });
+    }
+
+    // -------------------------------------------------------------
+    // Exit Confirmation Modal (Save draft vs Discard vs Cancel)
+    // Exit confirmation modal is self-contained in setup_exit_modal.html
+})();
+</script>
+{% endblock %}
