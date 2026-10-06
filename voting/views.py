@@ -7,7 +7,7 @@ Owns:
 - Results presentation
 """
 
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -16,6 +16,7 @@ from accounts.models import DeviceSession, DeviceType
 from accounts.permissions import kiosk_required, officer_required
 from elections.models import Election, ElectionStatus
 from voters.models import AcademicGroup, ElectionVoter
+from voting.models import AuthorizationStatus, VoterAuthorization
 
 
 @never_cache
@@ -68,9 +69,21 @@ def officer_dashboard_view(request):
 
     total_voters = voter_qs.count()
     voted_count = voter_qs.filter(has_voted=True).count()
-    # In-progress voters will be counted via active VoterAuthorization when introduced
-    in_progress_count = 0
-    not_voted_count = total_voters - voted_count - in_progress_count
+    
+    # Query for any active authorization on this booth
+    active_auth = (
+        VoterAuthorization.objects
+        .filter(booth=booth, status=AuthorizationStatus.ACTIVE)
+        .select_related("election_voter__voter")
+        .first()
+    )
+    in_progress_count = 1 if active_auth else 0
+    not_voted_count = max(0, total_voters - voted_count - in_progress_count)
+    active_auth_voter_id = (
+        active_auth.election_voter.voter.primary_registry_value
+        if (active_auth and active_auth.election_voter and active_auth.election_voter.voter)
+        else None
+    )
 
     # Extract distinct groups for filtering
     group_names = sorted(list(set(
@@ -84,7 +97,15 @@ def officer_dashboard_view(request):
     for ev in voter_qs:
         v = ev.voter
         reg = v.registry
-        status_code = "voted" if ev.has_voted else "not_voted"
+        if ev.has_voted:
+            status_code = "voted"
+            status_display = "Voted"
+        elif active_auth_voter_id and v.primary_registry_value == active_auth_voter_id:
+            status_code = "in_progress"
+            status_display = "In progress"
+        else:
+            status_code = "not_voted"
+            status_display = "Not voted"
         ev_voted_at = getattr(ev, "voted_at", None)
 
         # Dynamic schema fields based strictly on the registry schema
@@ -124,7 +145,7 @@ def officer_dashboard_view(request):
             "meta_fields": meta_fields,
             "has_voted": ev.has_voted,
             "status_code": status_code,
-            "status_display": "Voted" if ev.has_voted else "Not voted",
+            "status_display": status_display,
             "voted_at": ev_voted_at.strftime("%I:%M %p") if ev_voted_at else None,
         })
 
@@ -142,6 +163,9 @@ def officer_dashboard_view(request):
         "not_voted_count": not_voted_count,
         "group_names": group_names,
         "voters": voters_data,
+        "active_auth": active_auth,
+        "active_auth_id": active_auth.id if active_auth else None,
+        "active_voter_id": active_auth_voter_id,
     })
 
 
@@ -265,18 +289,45 @@ def kiosk_view(request):
     active_auth = (
         VoterAuthorization.objects
         .filter(kiosk=device, status=AuthorizationStatus.ACTIVE)
+        .select_related("election_voter__voter__academic_group")
         .first()
     )
     is_locked = (active_auth is None)
 
     # Filter positions where candidate count > 1 (single-candidate positions win unanimously and are skipped on kiosk)
-    positions = (
+    from voting.services import is_voter_eligible_for_position
+    positions_qs = (
         election.positions
-        .prefetch_related('candidates')
+        .prefetch_related('candidates', 'eligible_groups')
         .annotate(candidate_count=Count('candidates'))
         .filter(candidate_count__gt=1)
         .order_by('display_order', 'id')
     )
+
+    if active_auth and active_auth.election_voter and active_auth.election_voter.voter:
+        voter = active_auth.election_voter.voter
+        positions = [pos for pos in positions_qs if is_voter_eligible_for_position(voter, pos)]
+    else:
+        positions = list(positions_qs)
+
+    positions_json = []
+    for pos in positions:
+        cands_data = []
+        for cand in pos.candidates.all():
+            cands_data.append({
+                "id": cand.id,
+                "name": cand.name,
+                "affiliation": cand.academic_group or "",
+                "symbol": cand.symbol or "",
+                "symbol_image": cand.symbol_image.url if cand.symbol_image else None,
+                "photo": cand.photo.url if cand.photo else None,
+            })
+        positions_json.append({
+            "id": pos.id,
+            "name": pos.name,
+            "display_order": pos.display_order,
+            "candidates": cands_data,
+        })
 
     return render(request, "voting/kiosk/kiosk_landing.html", {
         "booth": booth,
@@ -285,5 +336,44 @@ def kiosk_view(request):
         "active_auth": active_auth,
         "is_locked": is_locked,
         "positions": positions,
-        "total_positions": positions.count(),
+        "positions_json": positions_json,
+        "total_positions": len(positions),
     })
+
+
+@never_cache
+@kiosk_required
+def submit_ballot_view(request):
+    """Submits a complete multi-position ballot for atomic recording.
+    
+    Triggered via POST from the Voting Kiosk terminal.
+    """
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST method required."}, status=405)
+
+    device = getattr(request, "device", None) or getattr(request.user, "device", None)
+    if not device:
+        return JsonResponse({"success": False, "error": "Kiosk Device authentication required."}, status=403)
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid JSON payload."}, status=400)
+
+    auth_id = data.get("authorization_id")
+    selections = data.get("selections", {})
+
+    if not auth_id:
+        return JsonResponse({"success": False, "error": "Missing authorization ID."}, status=400)
+
+    from voting.services import submit_ballot
+    try:
+        res = submit_ballot(device, int(auth_id), selections)
+        return JsonResponse(res)
+    except ValidationError as e:
+        error_msg = e.message if hasattr(e, "message") else str(e)
+        return JsonResponse({"success": False, "error": error_msg}, status=400)
+    except Exception as e:
+        return JsonResponse({"success": False, "error": f"Ballot submission error: {str(e)}"}, status=500)
+

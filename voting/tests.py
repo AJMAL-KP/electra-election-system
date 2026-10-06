@@ -584,3 +584,423 @@ class Slice10KioskAuthorizationTests(TestCase):
         self.assertFalse(res.context["is_locked"])
         self.assertContains(res, "Station Unlocked & Ready")
 
+
+class Slice11BallotSubmissionTests(TestCase):
+    """Tests for Slice 11 & 12: Ballot Interface, Selections, and Atomic Submission."""
+
+    def setUp(self):
+        self.admin = initialize_installation("electra_admin", "admin@school.edu", "Password123!")
+        self.election = create_election(name="Campus Union 2026")
+
+        b_res = create_booth(election_id=self.election.id, name="Main Gym")
+        self.booth = b_res["booth"]
+        self.officer = b_res["officer_device"]
+        self.kiosk = b_res["kiosk_device"]
+        self.kiosk_pass = b_res["kiosk_password"]
+
+        self.reg = VoterRegistry.objects.create(name="Campus Registry", primary_id_source="Student ID")
+        self.v1 = Voter.objects.create(registry=self.reg, primary_registry_value="STU-001", name="Sarah Student")
+        self.ev1 = ElectionVoter.objects.create(election=self.election, voter=self.v1, booth=self.booth, has_voted=False)
+
+        # Create Positions
+        from elections.models import Candidate, Position
+        # Contested Position 1: Chairperson (2 candidates)
+        self.pos_chair = Position.objects.create(election=self.election, name="Chairperson", display_order=1)
+        self.cand_chair_1 = Candidate.objects.create(position=self.pos_chair, name="Alice Adams", symbol="Star")
+        self.cand_chair_2 = Candidate.objects.create(position=self.pos_chair, name="Bob Brown", symbol="Tree")
+
+        # Contested Position 2: Secretary (2 candidates)
+        self.pos_sec = Position.objects.create(election=self.election, name="Secretary", display_order=2)
+        self.cand_sec_1 = Candidate.objects.create(position=self.pos_sec, name="Clara Clark", symbol="Book")
+        self.cand_sec_2 = Candidate.objects.create(position=self.pos_sec, name="Daniel Davis", symbol="Sun")
+
+        # Uncontested Position 3: Treasurer (1 candidate — Unanimous win, must be skipped on kiosk)
+        self.pos_treas = Position.objects.create(election=self.election, name="Treasurer", display_order=3)
+        self.cand_treas = Candidate.objects.create(position=self.pos_treas, name="Evan Evans", symbol="Coin")
+
+        # Activate election
+        self.election.status = ElectionStatus.ACTIVE
+        self.election.save()
+
+    def test_kiosk_ballot_skips_uncontested_positions(self):
+        """Kiosk ballot filters out single-candidate positions which win unanimously."""
+        client = Client()
+        login_res = client.post(reverse("accounts:login"), {
+            "username": self.kiosk.identifier,
+            "password": self.kiosk_pass,
+        })
+        self.assertEqual(login_res.status_code, 302)
+
+        from voting.services import create_authorization
+        create_authorization(self.officer, "STU-001")
+
+        res = client.get(reverse("voting:kiosk"))
+        self.assertEqual(res.status_code, 200)
+
+        # 3 positions exist in total, but Treasurer has only 1 candidate, so only 2 contested positions on kiosk
+        self.assertEqual(res.context["total_positions"], 2)
+        pos_names = [p.name for p in res.context["positions"]]
+        self.assertIn("Chairperson", pos_names)
+        self.assertIn("Secretary", pos_names)
+        self.assertNotIn("Treasurer", pos_names)
+
+        # In positions_json, candidate data strictly contains name, symbol, and image keys — no party or group
+        p_json = res.context["positions_json"]
+        self.assertEqual(len(p_json), 2)
+        cands_chair = p_json[0]["candidates"]
+        self.assertEqual(len(cands_chair), 2)
+        self.assertEqual(cands_chair[0]["name"], "Alice Adams")
+        self.assertEqual(cands_chair[0]["symbol"], "Star")
+
+    def test_submit_ballot_service_atomic_success(self):
+        """Transactional ballot submission records anonymous votes and consumes authorization."""
+        create_device_session(self.kiosk, "kiosk-sess-submit-1")
+        from voting.models import AuthorizationStatus, Vote
+        from voting.services import create_authorization, submit_ballot
+
+        auth = create_authorization(self.officer, "STU-001")
+
+        result = submit_ballot(self.kiosk, auth.id, {
+            str(self.pos_chair.id): self.cand_chair_1.id,
+            str(self.pos_sec.id): self.cand_sec_2.id,
+        })
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["votes_recorded"], 2)
+
+        # Verify Votes created anonymously in DB
+        votes = Vote.objects.filter(election=self.election)
+        self.assertEqual(votes.count(), 2)
+        voted_cand_ids = set(votes.values_list("candidate_id", flat=True))
+        self.assertEqual(voted_cand_ids, {self.cand_chair_1.id, self.cand_sec_2.id})
+
+        # STRICT BALLOT SECRECY: Vote model has no voter foreign key
+        for v in votes:
+            self.assertFalse(hasattr(v, "voter"))
+            self.assertFalse(hasattr(v, "election_voter"))
+            self.assertFalse(hasattr(v, "authorization"))
+
+        # Verify Voter state
+        self.ev1.refresh_from_db()
+        self.assertTrue(self.ev1.has_voted)
+
+        # Verify Authorization consumed
+        auth.refresh_from_db()
+        self.assertEqual(auth.status, AuthorizationStatus.USED)
+        self.assertIsNotNone(auth.used_at)
+
+    def test_submit_ballot_missing_position_rejected_and_rolled_back(self):
+        """Submitting a partial ballot missing a contested position is rejected with zero votes cast."""
+        create_device_session(self.kiosk, "kiosk-sess-submit-2")
+        from django.core.exceptions import ValidationError
+        from voting.models import AuthorizationStatus, Vote
+        from voting.services import create_authorization, submit_ballot
+
+        auth = create_authorization(self.officer, "STU-001")
+
+        # Only select for Chairperson, missing Secretary
+        with self.assertRaises(ValidationError) as ctx:
+            submit_ballot(self.kiosk, auth.id, {
+                str(self.pos_chair.id): self.cand_chair_1.id,
+            })
+        self.assertIn("Missing candidate selection for position 'Secretary'", str(ctx.exception))
+
+        # Atomicity verified: 0 votes created
+        self.assertEqual(Vote.objects.filter(election=self.election).count(), 0)
+        self.ev1.refresh_from_db()
+        self.assertFalse(self.ev1.has_voted)
+        auth.refresh_from_db()
+        self.assertEqual(auth.status, AuthorizationStatus.ACTIVE)
+
+    def test_submit_ballot_invalid_candidate_rejected(self):
+        """Submitting a candidate belonging to a different position is rejected."""
+        create_device_session(self.kiosk, "kiosk-sess-submit-3")
+        from django.core.exceptions import ValidationError
+        from voting.models import Vote
+        from voting.services import create_authorization, submit_ballot
+
+        auth = create_authorization(self.officer, "STU-001")
+
+        with self.assertRaises(ValidationError) as ctx:
+            submit_ballot(self.kiosk, auth.id, {
+                str(self.pos_chair.id): self.cand_sec_1.id,  # Invalid: Clara is for Secretary, not Chair!
+                str(self.pos_sec.id): self.cand_sec_2.id,
+            })
+        self.assertIn("Candidate not valid for position 'Chairperson'", str(ctx.exception))
+        self.assertEqual(Vote.objects.filter(election=self.election).count(), 0)
+
+    def test_submit_ballot_view_http_endpoint(self):
+        """POST /voting/ballot/submit/ successfully records ballot via HTTP."""
+        client = Client()
+        login_res = client.post(reverse("accounts:login"), {
+            "username": self.kiosk.identifier,
+            "password": self.kiosk_pass,
+        })
+        self.assertEqual(login_res.status_code, 302)
+
+        from voting.models import AuthorizationStatus, Vote
+        from voting.services import create_authorization
+
+        auth = create_authorization(self.officer, "STU-001")
+
+        import json
+        payload = {
+            "authorization_id": auth.id,
+            "selections": {
+                str(self.pos_chair.id): self.cand_chair_2.id,
+                str(self.pos_sec.id): self.cand_sec_1.id,
+            }
+        }
+
+        res = client.post(
+            reverse("voting:submit_ballot"),
+            json.dumps(payload),
+            content_type="application/json"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["votes_recorded"], 2)
+
+        # Database state updated
+        self.assertEqual(Vote.objects.filter(election=self.election).count(), 2)
+        auth.refresh_from_db()
+        self.assertEqual(auth.status, AuthorizationStatus.USED)
+
+    def test_submit_ballot_duplicate_submission_blocked(self):
+        """Once a ballot is submitted and authorization is USED, resubmitting is blocked."""
+        client = Client()
+        login_res = client.post(reverse("accounts:login"), {
+            "username": self.kiosk.identifier,
+            "password": self.kiosk_pass,
+        })
+        self.assertEqual(login_res.status_code, 302)
+
+        from voting.models import Vote
+        from voting.services import create_authorization
+
+        auth = create_authorization(self.officer, "STU-001")
+
+        import json
+        payload = {
+            "authorization_id": auth.id,
+            "selections": {
+                str(self.pos_chair.id): self.cand_chair_1.id,
+                str(self.pos_sec.id): self.cand_sec_1.id,
+            }
+        }
+
+        # First submission succeeds
+        res1 = client.post(reverse("voting:submit_ballot"), json.dumps(payload), content_type="application/json")
+        self.assertEqual(res1.status_code, 200)
+        self.assertEqual(Vote.objects.count(), 2)
+
+        # Second submission fails
+        res2 = client.post(reverse("voting:submit_ballot"), json.dumps(payload), content_type="application/json")
+        self.assertEqual(res2.status_code, 400)
+        data = res2.json()
+        self.assertFalse(data["success"])
+        self.assertIn("cannot be used", data["error"])
+        # No extra votes created
+        self.assertEqual(Vote.objects.count(), 2)
+
+
+class Slice12AtomicVotingTests(TestCase):
+    """Tests for Slice 12: Atomic Vote Recording, Eligibility Enforcement, and Concurrency."""
+
+    def setUp(self):
+        initialize_installation("electra_admin", "admin@electra.edu", "AdminPass123!")
+        self.election = create_election(name="General Campus Election 2026")
+
+        b1_res = create_booth(election_id=self.election.id, name="Booth 1")
+        self.booth1 = b1_res["booth"]
+        self.officer1 = b1_res["officer_device"]
+        self.officer1_pass = b1_res["officer_password"]
+        self.kiosk1 = b1_res["kiosk_device"]
+        self.kiosk1_pass = b1_res["kiosk_password"]
+
+        b2_res = create_booth(election_id=self.election.id, name="Booth 2")
+        self.booth2 = b2_res["booth"]
+        self.officer2 = b2_res["officer_device"]
+        self.kiosk2 = b2_res["kiosk_device"]
+        self.kiosk2_pass = b2_res["kiosk_password"]
+
+        # Academic groups
+        self.reg = VoterRegistry.objects.create(name="Campus Registry", primary_id_source="Roll No")
+        self.dept_cs = AcademicGroup.objects.create(registry=self.reg, name="Computer Science")
+        self.dept_mech = AcademicGroup.objects.create(registry=self.reg, name="Mechanical Engineering")
+
+        # Voters
+        # Voter 1: Female in CS
+        self.v1 = Voter.objects.create(
+            registry=self.reg, primary_registry_value="CS-001", name="Alice CS",
+            gender="FEMALE", academic_group=self.dept_cs
+        )
+        self.ev1 = ElectionVoter.objects.create(election=self.election, voter=self.v1, booth=self.booth1, has_voted=False)
+
+        # Voter 2: Male in Mech
+        self.v2 = Voter.objects.create(
+            registry=self.reg, primary_registry_value="ME-002", name="Bob Mech",
+            gender="MALE", academic_group=self.dept_mech
+        )
+        self.ev2 = ElectionVoter.objects.create(election=self.election, voter=self.v2, booth=self.booth2, has_voted=False)
+
+        # Positions:
+        from elections.models import Candidate, Position
+        # 1. Open to ALL
+        self.pos_open = Position.objects.create(election=self.election, name="President", display_order=1)
+        self.cand_open_1 = Candidate.objects.create(position=self.pos_open, name="Pres Cand A", symbol="Flag")
+        self.cand_open_2 = Candidate.objects.create(position=self.pos_open, name="Pres Cand B", symbol="Torch")
+
+        # 2. Gender restricted: FEMALE only
+        self.pos_women = Position.objects.create(
+            election=self.election, name="Women Representative", eligible_gender="FEMALE", display_order=2
+        )
+        self.cand_women_1 = Candidate.objects.create(position=self.pos_women, name="Wom Cand A", symbol="Rose")
+        self.cand_women_2 = Candidate.objects.create(position=self.pos_women, name="Wom Cand B", symbol="Lotus")
+
+        # 3. Group restricted: Computer Science only
+        self.pos_cs = Position.objects.create(
+            election=self.election, name="CS Dept Representative", display_order=3
+        )
+        self.pos_cs.eligible_groups.add(self.dept_cs)
+        self.cand_cs_1 = Candidate.objects.create(position=self.pos_cs, name="CS Cand A", symbol="Chip")
+        self.cand_cs_2 = Candidate.objects.create(position=self.pos_cs, name="CS Cand B", symbol="Code")
+
+        # Activate election
+        self.election.status = ElectionStatus.ACTIVE
+        self.election.save()
+
+    def test_voter_eligibility_filtering_and_submission(self):
+        """Voter 1 (Female CS) is eligible for all 3 positions; Voter 2 (Male Mech) only for President."""
+        from voting.services import create_authorization, submit_ballot
+        create_device_session(self.kiosk1, "kiosk-sess-elig-1")
+        create_device_session(self.kiosk2, "kiosk-sess-elig-2")
+
+        # Voter 1 on Kiosk 1: eligible for all 3 positions
+        auth1 = create_authorization(self.officer1, "CS-001")
+        res1 = submit_ballot(self.kiosk1, auth1.id, {
+            str(self.pos_open.id): self.cand_open_1.id,
+            str(self.pos_women.id): self.cand_women_1.id,
+            str(self.pos_cs.id): self.cand_cs_1.id,
+        })
+        self.assertTrue(res1["success"])
+        self.assertEqual(res1["votes_recorded"], 3)
+
+        # Voter 2 on Kiosk 2: Male Mech is only eligible for pos_open
+        auth2 = create_authorization(self.officer2, "ME-002")
+
+        # If Voter 2 tries to submit a vote for pos_women (Female only), it must be rejected!
+        from django.core.exceptions import ValidationError
+        with self.assertRaises(ValidationError) as ctx:
+            submit_ballot(self.kiosk2, auth2.id, {
+                str(self.pos_open.id): self.cand_open_2.id,
+                str(self.pos_women.id): self.cand_women_2.id,
+            })
+        self.assertIn("not eligible to vote for position 'Women Representative'", str(ctx.exception))
+
+        # Voter 2 submitting strictly their eligible position succeeds
+        res2 = submit_ballot(self.kiosk2, auth2.id, {
+            str(self.pos_open.id): self.cand_open_2.id,
+        })
+        self.assertTrue(res2["success"])
+        self.assertEqual(res2["votes_recorded"], 1)
+
+    def test_ballot_atomicity_full_rollback_on_candidate_mismatch(self):
+        """If one position candidate is invalid, entire ballot is rolled back with zero votes recorded."""
+        from django.core.exceptions import ValidationError
+        from voting.models import Vote
+        from voting.services import create_authorization, submit_ballot
+        create_device_session(self.kiosk1, "kiosk-sess-rollback")
+
+        auth = create_authorization(self.officer1, "CS-001")
+        initial_votes = Vote.objects.count()
+
+        with self.assertRaises(ValidationError):
+            submit_ballot(self.kiosk1, auth.id, {
+                str(self.pos_open.id): self.cand_open_1.id,
+                str(self.pos_women.id): self.cand_open_2.id,  # Invalid: Pres Cand B is not a Women Rep candidate!
+                str(self.pos_cs.id): self.cand_cs_1.id,
+            })
+
+        # Rollback: no new votes created
+        self.assertEqual(Vote.objects.count(), initial_votes)
+        self.ev1.refresh_from_db()
+        self.assertFalse(self.ev1.has_voted)
+
+    def test_submission_rejected_when_election_concluded(self):
+        """Cannot submit ballot if election has been closed."""
+        from django.core.exceptions import ValidationError
+        from elections.models import ElectionStatus
+        from voting.services import create_authorization, submit_ballot
+        create_device_session(self.kiosk1, "kiosk-sess-closed")
+
+        auth = create_authorization(self.officer1, "CS-001")
+
+        # Conclude election
+        self.election.status = ElectionStatus.CLOSED
+        self.election.save()
+
+        with self.assertRaises(ValidationError) as ctx:
+            submit_ballot(self.kiosk1, auth.id, {
+                str(self.pos_open.id): self.cand_open_1.id,
+                str(self.pos_women.id): self.cand_women_1.id,
+                str(self.pos_cs.id): self.cand_cs_1.id,
+            })
+        self.assertIn("Election is not currently active", str(ctx.exception))
+
+    def test_cross_booth_submission_rejected(self):
+        """Kiosk at Booth 1 cannot submit ballot using an authorization issued for Booth 2."""
+        from django.core.exceptions import ValidationError
+        from voting.services import create_authorization, submit_ballot
+        create_device_session(self.kiosk1, "kiosk-sess-cross-1")
+        create_device_session(self.kiosk2, "kiosk-sess-cross-2")
+
+        # Officer 2 issues authorization for Voter 2 at Booth 2
+        auth2 = create_authorization(self.officer2, "ME-002")
+
+        # Kiosk 1 tries to submit auth2
+        with self.assertRaises(ValidationError) as ctx:
+            submit_ballot(self.kiosk1, auth2.id, {
+                str(self.pos_open.id): self.cand_open_2.id,
+            })
+        self.assertIn("Authorization not found for this Voting Kiosk", str(ctx.exception))
+
+    def test_officer_dashboard_reflects_active_authorization(self):
+        """Dashboard passes active_auth_id, active_voter_id, and sets in_progress_count when auth is active."""
+        from voting.services import create_authorization
+        create_device_session(self.kiosk1, "kiosk-sess-active-test")
+        auth = create_authorization(self.officer1, "CS-001")
+
+        client = Client()
+        client.login(username=self.officer1.identifier, password=self.officer1_pass)
+        res = client.get(reverse("voting:officer_dashboard"))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.context["active_auth_id"], auth.id)
+        self.assertEqual(res.context["active_voter_id"], "CS-001")
+        self.assertEqual(res.context["in_progress_count"], 1)
+
+    def test_officer_cancel_authorization_endpoint(self):
+        """Officer can cancel active authorization via officer_cancel_authorization endpoint."""
+        from voting.models import AuthorizationStatus, VoterAuthorization
+        from voting.services import create_authorization
+        create_device_session(self.kiosk1, "kiosk-sess-cancel-test")
+        auth = create_authorization(self.officer1, "CS-001")
+
+        client = Client()
+        client.login(username=self.officer1.identifier, password=self.officer1_pass)
+        res = client.post(
+            reverse("voting:officer_cancel_authorization"),
+            data='{"authorization_id": %d}' % auth.id,
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data["success"])
+
+        auth.refresh_from_db()
+        self.assertEqual(auth.status, AuthorizationStatus.CANCELLED)
+
+
+

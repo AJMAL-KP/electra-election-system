@@ -1,17 +1,19 @@
 /* ==========================================================================
-   ELECTRA VOTING KIOSK
-   Faithfully matching references/kiosk_01.png & references/kiosk_02.png
+   ELECTRA VOTING KIOSK — AUTHENTIC EVM BALLOT UNIT & VVPAT STYLESHEET
+   Pure white theme, Newsreader editorial typography, zero-scrolling EVM ballot unit.
    ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap');
 
 html, body.kiosk-page {
     height: 100vh;
     max-height: 100vh;
     margin: 0;
     padding: 0;
-    overflow: hidden;
+    overflow: hidden !important;
     background-color: #FFFFFF;
     color: #111827;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Newsreader', Georgia, serif;
     user-select: none;
     -webkit-user-select: none;
 }
@@ -38,75 +40,112 @@ body.kiosk-page .main-content {
     background: #FFFFFF;
 }
 
-/* Top utility bar */
-.kiosk-topbar {
-    width: 100%;
-    padding: 10px 32px 6px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-sizing: border-box;
-    flex-shrink: 0;
-}
-
-.kiosk-topbar-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: #6B7280;
-}
-
-.kiosk-topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.kiosk-connection-pill {
+/* --------------------------------------------------------------------------
+   Top Corner Utilities (Exit on top-left, Connection on top-right)
+   -------------------------------------------------------------------------- */
+.kiosk-corner-exit {
+    position: absolute;
+    top: 14px;
+    left: 20px;
+    z-index: 20;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 12.5px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: #9CA3AF;
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: transparent;
+    transition: all 0.15s ease;
+}
+
+.kiosk-corner-exit:hover {
+    color: #374151;
+    background: #F3F4F6;
+}
+
+.kiosk-corner-status {
+    position: absolute;
+    top: 14px;
+    right: 20px;
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 12px;
     font-weight: 500;
     color: #15803D;
     background: #F0FDF4;
     border: 1px solid #DCFCE7;
     border-radius: 9999px;
-    padding: 2px 10px;
+    padding: 3px 12px;
 }
 
-.kiosk-connection-pill.is-disconnected {
+.kiosk-corner-status.is-disconnected {
     color: #DC2626;
     background: #FEF2F2;
     border-color: #FEE2E2;
 }
 
-.kiosk-connection-pill .conn-dot {
+.kiosk-corner-status .conn-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
     background-color: #16A34A;
 }
 
-.kiosk-connection-pill.is-disconnected .conn-dot {
+.kiosk-corner-status.is-disconnected .conn-dot {
     background-color: #EF4444;
 }
 
-.kiosk-btn-exit {
-    font-size: 12px;
+/* --------------------------------------------------------------------------
+   Top Centered Brand Line (Newsreader Font, No Header)
+   "Electra • Election Name • Booth 01"
+   -------------------------------------------------------------------------- */
+.kiosk-evm-top {
+    text-align: center;
+    padding: 16px 20px 8px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 20px;
+    color: #111827;
+}
+
+.kiosk-evm-brand {
+    font-size: 26px;
+    font-weight: 600;
+    color: #111827;
+    letter-spacing: -0.02em;
+}
+
+.kiosk-evm-sep {
     color: #9CA3AF;
-    text-decoration: none;
-    padding: 3px 8px;
-    border-radius: 4px;
-    transition: color 0.15s ease;
+    font-size: 14px;
 }
 
-.kiosk-btn-exit:hover {
-    color: #4B5563;
+.kiosk-evm-election {
+    font-size: 19px;
+    font-weight: 500;
+    color: #374151;
 }
 
-/* Kiosk Content Workspace (blurrable when locked) */
+.kiosk-evm-booth {
+    font-size: 18px;
+    font-weight: 400;
+    color: #6B7280;
+}
+
+/* --------------------------------------------------------------------------
+   Workspace Area (Blurred when locked on standby)
+   -------------------------------------------------------------------------- */
 .kiosk-content {
     flex: 1;
     min-height: 0;
@@ -115,9 +154,10 @@ body.kiosk-page .main-content {
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    padding: 0 24px 20px;
+    padding: 8px 20px 16px;
     box-sizing: border-box;
     transition: filter 0.3s ease, opacity 0.3s ease;
+    overflow: hidden;
 }
 
 .kiosk-content.is-locked {
@@ -126,108 +166,625 @@ body.kiosk-page .main-content {
     pointer-events: none !important;
 }
 
-/* Locked Overlay Card */
-.kiosk-lock-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 50;
+/* --------------------------------------------------------------------------
+   Position Indicator Header (e.g. "1/3 • President")
+   -------------------------------------------------------------------------- */
+.kiosk-position-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+    border-bottom: 1px solid #F3F4F6;
+    padding-bottom: 8px;
+}
+
+.kiosk-position-title-group {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.kiosk-pos-counter-pill {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1E40AF;
+    background: #EFF6FF;
+    border: 1px solid #DBEAFE;
+    border-radius: 9999px;
+    padding: 2px 10px;
+}
+
+.kiosk-pos-name {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 32px;
+    font-weight: 500;
+    color: #111827;
+    margin: 0;
+    line-height: 1.15;
+}
+
+.kiosk-pos-instruction {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #6B7280;
+}
+
+/* --------------------------------------------------------------------------
+   Authentic EVM Ballot Unit Box
+   Matching the real Electronic Voting Machine unit in the reference photo!
+   Columns:
+   1. Serial No & Candidate Name (with affiliation)
+   2. Little space, then passport size photo area (blank empty, no border)
+   3. Symbol Icon (borderless)
+   4. Arrow -> LED Indicator -> Blue EVM Cast Vote Button
+   -------------------------------------------------------------------------- */
+.evm-ballot-unit {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    background: #FFFFFF;
+    border: 2px solid #E5E7EB;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+
+.evm-candidate-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 48px 56px 120px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border-bottom: 1px solid #E5E7EB;
+    background: #FFFFFF;
+    transition: background 0.15s ease;
+    flex: 1;
+    min-height: 52px;
+    max-height: 80px;
+    cursor: default;
+    user-select: none;
+}
+
+.evm-candidate-row:last-child {
+    border-bottom: none;
+}
+
+.evm-candidate-row.is-selected {
+    background: #F0F7FF;
+}
+
+/* Column 1: Serial Number */
+.evm-serial-num {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #4B5563;
+    text-align: center;
+}
+
+/* Column 2: Candidate Name & Affiliation */
+.evm-candidate-name-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.evm-cand-name {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 19px;
+    font-weight: 600;
+    color: #111827;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.evm-cand-affiliation {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: #6B7280;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Column 3: Passport size photo area (blank empty, no border) */
+.evm-photo-col {
+    width: 38px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none !important;
+    background: transparent !important;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.evm-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border: none;
+}
+
+.evm-photo-blank {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+}
+
+/* Column 4: Symbol Icon (borderless) */
+.evm-symbol-col {
+    width: 52px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none !important;
+    background: transparent !important;
+    flex-shrink: 0;
+}
+
+.evm-symbol-img {
+    max-width: 44px;
+    max-height: 44px;
+    object-fit: contain;
+    border: none;
+}
+
+.evm-symbol-text {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+    border: none;
+}
+
+/* Column 5: Arrow -> Red LED Indicator -> Blue EVM Button */
+.evm-action-col {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.evm-arrow-indicator {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: #9CA3AF;
+    transition: color 0.15s ease;
+}
+
+.evm-candidate-row.is-selected .evm-arrow-indicator {
+    color: #111827;
+}
+
+.evm-led-lamp {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #D1D5DB;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: all 0.12s ease;
+    flex-shrink: 0;
+}
+
+.evm-candidate-row.is-selected .evm-led-lamp,
+.evm-led-lamp.is-lit {
+    background-color: #DC2626 !important;
+    box-shadow: 0 0 10px #DC2626, 0 0 4px #EF4444 !important;
+}
+
+.evm-vote-btn {
+    width: 66px;
+    height: 36px;
+    border-radius: 9999px;
+    background: #1D4ED8;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(29, 78, 216, 0.35);
+    transition: transform 0.1s ease, filter 0.1s ease, box-shadow 0.1s ease;
+    outline: none;
+}
+
+.evm-vote-btn:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(29, 78, 216, 0.45);
+}
+
+.evm-vote-btn:active {
+    transform: translateY(1px);
+    filter: brightness(0.92);
+}
+
+/* --------------------------------------------------------------------------
+   Bottom Navigation / Step Helpers (No Next button; Change button for each row)
+   -------------------------------------------------------------------------- */
+.kiosk-bottom-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    flex-shrink: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #6B7280;
+}
+
+.kiosk-btn-change-prev {
+    background: transparent;
+    border: none;
+    color: #4B5563;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color 0.15s ease;
+}
+
+.kiosk-btn-change-prev:hover {
+    color: #111827;
+}
+
+/* --------------------------------------------------------------------------
+   VVPAT Paper Slip Element (Shows selections briefly before submission!)
+   Modeled exactly after the real VVPAT slip in the bottom right of the photo.
+   -------------------------------------------------------------------------- */
+.vvpat-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 105;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: vvpatFadeIn 0.25s ease-out;
+}
+
+@keyframes vvpatFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.vvpat-paper-slip {
+    background: #FFFDF9;
+    width: 320px;
+    padding: 22px 24px 26px;
+    border-radius: 2px;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+    border-top: 4px dashed #D1D5DB;
+    border-bottom: 4px dashed #D1D5DB;
+    font-family: 'Inter', sans-serif;
+    color: #111827;
+    position: relative;
+    animation: vvpatSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes vvpatSlideDown {
+    from { transform: translateY(-40px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.vvpat-slip-header {
+    text-align: center;
+    border-bottom: 1px dashed #9CA3AF;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.vvpat-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #4B5563;
+    text-transform: uppercase;
+}
+
+.vvpat-election-name {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+    margin: 2px 0 0;
+}
+
+.vvpat-booth-label {
+    font-size: 11px;
+    color: #6B7280;
+}
+
+.vvpat-slip-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.vvpat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #F3F4F6;
+    padding-bottom: 6px;
+}
+
+.vvpat-row-pos {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6B7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+}
+
+.vvpat-row-cand {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.vvpat-row-symbol {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.vvpat-row-symbol img {
+    max-width: 28px;
+    max-height: 28px;
+    object-fit: contain;
+}
+
+.vvpat-slip-footer {
+    border-top: 1px dashed #9CA3AF;
+    padding-top: 8px;
+    text-align: center;
+    font-size: 11px;
+    color: #6B7280;
+}
+
+/* --------------------------------------------------------------------------
+   Overlays: Lock Standby, Submitting, Success Confirmation
+   -------------------------------------------------------------------------- */
+.kiosk-lock-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-}
-
-.kiosk-lock-overlay.is-hidden {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
+    box-sizing: border-box;
+    transition: opacity 0.25s ease;
 }
 
 .kiosk-lock-card {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
-    border-radius: 20px;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
-    padding: 44px 40px;
-    max-width: 460px;
-    width: 100%;
+    border-radius: 16px;
+    padding: 36px 32px;
+    max-width: 440px;
     text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    box-sizing: border-box;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
 }
 
 .kiosk-lock-icon-wrap {
-    width: 60px;
-    height: 60px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
-    background-color: #F3F4F6;
-    color: #4B5563;
+    background: #F3F4F6;
+    color: #111827;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 20px;
+    margin: 0 auto 18px;
 }
 
 .kiosk-lock-title {
     font-family: 'Newsreader', Georgia, serif;
-    font-size: 32px;
-    font-weight: 500;
-    letter-spacing: -0.01em;
+    font-size: 26px;
+    font-weight: 600;
     color: #111827;
-    margin: 0 0 10px 0;
-    line-height: 1.2;
+    margin: 0 0 10px;
 }
 
 .kiosk-lock-desc {
-    font-size: 14.5px;
-    color: #6B7280;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
     line-height: 1.55;
-    margin: 0 0 24px 0;
-    max-width: 360px;
+    color: #4B5563;
+    margin: 0 0 20px;
 }
 
 .kiosk-lock-meta {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 12.5px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
     font-weight: 500;
-    color: #4B5563;
+    color: #1F2937;
     background: #F9FAFB;
     border: 1px solid #E5E7EB;
     border-radius: 9999px;
-    padding: 4px 14px;
+    padding: 6px 14px;
 }
 
 .kiosk-pulse-dot {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background-color: #3B82F6;
+    background: #2563EB;
     animation: kioskPulse 2s infinite ease-in-out;
 }
 
 @keyframes kioskPulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.4); opacity: 0.5; }
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
 }
 
-/* Audio indicator pill */
 .kiosk-audio-hint {
-    font-size: 11.5px;
-    color: #9CA3AF;
     margin-top: 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: #9CA3AF;
     display: flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    gap: 6px;
+}
+
+/* Submitting Overlay */
+.kiosk-submitting-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 110;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kiosk-submitting-card {
+    text-align: center;
+    max-width: 380px;
+    padding: 24px;
+}
+
+.kiosk-spinner {
+    width: 44px;
+    height: 44px;
+    border: 3px solid #E5E7EB;
+    border-top-color: #111827;
+    border-radius: 50%;
+    animation: kioskSpin 0.7s linear infinite;
+    margin: 0 auto 18px;
+}
+
+@keyframes kioskSpin {
+    to { transform: rotate(360deg); }
+}
+
+.kiosk-submitting-title {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 8px;
+}
+
+.kiosk-submitting-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #6B7280;
+    margin: 0;
+}
+
+/* Success Overlay */
+.kiosk-success-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 120;
+    background: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.kiosk-success-card {
+    text-align: center;
+    max-width: 420px;
+    animation: kioskSuccessFade 0.3s ease-out;
+}
+
+@keyframes kioskSuccessFade {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.kiosk-success-icon-wrap {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #DCFCE7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+}
+
+.kiosk-success-title {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 30px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 10px;
+}
+
+.kiosk-success-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    color: #4B5563;
+    line-height: 1.5;
+    margin: 0 0 24px;
+}
+
+.kiosk-success-timer {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: #6B7280;
+    background: #F9FAFB;
+    border: 1px solid #E5E7EB;
+    border-radius: 9999px;
+    padding: 6px 16px;
+    display: inline-block;
+}
+
+/* Utility Hidden */
+.is-hidden {
+    display: none !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .evm-candidate-row {
+        grid-template-columns: 24px 1fr 32px 36px 90px;
+        gap: 8px;
+        padding: 8px 10px;
+    }
+    .evm-cand-name {
+        font-size: 16px;
+    }
+    .evm-vote-btn {
+        width: 52px;
+        height: 32px;
+    }
+    .kiosk-evm-top {
+        font-size: 16px;
+        gap: 8px;
+    }
+    .kiosk-pos-name {
+        font-size: 24px;
+    }
 }

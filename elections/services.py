@@ -364,6 +364,7 @@ def start_election(*, election_id: int, ends_at=None) -> Election:
 
         election.status = ElectionStatus.ACTIVE
         election.save(update_fields=["status", "starts_at", "ends_at", "updated_at"])
+        transaction.on_commit(lambda: notify_election_started(election.id))
         return election
 
 
@@ -383,6 +384,7 @@ def close_election(*, election_id: int) -> Election:
         from accounts.services import cleanup_past_credentials
         cleanup_past_credentials()
         transaction.on_commit(cleanup_past_credentials)
+        transaction.on_commit(lambda: notify_election_closed(election.id))
         return election
 
 
@@ -426,6 +428,65 @@ def close_if_expired(*, election_id: int) -> bool:
             from accounts.services import cleanup_past_credentials
             cleanup_past_credentials()
             transaction.on_commit(cleanup_past_credentials)
+            transaction.on_commit(lambda: notify_election_closed(election.id))
             return True
+
+        return False
+
+
+def notify_election_started(election_id: int):
+    """Post-commit WebSocket broadcast when an election becomes ACTIVE."""
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            election = Election.objects.prefetch_related("booths").filter(id=election_id).first()
+            if election:
+                for booth in election.booths.all():
+                    async_to_sync(channel_layer.group_send)(
+                        f"booth_{booth.id}",
+                        {
+                            "type": "election.started",
+                            "election_id": election_id,
+                        }
+                    )
+                async_to_sync(channel_layer.group_send)(
+                    "admin_live",
+                    {
+                        "type": "election.started",
+                        "election_id": election_id,
+                    }
+                )
+    except Exception:
+        pass
+
+
+def notify_election_closed(election_id: int):
+    """Post-commit WebSocket broadcast when an election is CLOSED."""
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            election = Election.objects.prefetch_related("booths").filter(id=election_id).first()
+            if election:
+                for booth in election.booths.all():
+                    async_to_sync(channel_layer.group_send)(
+                        f"booth_{booth.id}",
+                        {
+                            "type": "election.closed",
+                            "election_id": election_id,
+                        }
+                    )
+                async_to_sync(channel_layer.group_send)(
+                    "admin_live",
+                    {
+                        "type": "election.closed",
+                        "election_id": election_id,
+                    }
+                )
+    except Exception:
+        pass
 
     return False

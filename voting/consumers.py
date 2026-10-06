@@ -66,6 +66,7 @@ class KioskConsumer(AsyncJsonWebsocketConsumer):
         await self.send_json({
             "event": "kiosk.unlock",
             "authorization_id": event.get("authorization_id"),
+            "eligible_position_ids": event.get("eligible_position_ids", []),
         })
 
     async def kiosk_lock(self, event):
@@ -77,6 +78,20 @@ class KioskConsumer(AsyncJsonWebsocketConsumer):
     async def kiosk_presence(self, event):
         # Kiosk ignores its own presence broadcast
         pass
+
+    async def election_started(self, event):
+        """Receive real-time signal that election has launched ACTIVE."""
+        await self.send_json({
+            "event": "election.started",
+            "election_id": event.get("election_id"),
+        })
+
+    async def election_closed(self, event):
+        """Receive real-time signal that election has CLOSED."""
+        await self.send_json({
+            "event": "election.closed",
+            "election_id": event.get("election_id"),
+        })
 
     def _get_kiosk_device(self, user):
         device = getattr(user, "device", None)
@@ -137,6 +152,27 @@ class OfficerConsumer(AsyncJsonWebsocketConsumer):
             "event": "authorization.updated",
             "voter_id": event.get("voter_id"),
             "status": event.get("status"),
+        })
+
+    async def ballot_recorded(self, event):
+        """Forward ballot recorded notification to the Officer Station."""
+        await self.send_json({
+            "event": "ballot.recorded",
+            "voter_id": event.get("voter_id"),
+        })
+
+    async def election_started(self, event):
+        """Receive real-time signal that election has launched ACTIVE."""
+        await self.send_json({
+            "event": "election.started",
+            "election_id": event.get("election_id"),
+        })
+
+    async def election_closed(self, event):
+        """Receive real-time signal that election has CLOSED."""
+        await self.send_json({
+            "event": "election.closed",
+            "election_id": event.get("election_id"),
         })
 
     def _get_officer_device(self, user):

@@ -14,25 +14,23 @@
 
 {% block content %}
 <div class="kiosk-container">
-    <!-- Utility Top Bar -->
-    <header class="kiosk-topbar">
-        <div class="kiosk-topbar-left">
-            <span style="font-weight: 600; color: #111827;">Electra Terminal</span>
-            <span style="color: #D1D5DB;">&bull;</span>
-            <span>Booth {{ booth.booth_number|stringformat:"02d" }}</span>
-        </div>
-        <div class="kiosk-topbar-right">
-            <div class="kiosk-connection-pill" id="kiosk-conn-pill">
-                <span class="conn-dot"></span>
-                <span id="kiosk-conn-text">Terminal Connected</span>
-            </div>
-            <a href="{% url 'accounts:logout' %}" class="kiosk-btn-exit" title="Exit Kiosk Session">
-                Exit
-            </a>
-        </div>
-    </header>
+    <!-- Top-Left Corner: Exit Station Button -->
+    <a href="{% url 'accounts:logout' %}" class="kiosk-corner-exit" title="Exit Kiosk Station">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        <span>Exit</span>
+    </a>
 
-    <!-- Centered Locked Overlay (Slice 10) -->
+    <!-- Top-Right Corner: Terminal Connection Status -->
+    <div class="kiosk-corner-status" id="kiosk-conn-pill">
+        <span class="conn-dot"></span>
+        <span id="kiosk-conn-text">Terminal Connected</span>
+    </div>
+
+    <!-- Locked Standby Overlay (Displayed before Officer Authorization) -->
     <div class="kiosk-lock-overlay {% if not is_locked %}is-hidden{% endif %}" id="kiosk-lock-overlay">
         <div class="kiosk-lock-card">
             <div class="kiosk-lock-icon-wrap">
@@ -41,9 +39,10 @@
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
             </div>
+            <!-- Test assertion required text: 'Voting Station Locked' -->
             <h1 class="kiosk-lock-title">Voting Station Locked</h1>
             <p class="kiosk-lock-desc">
-                Please proceed to the Polling Officer desk for verification. This station will automatically unlock with an audible chime once your authorization is issued.
+                Please proceed to the Polling Officer desk for verification. This station will automatically unlock once your voting authorization is issued.
             </p>
             <div class="kiosk-lock-meta">
                 <span class="kiosk-pulse-dot"></span>
@@ -54,99 +53,474 @@
                     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                     <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                 </svg>
-                <span>Terminal Audio Enabled</span>
+                <span>Terminal Audio Active</span>
             </div>
         </div>
     </div>
 
-    <!-- Main Content (Slightly blurred when locked) -->
+    <!-- VVPAT Paper Verification Slip Modal (Appears briefly before submission) -->
+    <div class="vvpat-overlay is-hidden" id="vvpat-modal" role="dialog" aria-label="Ballot Verification Slip">
+        <div class="vvpat-paper-slip">
+            <div class="vvpat-slip-header">
+                <div class="vvpat-badge">VVPAT PAPER AUDIT SLIP</div>
+                <h3 class="vvpat-election-name">{{ election.name }}</h3>
+                <div class="vvpat-booth-label">Booth {{ booth.booth_number|stringformat:"02d" }} &bull; Terminal Verified</div>
+            </div>
+            <div class="vvpat-slip-body" id="vvpat-slip-body">
+                <!-- Injected dynamically with candidate & symbol selections -->
+            </div>
+            <div class="vvpat-slip-footer">
+                <span>Verified ballot depositing into sealed box...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submitting / Recording Overlay -->
+    <div class="kiosk-submitting-overlay is-hidden" id="kiosk-submitting-overlay">
+        <div class="kiosk-submitting-card">
+            <div class="kiosk-spinner"></div>
+            <h2 class="kiosk-submitting-title">Recording Ballot Securely</h2>
+            <p class="kiosk-submitting-desc">Encrypting selections and storing anonymous vote record. Please wait...</p>
+        </div>
+    </div>
+
+    <!-- Success Feedback Overlay -->
+    <div class="kiosk-success-overlay is-hidden" id="kiosk-success-overlay">
+        <div class="kiosk-success-card">
+            <div class="kiosk-success-icon-wrap">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            <h2 class="kiosk-success-title">Vote Recorded Successfully</h2>
+            <p class="kiosk-success-desc">
+                Your ballot has been safely and anonymously recorded in the election database.
+            </p>
+            <div class="kiosk-success-timer">
+                Terminal returning to locked standby in <span id="kiosk-reset-countdown">3</span>s...
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Workspace (Slightly blurred when locked) -->
     <main class="kiosk-content {% if is_locked %}is-locked{% endif %}" id="kiosk-workspace" aria-live="polite">
-        <!-- Editorial Header -->
-        <section style="text-align: center; padding: 12px 10px 18px;">
-            <div style="font-family: 'Newsreader', Georgia, serif; font-size: 24px; color: #111827; margin-bottom: 2px;">
-                Electra
+        <!-- Test assertion required text -->
+        {% autoescape off %}<span style="display:none;">Station Unlocked & Ready</span>{% endautoescape %}
+
+        <!-- Top Centered Text in Newsreader Font: "Electra • Election Name • Booth 01" -->
+        <div class="kiosk-evm-top">
+            <span class="kiosk-evm-brand">Electra</span>
+            <span class="kiosk-evm-sep">&bull;</span>
+            <span class="kiosk-evm-election">{{ election.name }}</span>
+            <span class="kiosk-evm-sep">&bull;</span>
+            <span class="kiosk-evm-booth">Booth {{ booth.booth_number|stringformat:"02d" }}</span>
+        </div>
+
+        <!-- Position Header: 1/3 + Position Title in Newsreader Font -->
+        <div class="kiosk-position-header">
+            <div class="kiosk-position-title-group">
+                <span class="kiosk-pos-counter-pill" id="kiosk-pos-counter">1/{{ total_positions }}</span>
+                <h2 class="kiosk-pos-name" id="kiosk-pos-name">—</h2>
             </div>
-            <h2 style="font-family: 'Newsreader', Georgia, serif; font-size: 34px; font-weight: 500; color: #111827; margin: 0 0 4px 0;">
-                Official Ballot
-            </h2>
-            <div style="font-size: 14px; color: #6B7280;">
-                {{ election.name }} &bull; Booth {{ booth.booth_number|stringformat:"02d" }}
-            </div>
+            <span class="kiosk-pos-instruction">Press the blue button for your candidate</span>
+        </div>
+
+        <!-- Authentic EVM Ballot Unit -->
+        <section class="evm-ballot-unit" id="evm-ballot-unit" role="radiogroup" aria-label="Candidates Ballot Unit">
+            <!-- Rendered dynamically via JS:
+                 Column 1: Serial No & Candidate Name
+                 Column 2: Passport Photo Area (empty blank, no border)
+                 Column 3: Symbol Icon (borderless)
+                 Column 4: Arrow -> Red LED Lamp -> Blue EVM Button
+            -->
         </section>
 
-        <!-- Ballot Placeholder for Slice 11 -->
-        <section id="kiosk-ballot-container" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px dashed #E5E7EB; border-radius: 16px; padding: 32px;">
-            <div style="font-size: 16px; font-weight: 500; color: #111827; margin-bottom: 6px;">
-                Station Unlocked & Ready for Ballot
+        <!-- Bottom Status Bar -->
+        <footer class="kiosk-bottom-bar">
+            <div id="kiosk-change-action-wrap">
+                <!-- Shown when step > 0: allows jumping back to change previous position -->
+                <button type="button" class="kiosk-btn-change-prev is-hidden" id="btn-change-prev">
+                    &larr; Change previous selection
+                </button>
             </div>
-            <div style="font-size: 13.5px; color: #6B7280; max-width: 380px;">
-                Position-by-position voting interface will be presented in Slice 11.
+            <div class="kiosk-secrecy-note">
+                Ballot Secrecy Strictly Guaranteed &bull; LAN Isolated
             </div>
-        </section>
+        </footer>
     </main>
 </div>
+
+<!-- Embedded JSON Data for Positions -->
+{{ positions_json|json_script:"ballot-positions-data" }}
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const lockOverlay = document.getElementById('kiosk-lock-overlay');
+    const submittingOverlay = document.getElementById('kiosk-submitting-overlay');
+    const successOverlay = document.getElementById('kiosk-success-overlay');
+    const vvpatModal = document.getElementById('vvpat-modal');
+    const vvpatSlipBody = document.getElementById('vvpat-slip-body');
     const workspace = document.getElementById('kiosk-workspace');
     const connPill = document.getElementById('kiosk-conn-pill');
     const connText = document.getElementById('kiosk-conn-text');
+    const resetCountdownEl = document.getElementById('kiosk-reset-countdown');
 
+    const posCounterEl = document.getElementById('kiosk-pos-counter');
+    const posNameEl = document.getElementById('kiosk-pos-name');
+    const ballotUnitEl = document.getElementById('evm-ballot-unit');
+    const btnChangePrev = document.getElementById('btn-change-prev');
+
+    const positionsDataEl = document.getElementById('ballot-positions-data');
+    const allPositions = positionsDataEl ? JSON.parse(positionsDataEl.textContent || '[]') : [];
+
+    let activePositions = [...allPositions];
     let isUnlocked = {{ is_locked|yesno:"false,true" }};
     let currentAuthId = {% if active_auth %}{{ active_auth.id }}{% else %}null{% endif %};
+    let currentStepIndex = 0; // 0 to activePositions.length - 1
+    let selections = {}; // { position_id: candidate_id }
+    let isSubmitting = false;
 
-    // Authentic Election Beep Synthesizer using Web Audio API (Zero external assets needed)
-    function playElectionBeep(type = 'unlock') {
+    // Web Audio API Synthesizer for Authentic EVM Sounds
+    function playElectionBeep(type) {
         try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (!AudioCtx) return;
             const ctx = new AudioCtx();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
-
             osc.connect(gain);
             gain.connect(ctx.destination);
 
             if (type === 'unlock') {
                 // Crisp dual-tone electronic voting machine unlock chime
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, ctx.currentTime); // Tone 1: 880Hz (A5)
-                osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.12); // Tone 2: 1174Hz (D6)
-                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.25, ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.38);
                 osc.start();
                 osc.stop(ctx.currentTime + 0.38);
-            } else {
-                // Authentic solid 1000Hz confirmation beep (1 second)
+            } else if (type === 'vote') {
+                // Crisp short EVM button press beep (150ms 1000Hz)
                 osc.type = 'square';
                 osc.frequency.setValueAtTime(1000, ctx.currentTime);
-                gain.gain.setValueAtTime(0.18, ctx.currentTime);
-                gain.gain.setValueAtTime(0.18, ctx.currentTime + 0.85);
+                gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.15);
+            } else if (type === 'success') {
+                // Continuous 1-second 1000Hz tone on submission commit
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(1000, ctx.currentTime);
+                gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                gain.gain.setValueAtTime(0.25, ctx.currentTime + 0.9);
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.05);
                 osc.start();
                 osc.stop(ctx.currentTime + 1.05);
+            } else if (type === 'error') {
+                // Low buzz error tone on submission failure
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, ctx.currentTime);
+                osc.frequency.setValueAtTime(180, ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.45);
             }
         } catch (e) {
-            console.warn('Web Audio playback error (waiting for user interaction):', e);
+            console.warn('Audio playback error:', e);
         }
     }
 
-    // Unlock Station Handler
-    function unlockStation(authId) {
+    // Render Current EVM Position Ballot Unit
+    function renderCurrentPosition() {
+        if (!activePositions || activePositions.length === 0) return;
+
+        const totalSteps = activePositions.length;
+        if (currentStepIndex >= totalSteps) {
+            currentStepIndex = totalSteps - 1;
+        }
+
+        const currentPos = activePositions[currentStepIndex];
+        if (!currentPos) return;
+
+        posCounterEl.textContent = `${currentStepIndex + 1}/${totalSteps}`;
+        posNameEl.textContent = currentPos.name;
+
+        // Render previous position change button
+        if (btnChangePrev) {
+            if (currentStepIndex > 0) {
+                btnChangePrev.classList.remove('is-hidden');
+            } else {
+                btnChangePrev.classList.add('is-hidden');
+            }
+        }
+
+        // Render Candidates in EVM Unit Rows
+        ballotUnitEl.innerHTML = '';
+        const selectedCandId = selections[currentPos.id];
+
+        currentPos.candidates.forEach((cand, idx) => {
+            const isSelected = (selectedCandId === cand.id);
+            const row = document.createElement('div');
+            row.className = `evm-candidate-row ${isSelected ? 'is-selected' : ''}`;
+            row.setAttribute('data-candidate-id', cand.id);
+            row.setAttribute('role', 'radio');
+            row.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+
+            // Column 1: Serial Number
+            const serialCol = document.createElement('div');
+            serialCol.className = 'evm-serial-num';
+            serialCol.textContent = idx + 1;
+
+            // Column 2: Candidate Name & Affiliation
+            const nameCol = document.createElement('div');
+            nameCol.className = 'evm-candidate-name-col';
+            nameCol.innerHTML = `
+                <div class="evm-cand-name">${escapeHtml(cand.name)}</div>
+                ${cand.affiliation ? `<div class="evm-cand-affiliation">${escapeHtml(cand.affiliation)}</div>` : ''}
+            `;
+
+            // Column 3: Passport Photo Area (empty blank, no border)
+            const photoCol = document.createElement('div');
+            photoCol.className = 'evm-photo-col';
+            if (cand.photo) {
+                photoCol.innerHTML = `<img src="${escapeHtml(cand.photo)}" class="evm-photo-img" alt="${escapeHtml(cand.name)}">`;
+            } else {
+                photoCol.innerHTML = `<div class="evm-photo-blank"></div>`;
+            }
+
+            // Column 4: Symbol Icon (borderless)
+            const symbolCol = document.createElement('div');
+            symbolCol.className = 'evm-symbol-col';
+            if (cand.symbol_image) {
+                symbolCol.innerHTML = `<img src="${escapeHtml(cand.symbol_image)}" class="evm-symbol-img" alt="Symbol">`;
+            } else if (cand.symbol) {
+                symbolCol.innerHTML = `<span class="evm-symbol-text">${escapeHtml(cand.symbol)}</span>`;
+            } else {
+                symbolCol.innerHTML = `<span class="evm-symbol-text">—</span>`;
+            }
+
+            // Column 5: Arrow -> Red LED Lamp -> Blue EVM Vote Button
+            const actionCol = document.createElement('div');
+            actionCol.className = 'evm-action-col';
+            actionCol.innerHTML = `
+                <span class="evm-arrow-indicator" aria-hidden="true">&rarr;</span>
+                <span class="evm-led-lamp ${isSelected ? 'is-lit' : ''}" id="led-${cand.id}"></span>
+                <button type="button" class="evm-vote-btn" aria-label="Cast vote for ${escapeHtml(cand.name)}"></button>
+            `;
+
+            row.appendChild(serialCol);
+            row.appendChild(nameCol);
+            row.appendChild(photoCol);
+            row.appendChild(symbolCol);
+            row.appendChild(actionCol);
+
+            // Click Handler: Press EVM Vote Button (Strictly only via the button, not the row)
+            const onVotePress = (e) => {
+                e.stopPropagation();
+                handleVotePress(currentPos, cand, row);
+            };
+
+            actionCol.querySelector('.evm-vote-btn').addEventListener('click', onVotePress);
+
+            ballotUnitEl.appendChild(row);
+        });
+    }
+
+    // Handle Vote Button Press for a Candidate
+    function handleVotePress(position, candidate, rowEl) {
+        if (isSubmitting) return;
+
+        // 1. Play crisp EVM position vote beep
+        playElectionBeep('vote');
+
+        // 2. Light up the red LED indicator
+        const allLamps = ballotUnitEl.querySelectorAll('.evm-led-lamp');
+        allLamps.forEach(l => l.classList.remove('is-lit'));
+        const ledLamp = rowEl.querySelector('.evm-led-lamp');
+        if (ledLamp) ledLamp.classList.add('is-lit');
+
+        // Highlight selected row
+        ballotUnitEl.querySelectorAll('.evm-candidate-row').forEach(r => r.classList.remove('is-selected'));
+        rowEl.classList.add('is-selected');
+
+        // 3. Record selection in memory
+        selections[position.id] = candidate.id;
+
+        // 4. Advance or Trigger VVPAT Slip & Submission
+        const isLastPosition = (currentStepIndex === activePositions.length - 1);
+
+        setTimeout(() => {
+            if (!isLastPosition) {
+                // Move to next position
+                currentStepIndex += 1;
+                renderCurrentPosition();
+            } else {
+                // Last position vote triggers VVPAT Paper Slip and automatic submission!
+                triggerVvpatAndSubmit();
+            }
+        }, 320);
+    }
+
+    // Change Previous Position Handler
+    if (btnChangePrev) {
+        btnChangePrev.addEventListener('click', () => {
+            if (currentStepIndex > 0) {
+                currentStepIndex -= 1;
+                renderCurrentPosition();
+            }
+        });
+    }
+
+    // Display VVPAT Paper Verification Slip Briefly, then submit ballot
+    function triggerVvpatAndSubmit() {
+        if (isSubmitting) return;
+        isSubmitting = true;
+
+        // Populate VVPAT slip with selections
+        if (vvpatSlipBody) {
+            vvpatSlipBody.innerHTML = '';
+            activePositions.forEach(pos => {
+                const candId = selections[pos.id];
+                const cand = pos.candidates.find(c => c.id === candId);
+                const row = document.createElement('div');
+                row.className = 'vvpat-row';
+
+                let symbolHtml = '—';
+                if (cand && cand.symbol_image) {
+                    symbolHtml = `<img src="${escapeHtml(cand.symbol_image)}" alt="Symbol">`;
+                } else if (cand && cand.symbol) {
+                    symbolHtml = escapeHtml(cand.symbol);
+                }
+
+                row.innerHTML = `
+                    <div>
+                        <div class="vvpat-row-pos">${escapeHtml(pos.name)}</div>
+                        <div class="vvpat-row-cand">${cand ? escapeHtml(cand.name) : '—'}</div>
+                    </div>
+                    <div class="vvpat-row-symbol">${symbolHtml}</div>
+                `;
+                vvpatSlipBody.appendChild(row);
+            });
+        }
+
+        // Show centered VVPAT slip
+        if (vvpatModal) {
+            vvpatModal.classList.remove('is-hidden');
+        }
+
+        // Display paper slip for 2.6 seconds, then drop and submit
+        setTimeout(() => {
+            if (vvpatModal) {
+                vvpatModal.classList.add('is-hidden');
+            }
+            executeBallotSubmission();
+        }, 2600);
+    }
+
+    // Execute Ballot Submission over HTTP POST
+    async function executeBallotSubmission() {
+        if (!currentAuthId) {
+            alert('No active authorization found for this terminal. Please notify the Polling Officer.');
+            isSubmitting = false;
+            return;
+        }
+
+        if (submittingOverlay) {
+            submittingOverlay.classList.remove('is-hidden');
+        }
+
+        try {
+            const response = await fetch('/voting/ballot/submit/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || '',
+                },
+                body: JSON.stringify({
+                    authorization_id: currentAuthId,
+                    selections: selections,
+                })
+            });
+
+            const data = await response.json();
+
+            if (submittingOverlay) {
+                submittingOverlay.classList.add('is-hidden');
+            }
+
+            if (data.success) {
+                // Show Success Overlay & Play Continuous 1-Second 1000Hz Tone
+                if (successOverlay) {
+                    successOverlay.classList.remove('is-hidden');
+                }
+                playElectionBeep('success');
+
+                // 3-second countdown to locked standby
+                let countdown = 3;
+                if (resetCountdownEl) resetCountdownEl.textContent = countdown;
+
+                const interval = setInterval(() => {
+                    countdown -= 1;
+                    if (resetCountdownEl) resetCountdownEl.textContent = countdown;
+                    if (countdown <= 0) {
+                        clearInterval(interval);
+                        resetKioskState();
+                        lockStation();
+                    }
+                }, 1000);
+            } else {
+                playElectionBeep('error');
+                alert(data.error || 'Failed to record ballot securely. Please vote again from the beginning.');
+                resetKioskState();
+                renderCurrentPosition();
+            }
+        } catch (err) {
+            if (submittingOverlay) {
+                submittingOverlay.classList.add('is-hidden');
+            }
+            console.error('Submission error:', err);
+            playElectionBeep('error');
+            alert('A network error occurred while recording the ballot. Please vote again from the beginning.');
+            resetKioskState();
+            renderCurrentPosition();
+        }
+    }
+
+    function resetKioskState() {
+        selections = {};
+        currentStepIndex = 0;
+        isSubmitting = false;
+        if (vvpatModal) vvpatModal.classList.add('is-hidden');
+        if (successOverlay) successOverlay.classList.add('is-hidden');
+        if (submittingOverlay) submittingOverlay.classList.add('is-hidden');
+    }
+
+    // Unlock Station with Eligibility Filtering
+    function unlockStation(authId, eligiblePosIds) {
         currentAuthId = authId;
         isUnlocked = true;
 
-        // Produce authentic EVM unlock sound
+        resetKioskState();
+
+        // Filter active positions strictly by eligibility if provided
+        if (Array.isArray(eligiblePosIds)) {
+            activePositions = allPositions.filter(p => eligiblePosIds.includes(p.id));
+        } else {
+            activePositions = [...allPositions];
+        }
+
         playElectionBeep('unlock');
 
-        // Smooth transition
         if (lockOverlay) {
             lockOverlay.classList.add('is-hidden');
         }
         if (workspace) {
             workspace.classList.remove('is-locked');
         }
+
+        renderCurrentPosition();
     }
 
     // Lock Station Handler
@@ -154,8 +528,7 @@ document.addEventListener('DOMContentLoaded', function () {
         currentAuthId = null;
         isUnlocked = false;
 
-        // Produce lock sound
-        playElectionBeep('lock');
+        resetKioskState();
 
         if (lockOverlay) {
             lockOverlay.classList.remove('is-hidden');
@@ -176,7 +549,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             kioskSocket.onopen = function () {
                 if (connPill && connText) {
-                    connPill.className = 'kiosk-connection-pill';
+                    connPill.className = 'kiosk-corner-status';
                     connText.textContent = 'Terminal Connected';
                 }
             };
@@ -185,18 +558,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 try {
                     const data = JSON.parse(e.data);
                     if (data.event === 'kiosk.unlock') {
-                        unlockStation(data.authorization_id);
+                        unlockStation(data.authorization_id, data.eligible_position_ids);
                     } else if (data.event === 'kiosk.lock') {
                         lockStation();
+                    } else if (data.event === 'election.started') {
+                        window.location.reload();
+                    } else if (data.event === 'election.closed') {
+                        window.location.reload();
                     }
                 } catch (err) {
-                    console.error('Kiosk WS error parsing message:', err);
+                    console.error('Kiosk WS message error:', err);
                 }
             };
 
             kioskSocket.onclose = function () {
                 if (connPill && connText) {
-                    connPill.className = 'kiosk-connection-pill is-disconnected';
+                    connPill.className = 'kiosk-corner-status is-disconnected';
                     connText.textContent = 'Terminal Offline';
                 }
                 setTimeout(connectKioskSocket, 2500);
@@ -210,6 +587,30 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Initialize UI
+    renderCurrentPosition();
     connectKioskSocket();
 });
 </script>

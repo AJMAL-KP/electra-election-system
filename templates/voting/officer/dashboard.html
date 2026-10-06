@@ -260,6 +260,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const kioskOnline = {{ kiosk_online|yesno:"true,false" }};
 
+    let activeAuthorizationId = {% if active_auth_id %}{{ active_auth_id }}{% else %}null{% endif %};
+    let activeAuthorizedVoterId = {% if active_voter_id %}"{{ active_voter_id }}"{% else %}null{% endif %};
+
     let activeFilter = 'not_voted';
     let searchQuery = '';
     let selectedVoterId = null;
@@ -272,6 +275,51 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+    }
+
+    function lockOfficer(authId, voterId) {
+        activeAuthorizationId = authId;
+        activeAuthorizedVoterId = voterId;
+
+        if (searchInput) searchInput.disabled = true;
+        tabButtons.forEach(btn => btn.disabled = true);
+        if (voterListContainer) voterListContainer.classList.add('is-locked');
+
+        if (btnAuthorize) {
+            btnAuthorize.textContent = 'Cancel authorization';
+            btnAuthorize.classList.add('is-cancel');
+            btnAuthorize.disabled = false;
+        }
+
+        if (detailStatusBox) {
+            detailStatusBox.className = 'officer-status-box is-in-progress';
+            detailStatusHeading.textContent = 'In progress';
+            detailStatusDesc.textContent = 'Voter has been authorized and is currently voting at the kiosk.';
+        }
+        if (footnoteText) {
+            footnoteText.textContent = 'Voting in progress. Click "Cancel authorization" to abort authorization.';
+        }
+    }
+
+    function unlockOfficer() {
+        activeAuthorizationId = null;
+        activeAuthorizedVoterId = null;
+
+        if (searchInput) searchInput.disabled = false;
+        tabButtons.forEach(btn => btn.disabled = false);
+        if (voterListContainer) voterListContainer.classList.remove('is-locked');
+
+        if (btnAuthorize) {
+            btnAuthorize.classList.remove('is-cancel');
+            btnAuthorize.textContent = 'Authorize voter';
+        }
+
+        if (selectedVoterId) {
+            const voter = votersData.find(v => String(v.voter_id) === String(selectedVoterId));
+            if (voter) {
+                renderDetails(voter);
+            }
+        }
     }
 
     function renderDetails(voter) {
@@ -315,19 +363,28 @@ document.addEventListener('DOMContentLoaded', function () {
             detailStatusHeading.textContent = 'Voted';
             detailStatusDesc.textContent = 'This voter has already cast their ballot for this election.';
             btnAuthorize.disabled = true;
+            btnAuthorize.classList.remove('is-cancel');
+            btnAuthorize.textContent = 'Authorize voter';
             footnoteText.textContent = 'This voter has already voted and cannot be re-authorized.';
-        } else if (voter.status_code === 'in_progress') {
+        } else if (voter.status_code === 'in_progress' || (activeAuthorizationId && String(activeAuthorizedVoterId) === String(voter.voter_id))) {
             detailStatusBox.classList.add('is-in-progress');
             detailStatusHeading.textContent = 'In progress';
             detailStatusDesc.textContent = 'Voter has been authorized and is currently voting at the kiosk.';
-            btnAuthorize.disabled = true;
-            footnoteText.textContent = 'This voter is already authorized. Please wait for the vote to be completed.';
+            btnAuthorize.textContent = 'Cancel authorization';
+            btnAuthorize.classList.add('is-cancel');
+            btnAuthorize.disabled = false;
+            footnoteText.textContent = 'Voting in progress. Click "Cancel authorization" to abort authorization.';
         } else {
+            btnAuthorize.classList.remove('is-cancel');
+            btnAuthorize.textContent = 'Authorize voter';
             detailStatusBox.classList.add('is-not-voted');
             detailStatusHeading.textContent = 'Ready to authorize';
             detailStatusDesc.textContent = 'Verify voter identity before issuing voting authorization.';
             
-            if (!kioskOnline) {
+            if (activeAuthorizationId) {
+                btnAuthorize.disabled = true;
+                footnoteText.textContent = 'Another voter is currently voting. Please wait for kiosk to finish or cancel current authorization.';
+            } else if (!kioskOnline) {
                 btnAuthorize.disabled = true;
                 footnoteText.textContent = 'Voting Kiosk is offline or unauthenticated. Cannot issue authorization.';
             } else {
@@ -429,8 +486,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Attach click events to rows
+    // Attach click events to rows (Blocked when officer is locked)
     voterListContainer.addEventListener('click', function (e) {
+        if (activeAuthorizationId) return; // Prevent selecting other voters while voting is active
         const row = e.target.closest('.officer-voter-row');
         if (row) {
             highlightRow(row);
@@ -443,6 +501,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Search event with instant closest-match ranking
     if (searchInput) {
         searchInput.addEventListener('input', function () {
+            if (activeAuthorizationId) return; // Prevent searching while voting is active
             searchQuery = this.value.trim().toLowerCase();
             filterVoters();
         });
@@ -451,6 +510,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Tab buttons event
     tabButtons.forEach(btn => {
         btn.addEventListener('click', function () {
+            if (activeAuthorizationId) return; // Prevent changing tabs while voting is active
             tabButtons.forEach(b => {
                 b.classList.remove('is-active');
                 b.setAttribute('aria-selected', 'false');
@@ -462,12 +522,50 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Handle Authorize Voter button click
+    // Handle Authorize / Cancel Authorization Button click
     if (btnAuthorize) {
         btnAuthorize.addEventListener('click', async function () {
-            if (!selectedVoterId || btnAuthorize.disabled) return;
+            if (btnAuthorize.disabled) return;
 
-            const originalText = btnAuthorize.textContent;
+            // Scenario 1: Active authorization exists -> Cancel Authorization
+            if (activeAuthorizationId) {
+                const prevAuthId = activeAuthorizationId;
+                const prevVoterId = activeAuthorizedVoterId;
+                btnAuthorize.disabled = true;
+                btnAuthorize.textContent = 'Cancelling...';
+
+                try {
+                    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+                    const response = await fetch("{% url 'voting:officer_cancel_authorization' %}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken,
+                        },
+                        body: JSON.stringify({ authorization_id: prevAuthId }),
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        unlockOfficer();
+                        handleRemoteAuthUpdate(prevVoterId, 'not_voted');
+                    } else {
+                        alert(data.error || 'Failed to cancel authorization.');
+                        btnAuthorize.disabled = false;
+                        btnAuthorize.textContent = 'Cancel authorization';
+                    }
+                } catch (err) {
+                    console.error('Cancel authorization failed:', err);
+                    alert('A network error occurred while cancelling authorization.');
+                    btnAuthorize.disabled = false;
+                    btnAuthorize.textContent = 'Cancel authorization';
+                }
+                return;
+            }
+
+            // Scenario 2: No active authorization -> Authorize Selected Voter
+            if (!selectedVoterId) return;
+
             btnAuthorize.disabled = true;
             btnAuthorize.textContent = 'Authorizing...';
 
@@ -484,31 +582,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const data = await response.json();
                 if (data.success) {
-                    const voter = votersData.find(v => v.voter_id === selectedVoterId);
-                    if (voter) {
-                        voter.status_code = 'in_progress';
-                        voter.status_display = 'In progress';
-                    }
-                    const row = voterListContainer.querySelector(`.officer-voter-row[data-voter-id="${selectedVoterId}"]`);
-                    if (row) {
-                        row.setAttribute('data-status', 'in_progress');
-                        const statusPill = row.querySelector('.officer-voter-status');
-                        if (statusPill) {
-                            statusPill.className = 'officer-voter-status is-in-progress';
-                            statusPill.innerHTML = '<span class="status-dot"></span><span class="status-label">In progress</span>';
-                        }
-                    }
-                    renderDetails(voter);
+                    const authVoterId = selectedVoterId;
+                    const authId = data.authorization_id;
+                    handleRemoteAuthUpdate(authVoterId, 'in_progress');
+                    lockOfficer(authId, authVoterId);
                 } else {
                     alert(data.error || 'Failed to issue authorization.');
                     btnAuthorize.disabled = false;
-                    btnAuthorize.textContent = originalText;
+                    btnAuthorize.textContent = 'Authorize voter';
                 }
             } catch (err) {
                 console.error('Authorization request failed:', err);
                 alert('A network error occurred while contacting the voting server.');
                 btnAuthorize.disabled = false;
-                btnAuthorize.textContent = originalText;
+                btnAuthorize.textContent = 'Authorize voter';
             }
         });
     }
@@ -529,6 +616,23 @@ document.addEventListener('DOMContentLoaded', function () {
                         updateKioskStatus(data.online);
                     } else if (data.event === 'authorization.updated') {
                         handleRemoteAuthUpdate(data.voter_id, data.status);
+                    } else if (data.event === 'ballot.recorded') {
+                        if (data.voter_id) {
+                            handleRemoteAuthUpdate(data.voter_id, 'voted');
+                        }
+                    } else if (data.event === 'election.started') {
+                        const draftOverlay = document.querySelector('.officer-draft-overlay');
+                        if (draftOverlay) draftOverlay.remove();
+                        const workspace = document.querySelector('.officer-workspace');
+                        if (workspace) {
+                            workspace.classList.remove('is-draft' + '-blurred');
+                            workspace.removeAttribute('aria-hidden');
+                        }
+                        const draftBadge = document.getElementById('officer-election-status-badge');
+                        if (draftBadge) draftBadge.remove();
+                        window.location.reload();
+                    } else if (data.event === 'election.closed') {
+                        window.location.reload();
                     }
                 } catch (err) {
                     console.error('Officer WS error parsing message:', err);
@@ -552,11 +656,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 text.textContent = 'Kiosk ' + 'Ready';
             } else {
                 badge.className = 'officer-kiosk-status-pill is-offline';
-                text.textContent = 'Kiosk ' + 'Offline';
+                text.textContent = 'Kiosk Offline';
             }
         }
-        if (selectedVoterId) {
-            const voter = votersData.find(v => v.voter_id === selectedVoterId);
+        if (selectedVoterId && !activeAuthorizationId) {
+            const voter = votersData.find(v => String(v.voter_id) === String(selectedVoterId));
             if (voter && !voter.has_voted && voter.status_code !== 'in_progress') {
                 btnAuthorize.disabled = !online;
                 if (!online) {
@@ -568,23 +672,51 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function updateTabCounts() {
+        const notVotedCount = votersData.filter(v => !v.has_voted && v.status_code !== 'voted').length;
+        const votedCount = votersData.filter(v => v.has_voted || v.status_code === 'voted').length;
+        const allCount = votersData.length;
+
+        tabButtons.forEach(btn => {
+            const filter = btn.getAttribute('data-filter');
+            if (filter === 'not_voted') {
+                btn.textContent = `Not voted (${notVotedCount})`;
+            } else if (filter === 'voted') {
+                btn.textContent = `Voted (${votedCount})`;
+            } else if (filter === 'all') {
+                btn.textContent = `All (${allCount})`;
+            }
+        });
+    }
+
     function handleRemoteAuthUpdate(voterId, status) {
-        const voter = votersData.find(v => v.voter_id === voterId);
+        if (activeAuthorizedVoterId && String(activeAuthorizedVoterId) === String(voterId)) {
+            if (status === 'voted' || status === 'not_voted') {
+                unlockOfficer();
+            }
+        }
+        const voter = votersData.find(v => String(v.voter_id) === String(voterId));
         if (voter) {
             voter.status_code = status;
             voter.status_display = (status === 'voted') ? 'Voted' : (status === 'in_progress' ? 'In progress' : 'Not voted');
-            if (status === 'voted') voter.has_voted = true;
+            if (status === 'voted') {
+                voter.has_voted = true;
+                voter.voted_at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
         }
         const row = voterListContainer.querySelector(`.officer-voter-row[data-voter-id="${voterId}"]`);
         if (row) {
             row.setAttribute('data-status', status);
+            row.setAttribute('data-has-voted', (status === 'voted') ? 'true' : 'false');
             const statusPill = row.querySelector('.officer-voter-status');
             if (statusPill) {
                 statusPill.className = `officer-voter-status is-${status}`;
                 statusPill.innerHTML = `<span class="status-dot"></span><span class="status-label">${voter ? voter.status_display : status}</span>`;
             }
         }
-        if (selectedVoterId === voterId && voter) {
+        updateTabCounts();
+        filterVoters();
+        if (selectedVoterId && String(selectedVoterId) === String(voterId) && voter) {
             renderDetails(voter);
         }
     }
@@ -606,9 +738,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
     connectOfficerSocket();
 
-    // Initial filter run: filters to 'not_voted' with default 'no voter selected'
-    filterVoters();
-    renderDetails(null);
+    // Initial load: restore active authorization if exists, else default state
+    if (activeAuthorizationId && activeAuthorizedVoterId) {
+        filterVoters();
+        const voter = votersData.find(v => String(v.voter_id) === String(activeAuthorizedVoterId));
+        if (voter) {
+            renderDetails(voter);
+            const row = voterListContainer.querySelector(`.officer-voter-row[data-voter-id="${activeAuthorizedVoterId}"]`);
+            if (row) highlightRow(row);
+        }
+        lockOfficer(activeAuthorizationId, activeAuthorizedVoterId);
+    } else {
+        filterVoters();
+        renderDetails(null);
+    }
 });
 </script>
 {% endblock %}

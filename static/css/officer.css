@@ -481,6 +481,13 @@ body.officer-page .main-content {
     background-color: #CBD5E1;
 }
 
+.officer-voter-list.is-locked {
+    opacity: 0.55;
+    pointer-events: none;
+    cursor: not-allowed;
+    user-select: none;
+}
+
 .officer-voter-row {
     display: grid;
     grid-template-columns: 105px 1.4fr 1.1fr 105px;
@@ -730,6 +737,17 @@ body.officer-page .main-content {
 
 .officer-btn-authorize:hover:not([disabled]) {
     background-color: #1F2937;
+}
+
+.officer-btn-authorize.is-cancel {
+    background-color: #EF4444;
+    border-color: #EF4444;
+    color: #FFFFFF;
+}
+
+.officer-btn-authorize.is-cancel:hover:not([disabled]) {
+    background-color: #DC2626;
+    border-color: #DC2626;
 }
 
 .officer-btn-authorize[disabled] {

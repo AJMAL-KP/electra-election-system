@@ -6,6 +6,7 @@ from voting.views import (
     officer_authorize_view,
     officer_cancel_authorization_view,
     officer_dashboard_view,
+    submit_ballot_view,
 )
 
 app_name = "voting"
@@ -18,4 +19,5 @@ urlpatterns = [
     path("officer/<int:booth_id>/", RedirectView.as_view(url="/voting/officer/", permanent=False)),
     path("kiosk/", kiosk_view, name="kiosk"),
     path("kiosk/<int:booth_id>/", RedirectView.as_view(url="/voting/kiosk/", permanent=False)),
+    path("ballot/submit/", submit_ballot_view, name="submit_ballot"),
 ]
