@@ -402,6 +402,7 @@ class ElectionVotersWorkflowTests(TestCase):
         election = create_election(name="Auto Timestamp Election")
         pos = create_position(election_id=election.id, name="President")
         create_candidate(position_id=pos.id, name="Alice")
+        create_candidate(position_id=pos.id, name="Bob")
         voter = create_voter(primary_registry_value="AUTO01", name="Auto Voter")
         enroll_voters_in_election(election_id=election.id, voter_ids=[voter.id])
         booth_res = create_booth(election_id=election.id)
@@ -514,6 +515,7 @@ class ElectionVotersWorkflowTests(TestCase):
         election = create_election(name="Readiness Gate Test")
         pos = create_position(election_id=election.id, name="President")
         create_candidate(position_id=pos.id, name="Alice Walker")
+        create_candidate(position_id=pos.id, name="Bob Walker")
         voter = create_voter(primary_registry_value="RD001", name="Ready Voter")
         enroll_voters_in_election(election_id=election.id, voter_ids=[voter.id])
         booth_res = create_booth(election_id=election.id)
@@ -608,6 +610,7 @@ class ElectionVotersWorkflowTests(TestCase):
         election = create_election(name="Results Lifecycle Election")
         pos = create_position(election_id=election.id, name="President")
         cand = create_candidate(position_id=pos.id, name="Candidate One")
+        cand2 = create_candidate(position_id=pos.id, name="Candidate Two")
         voter = create_voter(primary_registry_value="RES001", name="Results Voter")
         enroll_voters_in_election(election_id=election.id, voter_ids=[voter.id])
         booth_res = create_booth(election_id=election.id)
@@ -643,6 +646,107 @@ class ElectionVotersWorkflowTests(TestCase):
         pub_res = self.client.get(results_url)
         self.assertEqual(pub_res.status_code, 200)
         self.assertContains(pub_res, "Official Certified Results")
+
+    def test_admin_manual_end_election(self):
+        """Admin can manually end an active election via the close endpoint, transitioning to CLOSED."""
+        from elections.services import create_candidate, create_election, create_position, start_election
+        from voters.models import ElectionVoter
+        from voters.services import create_booth, create_voter, enroll_voters_in_election
+        from accounts.services import create_device_session
+
+        self.client.login(username="adminuser", password="adminpassword123")
+        election = create_election(name="Manual End Test Election")
+        pos = create_position(election_id=election.id, name="Secretary")
+        create_candidate(position_id=pos.id, name="Candidate Alpha")
+        create_candidate(position_id=pos.id, name="Candidate Beta")
+        voter = create_voter(primary_registry_value="END001", name="End Voter")
+        enroll_voters_in_election(election_id=election.id, voter_ids=[voter.id])
+        booth_res = create_booth(election_id=election.id)
+        ElectionVoter.objects.filter(election=election).update(booth=booth_res["booth"])
+        create_device_session(booth_res["officer_device"], "s-off-end")
+        create_device_session(booth_res["kiosk_device"], "s-kio-end")
+
+        start_election(election_id=election.id, ends_at=timezone.now() + timedelta(hours=3))
+        election.refresh_from_db()
+        self.assertEqual(election.status, ElectionStatus.ACTIVE)
+
+        # POST to close endpoint
+        close_url = reverse("elections:close", kwargs={"election_id": election.id})
+        res = self.client.post(close_url)
+        self.assertEqual(res.status_code, 302)
+        self.assertRedirects(res, reverse("elections:results", kwargs={"election_id": election.id}))
+
+        election.refresh_from_db()
+        self.assertEqual(election.status, ElectionStatus.CLOSED)
+        self.assertIsNotNone(election.closed_at)
+
+    def test_election_auto_ends_on_response_after_scheduled_close_time(self):
+        """When scheduled voting cutoff has elapsed, an election request triggers automatic closing and redirects."""
+        from elections.services import create_candidate, create_election, create_position, start_election
+        from voters.models import ElectionVoter
+        from voters.services import create_booth, create_voter, enroll_voters_in_election
+        from accounts.services import create_device_session
+
+        self.client.login(username="adminuser", password="adminpassword123")
+        election = create_election(name="Cutoff Response Test Election")
+        pos = create_position(election_id=election.id, name="Treasurer")
+        create_candidate(position_id=pos.id, name="Candidate Beta")
+        create_candidate(position_id=pos.id, name="Candidate Gamma")
+        voter = create_voter(primary_registry_value="CUT001", name="Cutoff Voter")
+        enroll_voters_in_election(election_id=election.id, voter_ids=[voter.id])
+        booth_res = create_booth(election_id=election.id)
+        ElectionVoter.objects.filter(election=election).update(booth=booth_res["booth"])
+        create_device_session(booth_res["officer_device"], "s-off-cut")
+        create_device_session(booth_res["kiosk_device"], "s-kio-cut")
+
+        # Set ends_at in the future for start validation, then wind clock back
+        start_election(election_id=election.id, ends_at=timezone.now() + timedelta(hours=1))
+        election.ends_at = timezone.now() - timedelta(minutes=5)
+        election.save(update_fields=["ends_at"])
+
+        # Request live dashboard after cutoff has elapsed
+        live_url = reverse("elections:live", kwargs={"election_id": election.id})
+        res = self.client.get(live_url)
+        self.assertEqual(res.status_code, 302)
+        self.assertRedirects(res, reverse("elections:results", kwargs={"election_id": election.id}))
+
+        election.refresh_from_db()
+        self.assertEqual(election.status, ElectionStatus.CLOSED)
+        self.assertIsNotNone(election.closed_at)
+
+    def test_election_live_stats_auto_closes_expired_election(self):
+        """Live stats API automatically transitions expired election to CLOSED and returns is_closed: True."""
+        from elections.services import create_candidate, create_election, create_position, start_election
+        from voters.models import ElectionVoter
+        from voters.services import create_booth, create_voter, enroll_voters_in_election
+        from accounts.services import create_device_session
+
+        self.client.login(username="adminuser", password="adminpassword123")
+        election = create_election(name="Stats Expiry Election")
+        pos = create_position(election_id=election.id, name="Convener")
+        create_candidate(position_id=pos.id, name="Candidate Gamma")
+        create_candidate(position_id=pos.id, name="Candidate Delta")
+        voter = create_voter(primary_registry_value="STAT001", name="Stats Voter")
+        enroll_voters_in_election(election_id=election.id, voter_ids=[voter.id])
+        booth_res = create_booth(election_id=election.id)
+        ElectionVoter.objects.filter(election=election).update(booth=booth_res["booth"])
+        create_device_session(booth_res["officer_device"], "s-off-stat")
+        create_device_session(booth_res["kiosk_device"], "s-kio-stat")
+
+        start_election(election_id=election.id, ends_at=timezone.now() + timedelta(hours=1))
+        election.ends_at = timezone.now() - timedelta(seconds=30)
+        election.save(update_fields=["ends_at"])
+
+        stats_url = reverse("elections:live_stats", kwargs={"election_id": election.id})
+        res = self.client.get(stats_url)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data.get("is_closed"))
+        self.assertIn(reverse("elections:results", kwargs={"election_id": election.id}), data.get("redirect_url"))
+
+        election.refresh_from_db()
+        self.assertEqual(election.status, ElectionStatus.CLOSED)
+        self.assertIsNotNone(election.closed_at)
 
 
 class ElectionHistoryTests(TestCase):

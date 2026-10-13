@@ -17,6 +17,17 @@
     <p class="auth-subtitle">Sign in to access the election management system.</p>
 
     <div class="auth-card">
+        {% if election_ended or request.GET.reason == 'election_ended' %}
+        <div class="auth-notice" role="alert">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>Election has ended. Voting has officially concluded.</span>
+        </div>
+        {% endif %}
+
         <form method="post" action="{% url 'accounts:login' %}" class="auth-form" novalidate>
             {% csrf_token %}
 

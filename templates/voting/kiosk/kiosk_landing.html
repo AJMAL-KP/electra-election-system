@@ -32,33 +32,87 @@
 
     <!-- Locked Standby Overlay (Displayed before Officer Authorization) -->
     <div class="kiosk-lock-overlay {% if not is_locked %}is-hidden{% endif %}" id="kiosk-lock-overlay">
-        <div class="kiosk-lock-card">
-            <div class="kiosk-lock-icon-wrap">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        <!-- Test assertion required text: 'Voting Station Locked' -->
+        <div class="kiosk-lock-symbol" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+        </div>
+        <h1 class="kiosk-lock-title" id="kiosk-lock-title">{% if is_draft %}Election Has Not Yet Started{% elif booth_completed %}Voting Completed{% elif is_ended and not active_auth %}Election Has Ended{% else %}Voting Station Locked{% endif %}</h1>
+        <p class="kiosk-lock-subtitle" id="kiosk-lock-subtitle">{% if is_draft %}Terminal is in standby mode. Voting will unlock once the election is started by the administrator.{% elif booth_completed %}Voting completed, waiting for election to end.{% elif is_ended and not active_auth %}Voting has concluded for this election. New voter authorizations are no longer permitted.{% else %}Standby for Officer Authorization{% endif %}</p>
+
+        <div class="kiosk-lock-device-tag">
+            <span>Terminal: <code>{{ device.identifier }}</code> &bull; Booth {{ booth.booth_number|stringformat:"02d" }}</span>
+        </div>
+        <div class="kiosk-lock-actions">
+            {% if not is_draft and not is_ended and not booth_completed %}
+            <button type="button" class="kiosk-fullscreen-toggle" id="btn-kiosk-fullscreen" onclick="enterKioskFullscreen()" title="Enter Fullscreen Mode">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
                 </svg>
-            </div>
-            <!-- Test assertion required text: 'Voting Station Locked' -->
-            <h1 class="kiosk-lock-title">Voting Station Locked</h1>
-            <p class="kiosk-lock-desc">
-                Please proceed to the Polling Officer desk for verification. This station will automatically unlock once your voting authorization is issued.
-            </p>
-            <div class="kiosk-lock-meta">
-                <span class="kiosk-pulse-dot"></span>
-                <span>Standby for Officer Authorization</span>
-            </div>
-            <div class="kiosk-audio-hint">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <span>Enter Fullscreen</span>
+            </button>
+            {% endif %}
+            <a href="{% url 'accounts:logout' %}{% if is_ended %}?reason=election_ended{% endif %}" class="kiosk-lock-logout-link" id="btn-kiosk-logout">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
                 </svg>
-                <span>Terminal Audio Active</span>
-            </div>
+                <span>Log Out</span>
+            </a>
         </div>
     </div>
 
-    <!-- VVPAT Paper Verification Slip Modal (Appears briefly before submission) -->
+    <!-- Fullscreen Enforcement Overlay (Electra Theme: White background, borderless, minimalistic) -->
+    <div class="kiosk-fullscreen-enforce-overlay is-hidden" id="kiosk-fullscreen-enforce-overlay" role="dialog" aria-modal="true" aria-label="Fullscreen Mode Required" onclick="enterKioskFullscreen()">
+        <div class="kiosk-lock-symbol" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
+        </div>
+        <h2 class="kiosk-lock-title">Fullscreen Mode Required</h2>
+        <p class="kiosk-lock-subtitle">This voting kiosk terminal must operate in full screen mode for ballot secrecy and terminal integrity.</p>
+        <div class="kiosk-lock-device-tag">
+            <span>Terminal: <code>{{ device.identifier }}</code> &bull; Booth {{ booth.booth_number|stringformat:"02d" }}</span>
+        </div>
+        <div class="kiosk-lock-actions">
+            <button type="button" class="kiosk-fullscreen-toggle" id="btn-kiosk-activate-fs" onclick="enterKioskFullscreen()" title="Activate Fullscreen Mode">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                </svg>
+                <span>Activate Fullscreen</span>
+            </button>
+        </div>
+    </div>
+
+
+    <!-- Credentials Revoked Modal Overlay (Electra Theme: White background, borderless, minimalistic) -->
+    <div class="kiosk-revoked-overlay is-hidden" id="kiosk-revoked-overlay" role="alertdialog" aria-modal="true" aria-label="Credentials Revoked">
+        <div class="kiosk-lock-symbol" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+        </div>
+        <h2 class="kiosk-lock-title">Station Credentials Rotated</h2>
+        <p class="kiosk-lock-subtitle">This kiosk station's credentials have been rotated or revoked by the Administrator. Please log in with the updated credentials.</p>
+        <div class="kiosk-lock-device-tag" style="margin-top: 14px;">
+            <span>Device: <code>{{ device.identifier }}</code> &bull; Inactive Credentials</span>
+        </div>
+        <div class="kiosk-lock-actions" style="margin-top: 18px;">
+            <a href="{% url 'accounts:logout' %}" class="kiosk-lock-logout-link">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Return to Login</span>
+            </a>
+        </div>
+    </div>
+
     <div class="vvpat-overlay is-hidden" id="vvpat-modal" role="dialog" aria-label="Ballot Verification Slip">
         <div class="vvpat-paper-slip">
             <div class="vvpat-slip-header">
@@ -75,63 +129,46 @@
         </div>
     </div>
 
-    <!-- Submitting / Recording Overlay -->
-    <div class="kiosk-submitting-overlay is-hidden" id="kiosk-submitting-overlay">
-        <div class="kiosk-submitting-card">
-            <div class="kiosk-spinner"></div>
-            <h2 class="kiosk-submitting-title">Recording Ballot Securely</h2>
-            <p class="kiosk-submitting-desc">Encrypting selections and storing anonymous vote record. Please wait...</p>
-        </div>
-    </div>
-
-    <!-- Success Feedback Overlay -->
-    <div class="kiosk-success-overlay is-hidden" id="kiosk-success-overlay">
-        <div class="kiosk-success-card">
-            <div class="kiosk-success-icon-wrap">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-            </div>
-            <h2 class="kiosk-success-title">Vote Recorded Successfully</h2>
-            <p class="kiosk-success-desc">
-                Your ballot has been safely and anonymously recorded in the election database.
-            </p>
-            <div class="kiosk-success-timer">
-                Terminal returning to locked standby in <span id="kiosk-reset-countdown">3</span>s...
-            </div>
-        </div>
-    </div>
-
     <!-- Main Workspace (Slightly blurred when locked) -->
     <main class="kiosk-content {% if is_locked %}is-locked{% endif %}" id="kiosk-workspace" aria-live="polite">
         <!-- Test assertion required text -->
         {% autoescape off %}<span style="display:none;">Station Unlocked & Ready</span>{% endautoescape %}
 
-        <!-- Top Centered Text in Newsreader Font: "Electra • Election Name • Booth 01" -->
-        <div class="kiosk-evm-top">
-            <span class="kiosk-evm-brand">Electra</span>
-            <span class="kiosk-evm-sep">&bull;</span>
-            <span class="kiosk-evm-election">{{ election.name }}</span>
-            <span class="kiosk-evm-sep">&bull;</span>
-            <span class="kiosk-evm-booth">Booth {{ booth.booth_number|stringformat:"02d" }}</span>
+        <!-- Top Centered Election Details: Electra, Election Name, Booth -->
+        <header class="kiosk-election-header">
+            <h1 class="kiosk-brand-title">Electra</h1>
+            <div class="kiosk-election-title">{{ election.name }}</div>
+            <div class="kiosk-booth-subtitle">Booth {{ booth.booth_number|stringformat:"02d" }}</div>
+        </header>
+
+        <!-- Submission Error Alert Banner -->
+        <div class="kiosk-submission-error is-hidden" id="kiosk-submission-error" role="alert">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span id="kiosk-error-text">Submission failed, vote again.</span>
         </div>
 
-        <!-- Position Header: 1/3 + Position Title in Newsreader Font -->
-        <div class="kiosk-position-header">
-            <div class="kiosk-position-title-group">
-                <span class="kiosk-pos-counter-pill" id="kiosk-pos-counter">1/{{ total_positions }}</span>
-                <h2 class="kiosk-pos-name" id="kiosk-pos-name">—</h2>
+        <!-- Position Header: Left aligned above EVM machine (matching reference image) -->
+        <div class="kiosk-position-section">
+            <div class="kiosk-pos-eyebrow">
+                <span>Select your candidate for</span>
+                <span class="kiosk-pos-counter-pill {% if total_positions <= 1 %}is-hidden{% endif %}" id="kiosk-pos-counter">1/{{ total_positions }}</span>
             </div>
-            <span class="kiosk-pos-instruction">Press the blue button for your candidate</span>
+            <h2 class="kiosk-pos-name" id="kiosk-pos-name">—</h2>
+            <div class="kiosk-pos-instruction">Choose one candidate. Press the blue button to vote.</div>
         </div>
 
-        <!-- Authentic EVM Ballot Unit -->
+        <!-- Authentic EVM Ballot Unit (Borderless, No Cards, Matching Reference Proportions) -->
         <section class="evm-ballot-unit" id="evm-ballot-unit" role="radiogroup" aria-label="Candidates Ballot Unit">
             <!-- Rendered dynamically via JS:
-                 Column 1: Serial No & Candidate Name
-                 Column 2: Passport Photo Area (empty blank, no border)
-                 Column 3: Symbol Icon (borderless)
-                 Column 4: Arrow -> Red LED Lamp -> Blue EVM Button
+                 Column 1: Serial Number (sl no)
+                 Column 2: Candidate Name & Affiliation
+                 Column 3: Candidate Photo Area (empty space if not available, no outline)
+                 Column 4: Symbol Photo Area (empty space if not available, no outline)
+                 Column 5: Red LED Indicator & Blue EVM Button
             -->
         </section>
 
@@ -154,17 +191,28 @@
 {{ positions_json|json_script:"ballot-positions-data" }}
 
 <script>
+window.enterKioskFullscreen = function () {
+    const docEl = document.documentElement;
+    const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+    if (req) {
+        try {
+            const res = req.call(docEl);
+            if (res && typeof res.then === 'function') {
+                res.catch(err => console.warn('Fullscreen request rejected:', err));
+            }
+        } catch (err) {
+            console.warn('Fullscreen call failed:', err);
+        }
+    }
+};
+
 document.addEventListener('DOMContentLoaded', function () {
     const lockOverlay = document.getElementById('kiosk-lock-overlay');
-    const submittingOverlay = document.getElementById('kiosk-submitting-overlay');
-    const successOverlay = document.getElementById('kiosk-success-overlay');
     const vvpatModal = document.getElementById('vvpat-modal');
     const vvpatSlipBody = document.getElementById('vvpat-slip-body');
     const workspace = document.getElementById('kiosk-workspace');
     const connPill = document.getElementById('kiosk-conn-pill');
     const connText = document.getElementById('kiosk-conn-text');
-    const resetCountdownEl = document.getElementById('kiosk-reset-countdown');
-
     const posCounterEl = document.getElementById('kiosk-pos-counter');
     const posNameEl = document.getElementById('kiosk-pos-name');
     const ballotUnitEl = document.getElementById('evm-ballot-unit');
@@ -179,6 +227,20 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentStepIndex = 0; // 0 to activePositions.length - 1
     let selections = {}; // { position_id: candidate_id }
     let isSubmitting = false;
+
+    function showSubmissionError(msg) {
+        const banner = document.getElementById('kiosk-submission-error');
+        const textEl = document.getElementById('kiosk-error-text');
+        if (banner) {
+            if (textEl) textEl.textContent = msg || 'Submission failed, vote again.';
+            banner.classList.remove('is-hidden');
+        }
+    }
+
+    function hideSubmissionError() {
+        const banner = document.getElementById('kiosk-submission-error');
+        if (banner) banner.classList.add('is-hidden');
+    }
 
     // Web Audio API Synthesizer for Authentic EVM Sounds
     function playElectionBeep(type) {
@@ -244,8 +306,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const currentPos = activePositions[currentStepIndex];
         if (!currentPos) return;
 
-        posCounterEl.textContent = `${currentStepIndex + 1}/${totalSteps}`;
-        posNameEl.textContent = currentPos.name;
+        if (posCounterEl) {
+            posCounterEl.textContent = `${currentStepIndex + 1}/${totalSteps}`;
+            if (totalSteps > 1) {
+                posCounterEl.classList.remove('is-hidden');
+            } else {
+                posCounterEl.classList.add('is-hidden');
+            }
+        }
+        if (posNameEl) {
+            posNameEl.textContent = currentPos.name;
+        }
 
         // Render previous position change button
         if (btnChangePrev) {
@@ -268,7 +339,7 @@ document.addEventListener('DOMContentLoaded', function () {
             row.setAttribute('role', 'radio');
             row.setAttribute('aria-checked', isSelected ? 'true' : 'false');
 
-            // Column 1: Serial Number
+            // Column 1: Serial Number (sl no)
             const serialCol = document.createElement('div');
             serialCol.className = 'evm-serial-num';
             serialCol.textContent = idx + 1;
@@ -281,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${cand.affiliation ? `<div class="evm-cand-affiliation">${escapeHtml(cand.affiliation)}</div>` : ''}
             `;
 
-            // Column 3: Passport Photo Area (empty blank, no border)
+            // Column 3: Passport Photo Area (empty blank space if not available, no outline or cards)
             const photoCol = document.createElement('div');
             photoCol.className = 'evm-photo-col';
             if (cand.photo) {
@@ -290,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 photoCol.innerHTML = `<div class="evm-photo-blank"></div>`;
             }
 
-            // Column 4: Symbol Icon (borderless)
+            // Column 4: Symbol Photo Area (empty blank space if not available, no outline or cards)
             const symbolCol = document.createElement('div');
             symbolCol.className = 'evm-symbol-col';
             if (cand.symbol_image) {
@@ -298,14 +369,13 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (cand.symbol) {
                 symbolCol.innerHTML = `<span class="evm-symbol-text">${escapeHtml(cand.symbol)}</span>`;
             } else {
-                symbolCol.innerHTML = `<span class="evm-symbol-text">—</span>`;
+                symbolCol.innerHTML = `<div class="evm-symbol-blank"></div>`;
             }
 
-            // Column 5: Arrow -> Red LED Lamp -> Blue EVM Vote Button
+            // Column 5: Red LED Lamp & Blue EVM Vote Button
             const actionCol = document.createElement('div');
             actionCol.className = 'evm-action-col';
             actionCol.innerHTML = `
-                <span class="evm-arrow-indicator" aria-hidden="true">&rarr;</span>
                 <span class="evm-led-lamp ${isSelected ? 'is-lit' : ''}" id="led-${cand.id}"></span>
                 <button type="button" class="evm-vote-btn" aria-label="Cast vote for ${escapeHtml(cand.name)}"></button>
             `;
@@ -331,6 +401,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Handle Vote Button Press for a Candidate
     function handleVotePress(position, candidate, rowEl) {
         if (isSubmitting) return;
+
+        hideSubmissionError();
 
         // 1. Play crisp EVM position vote beep
         playElectionBeep('vote');
@@ -422,13 +494,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Execute Ballot Submission over HTTP POST
     async function executeBallotSubmission() {
         if (!currentAuthId) {
-            alert('No active authorization found for this terminal. Please notify the Polling Officer.');
             isSubmitting = false;
+            showSubmissionError('No active authorization found for this terminal. Please notify the Polling Officer.');
             return;
-        }
-
-        if (submittingOverlay) {
-            submittingOverlay.classList.remove('is-hidden');
         }
 
         try {
@@ -446,45 +514,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const data = await response.json();
 
-            if (submittingOverlay) {
-                submittingOverlay.classList.add('is-hidden');
-            }
-
             if (data.success) {
-                // Show Success Overlay & Play Continuous 1-Second 1000Hz Tone
-                if (successOverlay) {
-                    successOverlay.classList.remove('is-hidden');
+                if (data.booth_completed) {
+                    isBoothCompleted = true;
                 }
+                // Play authentic 1-second EVM continuous confirmation tone on success commit ONLY
                 playElectionBeep('success');
-
-                // 3-second countdown to locked standby
-                let countdown = 3;
-                if (resetCountdownEl) resetCountdownEl.textContent = countdown;
-
-                const interval = setInterval(() => {
-                    countdown -= 1;
-                    if (resetCountdownEl) resetCountdownEl.textContent = countdown;
-                    if (countdown <= 0) {
-                        clearInterval(interval);
-                        resetKioskState();
-                        lockStation();
-                    }
-                }, 1000);
-            } else {
-                playElectionBeep('error');
-                alert(data.error || 'Failed to record ballot securely. Please vote again from the beginning.');
+                // IMMEDIATELY lock station and clear state (zero delay)
                 resetKioskState();
+                lockStation();
+            } else {
+                // On ballot submission error:
+                // NO BEEP!
+                // Redirect to first position of ballot and show error message
+                isSubmitting = false;
+                selections = {};
+                currentStepIndex = 0;
                 renderCurrentPosition();
+                showSubmissionError('Submission failed, vote again.');
             }
         } catch (err) {
-            if (submittingOverlay) {
-                submittingOverlay.classList.add('is-hidden');
-            }
             console.error('Submission error:', err);
-            playElectionBeep('error');
-            alert('A network error occurred while recording the ballot. Please vote again from the beginning.');
-            resetKioskState();
+            // On error: NO BEEP! Redirect to first position and show error message
+            isSubmitting = false;
+            selections = {};
+            currentStepIndex = 0;
             renderCurrentPosition();
+            showSubmissionError('Submission failed, vote again.');
         }
     }
 
@@ -493,8 +549,7 @@ document.addEventListener('DOMContentLoaded', function () {
         currentStepIndex = 0;
         isSubmitting = false;
         if (vvpatModal) vvpatModal.classList.add('is-hidden');
-        if (successOverlay) successOverlay.classList.add('is-hidden');
-        if (submittingOverlay) submittingOverlay.classList.add('is-hidden');
+        hideSubmissionError();
     }
 
     // Unlock Station with Eligibility Filtering
@@ -503,6 +558,7 @@ document.addEventListener('DOMContentLoaded', function () {
         isUnlocked = true;
 
         resetKioskState();
+        hideSubmissionError();
 
         // Filter active positions strictly by eligibility if provided
         if (Array.isArray(eligiblePosIds)) {
@@ -529,6 +585,35 @@ document.addEventListener('DOMContentLoaded', function () {
         isUnlocked = false;
 
         resetKioskState();
+        hideSubmissionError();
+
+        const titleEl = document.getElementById('kiosk-lock-title');
+        const subtitleEl = document.getElementById('kiosk-lock-subtitle');
+        if (titleEl && subtitleEl) {
+            if (isDraft) {
+                titleEl.textContent = 'Election Has Not Yet Started';
+                subtitleEl.textContent = 'Terminal is in standby mode. Voting will unlock once the election is started by the administrator.';
+            } else if (isBoothCompleted) {
+                titleEl.textContent = 'Voting Completed';
+                subtitleEl.textContent = 'Voting completed, waiting for election to end.';
+            } else if (isElectionEnded) {
+                titleEl.textContent = 'Election Has Ended';
+                subtitleEl.textContent = 'Voting has concluded for this election. New voter authorizations are no longer permitted.';
+            } else {
+                titleEl.textContent = 'Voting Station Locked';
+                subtitleEl.textContent = 'Standby for Officer Authorization';
+            }
+        }
+
+        const fsBtn = document.getElementById('btn-kiosk-fullscreen');
+        if (fsBtn) {
+            fsBtn.style.display = (isDraft || isBoothCompleted || isElectionEnded || isDocFullscreen()) ? 'none' : 'inline-flex';
+        }
+
+        const logoutLink = document.getElementById('btn-kiosk-logout');
+        if (logoutLink) {
+            logoutLink.href = (isElectionEnded) ? "{% url 'accounts:logout' %}?reason=election_ended" : "{% url 'accounts:logout' %}";
+        }
 
         if (lockOverlay) {
             lockOverlay.classList.remove('is-hidden');
@@ -536,6 +621,148 @@ document.addEventListener('DOMContentLoaded', function () {
         if (workspace) {
             workspace.classList.add('is-locked');
         }
+    }
+
+    // Fullscreen reporting to server (Detects both DOM Fullscreen & F11 Window Fullscreen)
+    function isDocFullscreen() {
+        // 1. HTML5 DOM Fullscreen API
+        if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
+            return true;
+        }
+        // 2. CSS Media query display-mode
+        if (window.matchMedia && (window.matchMedia('(display-mode: fullscreen)').matches || window.matchMedia('(display-mode: standalone)').matches)) {
+            return true;
+        }
+        // 3. Browser Window Fullscreen (F11 key on Windows/Linux)
+        const hDiff = Math.abs(window.innerHeight - screen.height);
+        const wDiff = Math.abs(window.innerWidth - screen.width);
+        if (hDiff <= 25 && wDiff <= 25) {
+            return true;
+        }
+        if (Math.abs(window.outerHeight - screen.height) <= 25 && Math.abs(window.outerWidth - screen.width) <= 25) {
+            return true;
+        }
+        const availHDiff = Math.abs(window.innerHeight - screen.availHeight);
+        const availWDiff = Math.abs(window.innerWidth - screen.availWidth);
+        if (availHDiff <= 15 && availWDiff <= 15) {
+            return true;
+        }
+        return false;
+    }
+
+    window.enterKioskFullscreen = function () {
+        const docEl = document.documentElement;
+        const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+        if (req) {
+            try {
+                const res = req.call(docEl);
+                if (res && typeof res.then === 'function') {
+                    res.then(() => {
+                        setTimeout(reportFullscreen, 100);
+                        setTimeout(reportFullscreen, 300);
+                    }).catch(err => {
+                        console.warn('DOM Fullscreen request rejected:', err);
+                        setTimeout(reportFullscreen, 100);
+                    });
+                } else {
+                    setTimeout(reportFullscreen, 100);
+                    setTimeout(reportFullscreen, 300);
+                }
+            } catch (err) {
+                console.warn('Fullscreen call failed:', err);
+            }
+        }
+    };
+
+    function reportFullscreen() {
+        const isFs = isDocFullscreen();
+        const fsEnforceOverlay = document.getElementById('kiosk-fullscreen-enforce-overlay');
+        const fsBtn = document.getElementById('btn-kiosk-fullscreen');
+        if (fsEnforceOverlay) {
+            if (isFs) {
+                fsEnforceOverlay.classList.add('is-hidden');
+            } else {
+                fsEnforceOverlay.classList.remove('is-hidden');
+            }
+        }
+        if (fsBtn) {
+            fsBtn.style.display = isFs ? 'none' : 'inline-flex';
+        }
+        if (kioskSocket && kioskSocket.readyState === WebSocket.OPEN) {
+            kioskSocket.send(JSON.stringify({
+                event: isFs ? 'fullscreen_entered' : 'fullscreen_exited',
+                fullscreen: isFs
+            }));
+        }
+    }
+
+    // Enforce fullscreen by default: trigger on initial user click or touch anywhere
+    const triggerFsIfWindowed = function () {
+        if (!isDocFullscreen()) {
+            window.enterKioskFullscreen();
+        }
+    };
+    document.addEventListener('click', triggerFsIfWindowed);
+    document.addEventListener('touchstart', triggerFsIfWindowed, { passive: true });
+
+    document.addEventListener('fullscreenchange', reportFullscreen);
+    document.addEventListener('webkitfullscreenchange', reportFullscreen);
+    document.addEventListener('mozfullscreenchange', reportFullscreen);
+    document.addEventListener('MSFullscreenChange', reportFullscreen);
+    window.addEventListener('resize', reportFullscreen);
+    window.addEventListener('keydown', function (e) {
+        if (e.key === 'F11' || e.code === 'F11' || e.keyCode === 122) {
+            setTimeout(reportFullscreen, 100);
+            setTimeout(reportFullscreen, 300);
+            setTimeout(reportFullscreen, 600);
+            setTimeout(reportFullscreen, 1000);
+        }
+    });
+
+    const fsBtnInit = document.getElementById('btn-kiosk-fullscreen');
+    if (fsBtnInit) {
+        fsBtnInit.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.enterKioskFullscreen();
+        });
+    }
+
+    // In-Page Screens Management (pure JS without page reloads to protect fullscreen)
+    function showRevokedScreen() {
+        const overlay = document.getElementById('kiosk-revoked-overlay');
+        if (overlay) overlay.classList.remove('is-hidden');
+        if (lockOverlay) lockOverlay.classList.add('is-hidden');
+        if (workspace) workspace.classList.add('is-locked');
+    }
+
+    function showActiveStandbyScreen() {
+        isDraft = false;
+        isElectionEnded = false;
+        const titleEl = document.getElementById('kiosk-lock-title');
+        if (titleEl) {
+            titleEl.textContent = 'Voting Station Locked';
+        }
+        const subtitleEl = document.getElementById('kiosk-lock-subtitle');
+        if (subtitleEl) {
+            subtitleEl.textContent = 'Standby for Officer Authorization';
+        }
+        const actionsDiv = document.querySelector('#kiosk-lock-overlay .kiosk-lock-actions');
+        if (actionsDiv && !document.getElementById('btn-kiosk-fullscreen')) {
+            const fsBtn = document.createElement('button');
+            fsBtn.type = 'button';
+            fsBtn.className = 'kiosk-fullscreen-toggle';
+            fsBtn.id = 'btn-kiosk-fullscreen';
+            fsBtn.onclick = window.enterKioskFullscreen;
+            fsBtn.innerHTML = `
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                </svg>
+                <span>Enter Fullscreen</span>
+            `;
+            actionsDiv.insertBefore(fsBtn, actionsDiv.firstChild);
+        }
+        reportFullscreen();
+        lockStation();
     }
 
     // Connect Kiosk WebSocket
@@ -552,6 +779,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     connPill.className = 'kiosk-corner-status';
                     connText.textContent = 'Terminal Connected';
                 }
+                reportFullscreen();
             };
 
             kioskSocket.onmessage = function (e) {
@@ -560,11 +788,32 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (data.event === 'kiosk.unlock') {
                         unlockStation(data.authorization_id, data.eligible_position_ids);
                     } else if (data.event === 'kiosk.lock') {
+                        if (data.booth_completed) {
+                            isBoothCompleted = true;
+                        }
                         lockStation();
+                    } else if (data.event === 'booth.completed') {
+                        isBoothCompleted = true;
+                        if (!currentAuthId) {
+                            lockStation();
+                        }
+                    } else if (data.event === 'credentials.revoked') {
+                        showRevokedScreen();
                     } else if (data.event === 'election.started') {
-                        window.location.reload();
+                        if (!data.election_id || data.election_id === currentElectionId) {
+                            showActiveStandbyScreen();
+                        }
+                    } else if (data.event === 'election.cutoff') {
+                        if (!data.election_id || data.election_id === currentElectionId) {
+                            isElectionEnded = true;
+                            if (!currentAuthId) {
+                                lockStation();
+                            }
+                        }
                     } else if (data.event === 'election.closed') {
-                        window.location.reload();
+                        if (!data.election_id || data.election_id === currentElectionId) {
+                            window.location.href = "{% url 'accounts:logout' %}?reason=election_ended";
+                        }
                     }
                 } catch (err) {
                     console.error('Kiosk WS message error:', err);
@@ -610,8 +859,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Initialize UI
+    const currentElectionId = {{ election.id }};
+    let isDraft = {{ is_draft|yesno:"true,false" }};
+    let isBoothCompleted = !isDraft && {{ booth_completed|yesno:"true,false" }};
+    let isElectionEnded = !isDraft && {{ is_ended|yesno:"true,false" }};
+
     renderCurrentPosition();
     connectKioskSocket();
+    reportFullscreen();
 });
 </script>
 {% endblock %}

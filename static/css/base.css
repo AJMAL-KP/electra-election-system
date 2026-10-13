@@ -44,7 +44,7 @@
 
   /* Typography */
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-serif: "Newsreader", "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-serif: "Newsreader", Georgia, serif;
 
   /* Geometry & Radius */
   --radius-card: 20px;

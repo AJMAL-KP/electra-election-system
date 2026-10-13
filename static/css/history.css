@@ -4,29 +4,46 @@
    ========================================================================== */
 
 /* Page Canvas & Layout */
-.history-body {
+html, body.history-body {
     background-color: #FFFFFF;
     color: #111827;
     margin: 0;
     padding: 0;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .history-layout {
     width: 100%;
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+/* ==========================================================================
+   FIXED TOP ZONE (Back button, Hero title, Filters)
+   Everything stays pinned in place while only the history list scrolls.
+   ========================================================================== */
+.history-fixed-header {
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 24px 24px 16px 24px;
+    box-sizing: border-box;
+    background-color: #FFFFFF;
+    z-index: 10;
 }
 
 /* Top Minimal Navigation Strip */
 .history-top-bar {
     width: 100%;
-    max-width: 1040px;
-    margin: 0 auto;
-    padding: 24px 24px 0 24px;
     display: flex;
     align-items: center;
+    margin-bottom: 12px;
 }
 
 .history-back-btn {
@@ -37,8 +54,8 @@
     font-size: 13.5px;
     font-weight: 500;
     text-decoration: none;
-    padding: 8px 14px;
-    border-radius: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
     border: 1px solid #E5E7EB;
     background: #FFFFFF;
     transition: all 0.15s ease;
@@ -57,45 +74,35 @@
     border-color: #D1D5DB;
 }
 
-/* Main Centered History Workspace */
-.history-container {
-    width: 100%;
-    max-width: 1040px;
-    margin: 0 auto;
-    padding: 28px 24px 80px 24px;
-    display: flex;
-    flex-direction: column;
-}
-
 /* Editorial Hero */
 .history-hero {
     text-align: center;
-    margin-bottom: 36px;
+    margin-bottom: 24px;
 }
 
 .history-title {
     font-family: 'Newsreader', Georgia, serif;
-    font-size: 42px;
+    font-size: 40px;
     font-weight: 400;
     line-height: 1.15;
     color: #111827;
-    margin: 0 0 8px 0;
+    margin: 0 0 6px 0;
     letter-spacing: -0.02em;
 }
 
 .history-subtitle {
-    font-size: 15px;
+    font-size: 14.5px;
     color: #6B7280;
     margin: 0;
     line-height: 1.5;
 }
 
-/* Filter Strip (Search + Year dropdown) */
+/* Filter Strip (Search + Status + Year dropdowns matching 05_election_history.png) */
 .history-filter-bar {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 24px;
+    width: 100%;
 }
 
 .history-search-wrap {
@@ -103,6 +110,7 @@
     flex: 1;
     display: flex;
     align-items: center;
+    min-width: 0;
 }
 
 .history-search-icon {
@@ -161,10 +169,10 @@
     background: #F3F4F6;
 }
 
-/* Year Filter Select Dropdown */
+/* Dropdown Select Filters */
 .history-select-wrap {
     position: relative;
-    min-width: 140px;
+    min-width: 130px;
 }
 
 .history-select {
@@ -172,8 +180,8 @@
     -webkit-appearance: none;
     width: 100%;
     height: 42px;
-    padding: 0 34px 0 14px;
-    font-size: 14px;
+    padding: 0 32px 0 14px;
+    font-size: 13.5px;
     font-weight: 500;
     color: #111827;
     background: #FFFFFF;
@@ -200,6 +208,27 @@
     pointer-events: none;
 }
 
+/* ==========================================================================
+   SCROLLABLE LIST ZONE
+   Only this container scrolls; scrollbar is completely invisible.
+   ========================================================================== */
+.history-list-scrollable {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 24px 40px 24px;
+    box-sizing: border-box;
+}
+
+.history-list-scrollable::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
 /* Election History List Stack */
 .history-list {
     display: flex;
@@ -212,7 +241,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 26px 0;
+    padding: 24px 0;
     border-bottom: 1px solid #F3F4F6;
     gap: 24px;
     transition: background-color 0.15s ease;
@@ -225,18 +254,19 @@
 }
 
 .history-item-name {
-    font-size: 18px;
-    font-weight: 600;
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 20px;
+    font-weight: 500;
     color: #111827;
     margin: 0 0 4px 0;
-    line-height: 1.3;
+    line-height: 1.25;
     letter-spacing: -0.01em;
 }
 
 .history-item-desc {
     font-size: 13.5px;
     color: #6B7280;
-    margin: 0 0 8px 0;
+    margin: 0 0 6px 0;
     line-height: 1.45;
     word-break: break-word;
 }
@@ -249,12 +279,45 @@
     gap: 6px;
 }
 
-/* Column 2: Stats (Total voters, Voted %, Positions) */
+.history-item-meta time {
+    font-feature-settings: "tnum";
+}
+
+/* Column 2: Stats + Status Badge */
 .history-col-stats {
     flex: 1.1;
     display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.history-status-badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 9999px;
+    background-color: #DCFCE7;
+    color: #166534;
+    line-height: 1.3;
+}
+
+.history-status-badge.status-results-published {
+    background-color: #E0E7FF;
+    color: #3730A3;
+}
+
+.history-status-badge.status-archived {
+    background-color: #F3F4F6;
+    color: #4B5563;
+}
+
+.history-stats-group {
+    display: flex;
     align-items: flex-start;
-    gap: 32px;
+    gap: 28px;
 }
 
 .history-stat-box {
@@ -269,12 +332,13 @@
     color: #111827;
     line-height: 1.2;
     letter-spacing: -0.01em;
+    font-feature-settings: "tnum";
 }
 
 .history-stat-label {
     font-size: 12px;
     color: #6B7280;
-    margin-top: 4px;
+    margin-top: 3px;
     white-space: nowrap;
 }
 
@@ -300,6 +364,7 @@
     border: 1px solid #111827;
     transition: all 0.15s ease;
     white-space: nowrap;
+    cursor: pointer;
 }
 
 .history-btn-primary:hover {
@@ -321,6 +386,8 @@
     border: 1px solid #E5E7EB;
     transition: all 0.15s ease;
     white-space: nowrap;
+    cursor: pointer;
+    font-family: inherit;
 }
 
 .history-btn-secondary:hover {
@@ -330,20 +397,22 @@
 
 /* Electra Borderless Minimal Empty Placeholder */
 .history-empty-state {
-    padding: 72px 24px;
+    padding: 64px 24px;
     margin: 20px 0;
+    text-align: center;
 }
 
-.history-empty-icon {
-    width: 46px;
-    height: 46px;
+.electra-empty-icon {
+    width: 44px;
+    height: 44px;
     stroke: #9CA3AF;
     stroke-width: 1.5;
     fill: none;
-    margin-bottom: 16px;
+    margin: 0 auto 16px auto;
+    display: block;
 }
 
-.history-empty-title {
+.electra-empty-title {
     font-family: 'Newsreader', Georgia, serif;
     font-size: 24px;
     font-weight: 500;
@@ -352,7 +421,7 @@
     margin: 0 0 8px 0;
 }
 
-.history-empty-desc {
+.electra-empty-desc {
     font-size: 14.5px;
     color: #6B7280;
     max-width: 440px;
@@ -360,51 +429,269 @@
     margin: 0 auto 24px auto;
 }
 
-/* Responsive Breakpoints */
+/* ==========================================================================
+   ELECTRA THEMED MODAL: VIEW ELECTION DETAILS
+   ========================================================================== */
+.history-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(17, 24, 39, 0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.history-modal-dialog {
+    background: #FFFFFF;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 580px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    animation: historyModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes historyModalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.97) translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.history-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 24px 28px 16px 28px;
+    border-bottom: 1px solid #F3F4F6;
+}
+
+.history-modal-title {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 24px;
+    font-weight: 500;
+    color: #111827;
+    margin: 0 0 4px 0;
+}
+
+.history-modal-subtitle {
+    font-size: 13.5px;
+    color: #6B7280;
+    margin: 0;
+}
+
+.history-modal-close {
+    background: none;
+    border: none;
+    color: #9CA3AF;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.history-modal-close:hover {
+    color: #111827;
+    background-color: #F3F4F6;
+}
+
+.history-modal-body {
+    padding: 24px 28px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.history-modal-body::-webkit-scrollbar {
+    display: none;
+}
+
+.modal-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9CA3AF;
+    margin: 0 0 10px 0;
+}
+
+.modal-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    background: #F9FAFB;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.modal-stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-stat-number {
+    font-size: 20px;
+    font-weight: 700;
+    color: #111827;
+    font-feature-settings: "tnum";
+}
+
+.modal-stat-label {
+    font-size: 12px;
+    color: #6B7280;
+    margin-top: 2px;
+}
+
+.modal-time-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13.5px;
+}
+
+.modal-time-row {
+    display: flex;
+    justify-content: space-between;
+    color: #4B5563;
+}
+
+.modal-time-row strong {
+    color: #111827;
+}
+
+.modal-positions-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.modal-pos-card {
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+
+.modal-pos-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.modal-pos-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.modal-pos-count {
+    font-size: 12px;
+    color: #6B7280;
+}
+
+.modal-cands-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.modal-cand-pill {
+    font-size: 12px;
+    padding: 3px 8px;
+    background: #F3F4F6;
+    color: #374151;
+    border-radius: 4px;
+}
+
+.history-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 28px;
+    border-top: 1px solid #F3F4F6;
+    background: #FFFFFF;
+}
+
+/* ==========================================================================
+   RESPONSIVE DESIGN BREAKPOINTS
+   ========================================================================== */
 @media (max-width: 860px) {
     .history-row {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 18px;
-        padding: 22px 0;
+        align-items: stretch;
+        gap: 16px;
+        padding: 20px 0;
     }
 
     .history-col-stats {
         width: 100%;
-        justify-content: flex-start;
-        gap: 28px;
+        gap: 10px;
+    }
+
+    .history-stats-group {
+        width: 100%;
+        justify-content: space-between;
+        gap: 16px;
     }
 
     .history-col-actions {
         width: 100%;
-        justify-content: flex-start;
+        display: flex;
+        gap: 10px;
+    }
+
+    .history-btn-primary, .history-btn-secondary {
+        flex: 1;
+        text-align: center;
     }
 }
 
 @media (max-width: 640px) {
-    .history-top-bar {
-        padding: 16px 16px 0 16px;
+    .history-fixed-header {
+        padding: 16px 16px 12px 16px;
     }
 
-    .history-container {
-        padding: 20px 16px 60px 16px;
+    .history-list-scrollable {
+        padding: 0 16px 24px 16px;
     }
 
     .history-title {
-        font-size: 32px;
+        font-size: 30px;
     }
 
     .history-filter-bar {
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
     }
 
+    .history-search-wrap,
     .history-select-wrap {
         width: 100%;
     }
 
-    .history-col-stats {
-        flex-wrap: wrap;
-        gap: 20px;
+    .modal-stats-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
     }
 }

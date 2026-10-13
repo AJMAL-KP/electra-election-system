@@ -1081,10 +1081,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
-// Helper for copying plaintext password
+// Helper for copying plaintext password and usernames (works on HTTPS & HTTP LAN)
 function copyDirectText(text, el) {
-    if (!navigator.clipboard) return;
-    navigator.clipboard.writeText(text).then(() => {
+    if (!text) return;
+
+    function onSuccess() {
         if (el.tagName.toLowerCase() === 'button') {
             const orig = el.innerHTML;
             el.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
@@ -1100,7 +1101,33 @@ function copyDirectText(text, el) {
                 el.style.backgroundColor = '';
             }, 1500);
         }
-    }).catch(err => console.error('Copy failed: ', err));
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+            fallbackExecCopy(text, onSuccess);
+        });
+    } else {
+        fallbackExecCopy(text, onSuccess);
+    }
+}
+
+function fallbackExecCopy(text, cb) {
+    try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.top = '-9999px';
+        textarea.style.left = '-9999px';
+        textarea.setAttribute('readonly', '');
+        document.body.appendChild(textarea);
+        textarea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (success && cb) cb();
+    } catch (err) {
+        console.error('Fallback copy failed: ', err);
+    }
 }
 </script>
 

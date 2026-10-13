@@ -38,7 +38,7 @@
                         <span class="landing-ticker-item">students</span>
                         <span class="landing-ticker-item">children</span>
                         <span class="landing-ticker-item">teenagers</span>
-                        <span class="landing-ticker-item">non-voters</span>
+                        <span class="landing-ticker-item">new voters</span>
                         <span class="landing-ticker-item" aria-hidden="true">students</span>
                     </span>
                 </span>
@@ -113,4 +113,50 @@
         </div>
     </div>
 </div>
+
+{% if election_ended %}
+<!-- Election Ended Notification Popup (Clean Electra Theme) -->
+<div id="election-ended-popup" class="modal-overlay active" aria-hidden="false" role="dialog" aria-labelledby="ended-modal-title">
+    <div class="modal-backdrop" id="ended-modal-backdrop"></div>
+    <div class="modal-dialog" style="max-width: 440px; border-radius: 16px; padding: 32px 28px; background: #FFFFFF; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.08);">
+        <div style="width: 48px; height: 48px; margin: 0 auto 16px auto; display: flex; align-items: center; justify-content: center; color: #111827; opacity: 0.85;">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+        </div>
+        <h2 id="ended-modal-title" style="font-family: 'Newsreader', Georgia, serif; font-size: 26px; font-weight: 500; color: #111827; margin: 0 0 10px 0;">Election Has Ended</h2>
+        <p style="font-size: 14px; color: #6B7280; line-height: 1.5; margin: 0 0 24px 0;">
+            The election has officially concluded and live polling is closed. All associated device sessions have been concluded.
+        </p>
+        <div style="display: flex; justify-content: center;">
+            <button type="button" id="btn-close-ended-popup" style="padding: 10px 24px; background: #111827; color: #FFFFFF; border: none; border-radius: 8px; font-size: 13.5px; font-weight: 500; cursor: pointer;">
+                Acknowledge
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const popup = document.getElementById('election-ended-popup');
+    const closeBtn = document.getElementById('btn-close-ended-popup');
+    const backdrop = document.getElementById('ended-modal-backdrop');
+
+    function closePopup() {
+        if (popup) {
+            popup.classList.remove('active');
+            popup.setAttribute('aria-hidden', 'true');
+            // Clean up query param from URL without page reload
+            const url = new URL(window.location);
+            url.searchParams.delete('reason');
+            window.history.replaceState({}, '', url);
+        }
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', closePopup);
+    if (backdrop) backdrop.addEventListener('click', closePopup);
+});
+</script>
+{% endif %}
 {% endblock %}

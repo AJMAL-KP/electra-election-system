@@ -53,7 +53,37 @@
     }
 
     container.appendChild(toast);
+  // Universal copy-to-clipboard helper supporting HTTP LAN deployment
+  window.copyElectraText = function(text, cb) {
+    if (!text) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (cb) cb(true);
+      }).catch(() => {
+        fallbackCopy(text, cb);
+      });
+    } else {
+      fallbackCopy(text, cb);
+    }
   };
+
+  function fallbackCopy(text, cb) {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.top = '-9999px';
+      textarea.style.left = '-9999px';
+      textarea.setAttribute('readonly', '');
+      document.body.appendChild(textarea);
+      textarea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (cb) cb(success);
+    } catch (e) {
+      if (cb) cb(false);
+    }
+  }
 
   // Convert existing Django messages into Electra toasts on DOMContentLoaded
   function initDjangoMessages() {

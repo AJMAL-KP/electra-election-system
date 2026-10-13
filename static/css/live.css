@@ -1,0 +1,764 @@
+/* ==========================================================================
+   ELECTRA ADMIN LIVE DASHBOARD STYLES (Faithfully matched to references/07_live.png)
+   - Centered minimal monochrome layout, white background, no outer borders
+   - Top-right corner logout button
+   - Serif headings (Newsreader) and clean sans/mono numbers
+   - Time remaining countdown card
+   - Live turnout metrics & progress bar
+   - Borderless/subtle device status grid with Officer and Kiosk cards
+   - Prominent coral/red End Election action button
+   ========================================================================== */
+
+.live-body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.live-body .main-content {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 24px 80px 24px;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   TOP-RIGHT LOGOUT BUTTON
+   -------------------------------------------------------------------------- */
+.live-top-actions {
+  position: absolute;
+  top: 28px;
+  right: 32px;
+  z-index: 100;
+}
+
+.live-logout-btn {
+  background: transparent;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-family: var(--font-sans, inherit);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #4B5563;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.live-logout-btn:hover {
+  background: #F9FAFB;
+  border-color: #D1D5DB;
+  color: #111827;
+}
+
+/* --------------------------------------------------------------------------
+   CENTER CONTAINER & BRANDING
+   -------------------------------------------------------------------------- */
+.live-container {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  padding-bottom: 96px;
+}
+
+.live-header-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.live-brand-title {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: 28px;
+  font-weight: 500;
+  color: #111827;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.live-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background-color: #ECFDF5;
+  color: #059669;
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  margin: 0 0 12px 0;
+  box-sizing: border-box;
+}
+
+.live-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10B981;
+  display: inline-block;
+  animation: livePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.9); }
+}
+
+.live-election-title {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: 38px;
+  font-weight: 500;
+  color: #111827;
+  margin: 16px 0 8px 0;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+
+.live-election-sub {
+  font-size: 14.5px;
+  color: #6B7280;
+  margin: 0;
+  max-width: 620px;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------------------
+   COUNTDOWN TIMER CARD
+   -------------------------------------------------------------------------- */
+.live-countdown-card {
+  background-color: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 18px;
+  padding: 16px 28px 18px 28px;
+  width: 360px;
+  max-width: 90%;
+  margin: 0 auto 40px auto;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.countdown-eyebrow {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #64748B;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.countdown-digits {
+  font-size: 36px;
+  font-weight: 600;
+  color: #0F172A;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+  letter-spacing: 2px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 6px;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   LIVE TURNOUT METRICS ROW
+   -------------------------------------------------------------------------- */
+.live-metrics-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 840px;
+  width: 100%;
+  margin: 0 auto 52px auto;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.live-metric-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 100px;
+}
+
+.metric-num {
+  font-size: 32px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-lbl {
+  font-size: 13.5px;
+  color: #6B7280;
+}
+
+.live-metric-divider {
+  width: 1px;
+  height: 42px;
+  background-color: #E5E7EB;
+}
+
+.live-metric-progress-col {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: 12px;
+}
+
+.metric-progress-track {
+  width: 220px;
+  height: 8px;
+  background-color: #E5E7EB;
+  border-radius: 9999px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.metric-progress-fill {
+  height: 100%;
+  background-color: #22C55E;
+  border-radius: 9999px;
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.metric-progress-pct {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #4B5563;
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   GREY DIVIDER BELOW LIVE STATS
+   -------------------------------------------------------------------------- */
+.live-stats-divider {
+  width: 100%;
+  max-width: 920px;
+  height: 1px;
+  background-color: #E5E7EB;
+  margin: 0 auto 44px auto;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   DEVICE STATUS SECTION & BOOTH CARDS GRID
+   -------------------------------------------------------------------------- */
+.live-device-section {
+  width: 100%;
+  max-width: 1140px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.live-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 20px;
+  padding: 0 4px;
+}
+
+.live-section-title {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: 24px;
+  font-weight: 500;
+  color: #111827;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.live-section-meta {
+  font-size: 13.5px;
+  color: #6B7280;
+}
+
+.live-booths-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1060px) {
+  .live-booths-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .live-booths-grid {
+    grid-template-columns: 1fr;
+  }
+  .live-metrics-row {
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+  }
+  .live-metric-divider {
+    display: none;
+  }
+  .live-top-actions {
+    position: static;
+    margin-bottom: 16px;
+    align-self: flex-end;
+  }
+}
+
+/* Booth Card */
+.live-booth-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.live-booth-card.is-updated {
+  border-color: #22C55E;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
+}
+
+.booth-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.booth-card-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.booth-card-num {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.booth-card-name {
+  font-size: 13.5px;
+  color: #6B7280;
+}
+
+.booth-card-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.booth-stats-ratio {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+}
+
+.booth-stats-pct {
+  font-size: 13px;
+  color: #6B7280;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   Booth Cards: Station Rows (Officer station on top, Voting kiosk below)
+   Faithfully matching references/07_live.png
+   ========================================================================== */
+.booth-station-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.booth-station-row + .booth-station-row {
+  border-top: 1px solid #F3F4F6;
+  padding-top: 12px;
+}
+
+.station-meta-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.station-type-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.station-creds-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.device-cred-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #1F2937;
+  box-sizing: border-box;
+}
+
+.cred-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9CA3AF;
+  user-select: none;
+}
+
+.device-cred-pill.is-password {
+  background-color: #F0FDF4;
+  border-color: #BBF7D0;
+  color: #166534;
+}
+
+.device-cred-pill .cred-text {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Show passwords fully without dots or ellipsis shortening */
+.device-cred-pill .cred-text.pw-full-text {
+  overflow: visible;
+  text-overflow: clip;
+  letter-spacing: 0.3px;
+}
+
+.pill-actions-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.btn-copy-micro {
+  background: transparent;
+  border: none;
+  padding: 2px;
+  color: #9CA3AF;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-copy-micro:hover {
+  color: #111827;
+  background-color: #F3F4F6;
+}
+
+.btn-copy-micro.is-copied {
+  color: #059669;
+}
+
+.btn-rotate-micro {
+  background: none;
+  border: none;
+  padding: 2px;
+  color: #059669;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-rotate-micro:hover {
+  color: #047857;
+  background-color: #DCFCE7;
+}
+
+.btn-rotate-micro.is-spinning svg {
+  animation: rotate-icon-spin 0.7s linear infinite;
+}
+
+@keyframes rotate-icon-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.device-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 9999px;
+}
+
+.device-status-badge.is-online {
+  background-color: #F0FDF4;
+  color: #16A34A;
+}
+
+.device-status-badge.is-offline {
+  background-color: #F9FAFB;
+  color: #9CA3AF;
+}
+
+.device-status-badge .status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.device-status-badge.is-online .status-dot {
+  background-color: #16A34A;
+}
+
+.device-status-badge.is-offline .status-dot {
+  background-color: #9CA3AF;
+}
+
+/* --------------------------------------------------------------------------
+   FLOATING TRANSPARENT FOOTER: END ELECTION BUTTON
+   -------------------------------------------------------------------------- */
+.live-bottom-cta {
+  position: fixed;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: transparent;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.btn-live-end {
+  pointer-events: auto;
+  background-color: #EF4444;
+  color: #FFFFFF;
+  font-family: var(--font-sans, inherit);
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 11px 34px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+  transition: all 0.15s ease;
+}
+
+.btn-live-end:hover {
+  background-color: #DC2626;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.4);
+}
+
+.btn-live-end:active {
+  transform: translateY(0);
+}
+
+/* --------------------------------------------------------------------------
+   MODAL: CONFIRM END ELECTION
+   -------------------------------------------------------------------------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(17, 24, 39, 0.4);
+  backdrop-filter: blur(2px);
+}
+
+.modal-dialog {
+  position: relative;
+  z-index: 1001;
+  background-color: #FFFFFF;
+  border-radius: 16px;
+  padding: 28px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.modal-title {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: 24px;
+  font-weight: 500;
+  color: #111827;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6B7280;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: #111827;
+}
+
+.modal-desc {
+  font-size: 14.5px;
+  color: #4B5563;
+  line-height: 1.5;
+  margin: 0 0 24px 0;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-modal-cancel {
+  background: transparent;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-modal-cancel:hover {
+  background: #F9FAFB;
+  border-color: #9CA3AF;
+  color: #111827;
+}
+
+.btn-modal-danger {
+  background: #EF4444;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-modal-danger:hover {
+  background: #DC2626;
+}
+
+/* --------------------------------------------------------------------------
+   TOAST NOTIFICATIONS
+   -------------------------------------------------------------------------- */
+.live-toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.live-toast {
+  pointer-events: auto;
+  background-color: #111827;
+  color: #FFFFFF;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-toast.is-success {
+  border-left: 4px solid #10B981;
+}
+
+.live-toast.is-error {
+  border-left: 4px solid #EF4444;
+}
+
+.live-toast.is-hiding {
+  opacity: 0;
+  transform: translateY(10px);
+}

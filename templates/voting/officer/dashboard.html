@@ -22,6 +22,16 @@
             <span>Device: <code>{{ device.identifier }}</code></span>
         </div>
         <div class="officer-topbar-right">
+            {% if is_active and election.ends_at %}
+            <div class="officer-countdown-pill{% if is_ended %} is-ended{% endif %}" id="officer-countdown-pill" title="Time remaining until election close">
+                <svg class="officer-countdown-clock-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span class="officer-countdown-label" id="officer-countdown-label">{% if is_ended %}Election ended{% else %}Time remaining:{% endif %}</span>
+                <span class="officer-countdown-digits" id="officer-countdown-digits">{% if is_ended %}00:00:00{% else %}--:--:--{% endif %}</span>
+            </div>
+            {% endif %}
             <a href="{% url 'accounts:logout' %}" class="officer-btn-exit" title="Log out and end station session">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -62,40 +72,81 @@
     <!-- Workspace Container (Supports Draft Overlay & Blur) -->
     <div class="officer-workspace-container">
         {% if is_draft %}
-        <!-- Draft Overlay Card -->
+        <!-- Draft Overlay (Minimalist Blurred Standby) -->
         <div class="officer-draft-overlay" role="region" aria-label="Election Inactive Notice">
-            <div class="officer-draft-card">
-                <div class="officer-brand-wordmark" style="font-size: 22px; color: #6B7280; margin-bottom: 2px;">Electra</div>
-                <h2 class="officer-draft-title">Election Not Active Yet</h2>
-                <div class="officer-card-badge is-draft">
-                    <span class="badge-dot"></span>
-                    <span>Election in Draft</span>
-                </div>
-                <p class="officer-draft-desc">
-                    This election is currently in <strong>Draft</strong> status and has not been started by the Administrator. 
-                    The voting desk is locked. You cannot interact with voter records or issue voting authorizations until the election is officially started.
-                </p>
-                <div class="officer-draft-station-info">
-                    <span>Booth {{ booth.booth_number|stringformat:"02d" }}{% if booth.name %} ({{ booth.name }}){% endif %}</span>
-                    <span style="color: #CBD5E1;">&bull;</span>
-                    <span>Officer Station: <code>{{ device.identifier }}</code></span>
-                </div>
-                <div class="officer-draft-actions">
-                    <a href="{% url 'accounts:logout' %}" class="officer-btn-primary-action" id="btn-draft-logout">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                        Log Out Station
-                    </a>
-                </div>
+            <div class="officer-draft-symbol" aria-hidden="true">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
+            <h2 class="officer-draft-title">Election Has Not Yet Started</h2>
+            <p class="officer-draft-desc">
+                The voting desk is in standby mode. This station will automatically activate once the administrator starts the election.
+            </p>
+            <div class="officer-draft-actions">
+                <a href="{% url 'accounts:logout' %}" class="officer-draft-logout-link" id="btn-draft-logout">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Log Out</span>
+                </a>
             </div>
         </div>
         {% endif %}
 
+        <!-- Voting Completed Overlay (Clean Electra Theme: White background, borderless, minimalistic) -->
+        <div class="officer-draft-overlay {% if not booth_completed or active_auth_id or is_draft or is_ended %}is-hidden{% endif %}" id="officer-completed-overlay" role="region" aria-label="Voting Completed Notice" style="{% if not booth_completed or active_auth_id or is_draft or is_ended %}display: none;{% endif %}">
+            <div class="officer-draft-symbol" aria-hidden="true">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+            </div>
+            <h2 class="officer-draft-title">Voting Completed</h2>
+            <p class="officer-draft-desc">
+                Voting completed, waiting for election to end.
+            </p>
+            <div class="officer-draft-actions">
+                <a href="{% url 'accounts:logout' %}" class="officer-draft-logout-link" id="btn-completed-logout">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Log Out</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Election Ended Overlay (Clean Electra Theme: White background, borderless, minimalistic) -->
+        <div class="officer-draft-overlay {% if not is_ended or active_auth_id %}is-hidden{% endif %}" id="officer-ended-overlay" role="region" aria-label="Election Ended Notice" style="{% if not is_ended or active_auth_id %}display: none;{% endif %}">
+            <div class="officer-draft-symbol" aria-hidden="true">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
+            <h2 class="officer-draft-title">Election Has Ended</h2>
+            <p class="officer-draft-desc">
+                Voting has concluded for this election. New voter authorizations are no longer permitted.
+            </p>
+            <div class="officer-draft-actions">
+                <a href="{% url 'accounts:logout' %}?reason=election_ended" class="officer-draft-logout-link" id="btn-ended-logout">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Log Out</span>
+                </a>
+            </div>
+        </div>
+
         <!-- Two-Column Interactive Workspace -->
-        <main class="officer-workspace {% if is_draft %}is-draft-blurred{% endif %}" {% if is_draft %}aria-hidden="true"{% endif %}>
+        <main class="officer-workspace {% if is_draft or booth_completed and not active_auth_id or is_ended and not active_auth_id %}is-draft-blurred{% endif %}" id="officer-workspace" {% if is_draft or booth_completed and not active_auth_id or is_ended and not active_auth_id %}aria-hidden="true"{% endif %}>
             <!-- LEFT COLUMN: Search, Filters, Voter List -->
             <section class="officer-voters-col" aria-label="Booth Voters Registry">
                 <!-- Search bar -->
@@ -227,6 +278,7 @@
     </div>
 </div>
 
+
 <!-- Raw JSON Data Payload for Fast Instant Filtering & Dynamic Schema Fields -->
 {{ voters|json_script:"officer-voters-data" }}
 
@@ -234,18 +286,6 @@
 document.addEventListener('DOMContentLoaded', function () {
     const isDraft = {{ is_draft|yesno:"true,false" }};
     const btnAuthorize = document.getElementById('btn-authorize-voter');
-
-    if (isDraft) {
-        if (btnAuthorize) btnAuthorize.disabled = true;
-        return;
-    }
-
-    const rawDataElement = document.getElementById('officer-voters-data');
-    const votersData = rawDataElement ? JSON.parse(rawDataElement.textContent) : [];
-
-    const searchInput = document.getElementById('officer-voter-search');
-    const tabButtons = document.querySelectorAll('.officer-tab-btn');
-    const voterListContainer = document.getElementById('officer-voter-list');
 
     // Detail Panel Elements
     const emptyPanel = document.getElementById('voter-details-empty');
@@ -258,14 +298,244 @@ document.addEventListener('DOMContentLoaded', function () {
     const detailStatusDesc = document.getElementById('voter-detail-status-desc');
     const footnoteText = document.getElementById('voter-detail-footnote-text');
 
-    const kioskOnline = {{ kiosk_online|yesno:"true,false" }};
+    const searchInput = document.getElementById('officer-voter-search');
+    const tabButtons = document.querySelectorAll('.officer-tab-btn');
+    const voterListContainer = document.getElementById('officer-voter-list');
 
+    let isKioskOnline = {{ kiosk_online|yesno:"true,false" }};
+    let isKioskFullscreen = {{ kiosk_fullscreen|yesno:"true,false" }};
+    let kioskSubmissionError = null;
     let activeAuthorizationId = {% if active_auth_id %}{{ active_auth_id }}{% else %}null{% endif %};
     let activeAuthorizedVoterId = {% if active_voter_id %}"{{ active_voter_id }}"{% else %}null{% endif %};
 
+    const endsAtStr = "{{ ends_at_iso }}";
+    const serverNowStr = "{{ now_iso }}";
+    const endsTime = endsAtStr ? new Date(endsAtStr).getTime() : null;
+    const serverTime = serverNowStr ? new Date(serverNowStr).getTime() : Date.now();
+    const clientOffset = Date.now() - serverTime;
+
+    let isBoothCompleted = !isDraft && {{ booth_completed|yesno:"true,false" }};
+    let isElectionEnded = !isDraft && {{ is_ended|yesno:"true,false" }};
+
+    function checkBoothCompleted() {
+        const notVotedCount = votersData.filter(v => !v.has_voted).length;
+        const allCount = votersData.length;
+        if (allCount > 0 && notVotedCount === 0 && !activeAuthorizationId) {
+            isBoothCompleted = true;
+        }
+        const completedOverlay = document.getElementById('officer-completed-overlay');
+        const endedOverlay = document.getElementById('officer-ended-overlay');
+        const workspaceEl = document.getElementById('officer-workspace');
+        if (completedOverlay) {
+            if (isBoothCompleted && !isElectionEnded && !isDraft) {
+                completedOverlay.classList.remove('is-hidden');
+                completedOverlay.style.display = 'flex';
+                if (endedOverlay) {
+                    endedOverlay.classList.add('is-hidden');
+                    endedOverlay.style.display = 'none';
+                }
+                if (workspaceEl) {
+                    workspaceEl.classList.add('is-draft-blurred');
+                    workspaceEl.setAttribute('aria-hidden', 'true');
+                }
+            } else if (!isBoothCompleted || isElectionEnded) {
+                completedOverlay.classList.add('is-hidden');
+                completedOverlay.style.display = 'none';
+            }
+        }
+    }
+
+    // Live election countdown synchronized with server end time (same as live dashboard)
+    if (!isDraft && endsTime) {
+        function getRemainingSeconds() {
+            if (isElectionEnded) return 0;
+            const currentServerNow = Date.now() - clientOffset;
+            const diffMs = endsTime - currentServerNow;
+            return Math.max(0, Math.floor(diffMs / 1000));
+        }
+
+        function formatHHMMSS(sec) {
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const s = sec % 60;
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${pad(h)}:${pad(m)}:${pad(s)}`;
+        }
+
+        const countdownPill = document.getElementById('officer-countdown-pill');
+        const countdownLabel = document.getElementById('officer-countdown-label');
+        const countdownDigits = document.getElementById('officer-countdown-digits');
+
+        function updateCountdownDisplay() {
+            const remaining = getRemainingSeconds();
+            if (remaining === null) return;
+
+            if (remaining <= 0) {
+                if (!isElectionEnded) {
+                    isElectionEnded = true;
+                    const cur = getSelectedVoter();
+                    if (cur) renderDetails(cur);
+                }
+                if (!activeAuthorizationId) {
+                    const endedOverlay = document.getElementById('officer-ended-overlay');
+                    const workspaceEl = document.getElementById('officer-workspace');
+                    if (endedOverlay) {
+                        endedOverlay.classList.remove('is-hidden');
+                        endedOverlay.style.display = 'flex';
+                    }
+                    if (workspaceEl) {
+                        workspaceEl.classList.add('is-draft-blurred');
+                        workspaceEl.setAttribute('aria-hidden', 'true');
+                    }
+                }
+                if (countdownPill) {
+                    countdownPill.className = 'officer-countdown-pill is-ended';
+                }
+                if (countdownLabel) {
+                    countdownLabel.textContent = 'Election ended';
+                }
+                if (countdownDigits) {
+                    countdownDigits.textContent = '00:00:00';
+                }
+                return;
+            }
+
+            if (countdownPill) {
+                if (remaining <= 300) {
+                    countdownPill.className = 'officer-countdown-pill is-warning';
+                } else {
+                    countdownPill.className = 'officer-countdown-pill';
+                }
+            }
+            if (countdownLabel) {
+                countdownLabel.textContent = 'Time remaining:';
+            }
+            if (countdownDigits) {
+                countdownDigits.textContent = formatHHMMSS(remaining);
+            }
+        }
+
+        updateCountdownDisplay();
+
+        const countdownInterval = setInterval(() => {
+            updateCountdownDisplay();
+            const rem = getRemainingSeconds();
+            if (rem !== null && rem <= 0) {
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+    }
+
+    // Connect Officer WebSocket for real-time presence and lifecycle
+    let officerSocket = null;
+    function connectOfficerSocket() {
+        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${wsScheme}://${window.location.host}/ws/officer/`;
+
+        try {
+            officerSocket = new WebSocket(wsUrl);
+
+            officerSocket.onmessage = function (e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.event === 'kiosk.status') {
+                        updateKioskStatus(data.online, isKioskFullscreen);
+                    } else if (data.event === 'kiosk.fullscreen') {
+                        updateKioskStatus(isKioskOnline, data.fullscreen);
+                    } else if (data.event === 'authorization.updated') {
+                        kioskSubmissionError = null;
+                        if (data.status === 'in_progress' && data.authorization_id) {
+                            lockOfficer(data.authorization_id, data.voter_id);
+                        }
+                        handleRemoteAuthUpdate(data.voter_id, data.status);
+                        const cur = getSelectedVoter();
+                        if (cur) renderDetails(cur);
+                    } else if (data.event === 'ballot.recorded') {
+                        const targetVoterId = data.voter_id || activeAuthorizedVoterId || selectedVoterId;
+                        kioskSubmissionError = null;
+                        if (targetVoterId) {
+                            handleRemoteAuthUpdate(targetVoterId, 'voted');
+                        }
+                        unlockOfficer();
+                        const cur = getSelectedVoter();
+                        if (cur) renderDetails(cur);
+                    } else if (data.event === 'kiosk.ballot_error') {
+                        kioskSubmissionError = data.error || 'Ballot submission failed';
+                        const cur = getSelectedVoter();
+                        if (cur) renderDetails(cur);
+                    } else if (data.event === 'credentials.revoked') {
+                        window.location.href = "{% url 'accounts:logout' %}";
+                    } else if (data.event === 'election.started') {
+                        const officerElId = {{ election.id }};
+                        if (!data.election_id || data.election_id === officerElId) {
+                            window.location.reload();
+                        }
+                    } else if (data.event === 'election.cutoff') {
+                        const officerElId = {{ election.id }};
+                        if (!data.election_id || data.election_id === officerElId) {
+                            isElectionEnded = true;
+                            const countdownPill = document.getElementById('officer-countdown-pill');
+                            const countdownLabel = document.getElementById('officer-countdown-label');
+                            const countdownDigits = document.getElementById('officer-countdown-digits');
+                            if (countdownPill) countdownPill.className = 'officer-countdown-pill is-ended';
+                            if (countdownLabel) countdownLabel.textContent = 'Election ended';
+                            if (countdownDigits) countdownDigits.textContent = '00:00:00';
+                            const cur = getSelectedVoter();
+                            if (cur) renderDetails(cur);
+                            if (!activeAuthorizationId) {
+                                const endedOverlay = document.getElementById('officer-ended-overlay');
+                                const workspaceEl = document.getElementById('officer-workspace');
+                                if (endedOverlay) {
+                                    endedOverlay.classList.remove('is-hidden');
+                                    endedOverlay.style.display = 'flex';
+                                }
+                                if (workspaceEl) {
+                                    workspaceEl.classList.add('is-draft-blurred');
+                                    workspaceEl.setAttribute('aria-hidden', 'true');
+                                }
+                            }
+                        }
+                    } else if (data.event === 'booth.completed') {
+                        isBoothCompleted = true;
+                        checkBoothCompleted();
+                    } else if (data.event === 'election.closed') {
+                        const officerElId = {{ election.id }};
+                        if (!data.election_id || data.election_id === officerElId) {
+                            window.location.href = "{% url 'accounts:logout' %}?reason=election_ended";
+                        }
+                    }
+                } catch (err) {
+                    console.error('Officer WS error parsing message:', err);
+                }
+            };
+
+            officerSocket.onclose = function () {
+                setTimeout(connectOfficerSocket, 3000);
+            };
+        } catch (e) {
+            console.warn('Could not establish Officer WebSocket:', e);
+        }
+    }
+
+    // Connect socket immediately so draft station also listens for election.started
+    connectOfficerSocket();
+
+    if (isDraft) {
+        if (btnAuthorize) btnAuthorize.disabled = true;
+        return;
+    }
+
+    const rawDataElement = document.getElementById('officer-voters-data');
+    const votersData = rawDataElement ? JSON.parse(rawDataElement.textContent) : [];
+
     let activeFilter = 'not_voted';
     let searchQuery = '';
-    let selectedVoterId = null;
+    let selectedVoterId = activeAuthorizedVoterId || sessionStorage.getItem('officer_selected_voter_id') || null;
+
+    function getSelectedVoter() {
+        if (!selectedVoterId) return null;
+        return votersData.find(v => String(v.voter_id) === String(selectedVoterId)) || null;
+    }
 
     function escapeHtml(str) {
         if (!str) return '';
@@ -277,13 +547,45 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/'/g, '&#039;');
     }
 
+    function findVoterRow(vId) {
+        if (!voterListContainer || vId == null) return null;
+        const targetId = String(vId);
+        const rows = voterListContainer.querySelectorAll('.officer-voter-row');
+        for (let i = 0; i < rows.length; i++) {
+            if (rows[i].getAttribute('data-voter-id') === targetId) {
+                return rows[i];
+            }
+        }
+        return null;
+    }
+
     function lockOfficer(authId, voterId) {
         activeAuthorizationId = authId;
-        activeAuthorizedVoterId = voterId;
+        activeAuthorizedVoterId = String(voterId);
 
         if (searchInput) searchInput.disabled = true;
         tabButtons.forEach(btn => btn.disabled = true);
         if (voterListContainer) voterListContainer.classList.add('is-locked');
+
+        selectedVoterId = String(voterId);
+        const voter = votersData.find(v => String(v.voter_id) === String(voterId));
+        if (voter) {
+            voter.status_code = 'in_progress';
+            voter.status_display = 'In progress';
+            renderDetails(voter);
+        }
+
+        const row = findVoterRow(voterId);
+        if (row) {
+            row.setAttribute('data-status', 'in_progress');
+            const statusPill = row.querySelector('.officer-voter-status');
+            if (statusPill) {
+                statusPill.className = 'officer-voter-status is-in-progress';
+                statusPill.innerHTML = '<span class="status-dot"></span><span class="status-label">In progress</span>';
+            }
+            highlightRow(row);
+            row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
 
         if (btnAuthorize) {
             btnAuthorize.textContent = 'Cancel authorization';
@@ -314,24 +616,41 @@ document.addEventListener('DOMContentLoaded', function () {
             btnAuthorize.textContent = 'Authorize voter';
         }
 
+        if (isElectionEnded) {
+            const endedOverlay = document.getElementById('officer-ended-overlay');
+            const workspaceEl = document.getElementById('officer-workspace');
+            if (endedOverlay) {
+                endedOverlay.classList.remove('is-hidden');
+                endedOverlay.style.display = 'flex';
+            }
+            if (workspaceEl) {
+                workspaceEl.classList.add('is-draft-blurred');
+                workspaceEl.setAttribute('aria-hidden', 'true');
+            }
+        }
+
         if (selectedVoterId) {
             const voter = votersData.find(v => String(v.voter_id) === String(selectedVoterId));
             if (voter) {
                 renderDetails(voter);
             }
         }
+        checkBoothCompleted();
     }
 
     function renderDetails(voter) {
         if (!voter) {
             selectedVoterId = null;
+            sessionStorage.removeItem('officer_selected_voter_id');
             if (emptyPanel) emptyPanel.style.display = 'flex';
             if (contentPanel) contentPanel.style.display = 'none';
             if (btnAuthorize) btnAuthorize.disabled = true;
             return;
         }
 
-        selectedVoterId = voter.voter_id;
+        selectedVoterId = String(voter.voter_id);
+        sessionStorage.setItem('officer_selected_voter_id', selectedVoterId);
+
         if (emptyPanel) emptyPanel.style.display = 'none';
         if (contentPanel) contentPanel.style.display = 'block';
 
@@ -358,39 +677,84 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         detailStatusBox.className = 'officer-status-box';
-        if (voter.has_voted) {
+
+        const isThisVoterActive = (activeAuthorizationId && String(activeAuthorizedVoterId) === String(voter.voter_id));
+        const isAnotherVoterActive = (activeAuthorizationId && String(activeAuthorizedVoterId) !== String(voter.voter_id));
+
+        if (voter.has_voted || voter.status_code === 'voted') {
             detailStatusBox.classList.add('is-voted');
-            detailStatusHeading.textContent = 'Voted';
-            detailStatusDesc.textContent = 'This voter has already cast their ballot for this election.';
+            detailStatusHeading.textContent = 'Ballot recorded';
+            detailStatusDesc.textContent = 'Ballot successfully recorded for this voter.';
             btnAuthorize.disabled = true;
             btnAuthorize.classList.remove('is-cancel');
             btnAuthorize.textContent = 'Authorize voter';
             footnoteText.textContent = 'This voter has already voted and cannot be re-authorized.';
-        } else if (voter.status_code === 'in_progress' || (activeAuthorizationId && String(activeAuthorizedVoterId) === String(voter.voter_id))) {
-            detailStatusBox.classList.add('is-in-progress');
+        } else if (isThisVoterActive) {
+            if (kioskSubmissionError) {
+                detailStatusBox.classList.add('is-danger');
+                detailStatusHeading.textContent = 'Submission error';
+                detailStatusDesc.textContent = kioskSubmissionError || 'Submission failed, vote again.';
+                btnAuthorize.textContent = 'Cancel authorization';
+                btnAuthorize.classList.add('is-cancel');
+                btnAuthorize.disabled = false;
+                footnoteText.textContent = 'Ballot submission error at kiosk. Click "Cancel authorization" to abort.';
+            } else if (!isKioskOnline) {
+                detailStatusBox.classList.add('is-danger');
+                detailStatusHeading.textContent = 'Kiosk disconnected';
+                detailStatusDesc.textContent = 'Voting kiosk terminal disconnected during active session.';
+                btnAuthorize.textContent = 'Cancel authorization';
+                btnAuthorize.classList.add('is-cancel');
+                btnAuthorize.disabled = false;
+                footnoteText.textContent = 'Kiosk disconnected. Click "Cancel authorization" to abort authorization.';
+            } else {
+                detailStatusBox.classList.add('is-in-progress');
+                detailStatusHeading.textContent = 'In progress';
+                detailStatusDesc.textContent = 'Voter has been authorized and is currently voting at the kiosk.';
+                btnAuthorize.textContent = 'Cancel authorization';
+                btnAuthorize.classList.add('is-cancel');
+                btnAuthorize.disabled = false;
+                footnoteText.textContent = 'Voting in progress. Click "Cancel authorization" to abort authorization.';
+            }
+        } else if (isAnotherVoterActive) {
+            detailStatusBox.classList.add('is-busy');
             detailStatusHeading.textContent = 'In progress';
-            detailStatusDesc.textContent = 'Voter has been authorized and is currently voting at the kiosk.';
-            btnAuthorize.textContent = 'Cancel authorization';
-            btnAuthorize.classList.add('is-cancel');
-            btnAuthorize.disabled = false;
-            footnoteText.textContent = 'Voting in progress. Click "Cancel authorization" to abort authorization.';
-        } else {
+            detailStatusDesc.textContent = 'Another voter is currently voting at the kiosk.';
+            btnAuthorize.disabled = true;
             btnAuthorize.classList.remove('is-cancel');
             btnAuthorize.textContent = 'Authorize voter';
+            footnoteText.textContent = 'Another voter is currently voting. Please wait for kiosk to finish or cancel current authorization.';
+        } else if (isElectionEnded) {
+            detailStatusBox.classList.add('is-danger');
+            detailStatusHeading.textContent = 'Election ended';
+            detailStatusDesc.textContent = 'The voting window has closed. New voter authorizations are no longer permitted.';
+            btnAuthorize.disabled = true;
+            btnAuthorize.classList.remove('is-cancel');
+            btnAuthorize.textContent = 'Authorize voter';
+            footnoteText.textContent = 'Election has ended. New authorizations cannot be issued.';
+        } else if (!isKioskOnline) {
+            detailStatusBox.classList.add('is-danger');
+            detailStatusHeading.textContent = 'Kiosk disconnected';
+            detailStatusDesc.textContent = 'Voting kiosk terminal is offline or disconnected from LAN.';
+            btnAuthorize.disabled = true;
+            btnAuthorize.classList.remove('is-cancel');
+            btnAuthorize.textContent = 'Authorize voter';
+            footnoteText.textContent = 'Voting Kiosk is offline or unauthenticated. Cannot issue authorization.';
+        } else if (!isKioskFullscreen) {
+            detailStatusBox.classList.add('is-warning');
+            detailStatusHeading.textContent = 'Kiosk not full screen';
+            detailStatusDesc.textContent = 'Voting kiosk terminal is not in fullscreen mode.';
+            btnAuthorize.disabled = true;
+            btnAuthorize.classList.remove('is-cancel');
+            btnAuthorize.textContent = 'Authorize voter';
+            footnoteText.textContent = 'Ensure the kiosk terminal is placed into fullscreen mode before authorizing.';
+        } else {
             detailStatusBox.classList.add('is-not-voted');
             detailStatusHeading.textContent = 'Ready to authorize';
             detailStatusDesc.textContent = 'Verify voter identity before issuing voting authorization.';
-            
-            if (activeAuthorizationId) {
-                btnAuthorize.disabled = true;
-                footnoteText.textContent = 'Another voter is currently voting. Please wait for kiosk to finish or cancel current authorization.';
-            } else if (!kioskOnline) {
-                btnAuthorize.disabled = true;
-                footnoteText.textContent = 'Voting Kiosk is offline or unauthenticated. Cannot issue authorization.';
-            } else {
-                btnAuthorize.disabled = false;
-                footnoteText.textContent = "Verify the voter's physical identification badge before authorization.";
-            }
+            btnAuthorize.disabled = false;
+            btnAuthorize.classList.remove('is-cancel');
+            btnAuthorize.textContent = 'Authorize voter';
+            footnoteText.textContent = "Verify the voter's physical identification badge before authorization.";
         }
     }
 
@@ -408,7 +772,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (idLower.startsWith(q)) return 800 - (idLower.length - q.length);
         if (nameLower.startsWith(q)) return 700 - (nameLower.length - q.length);
 
-        // Word boundary match in full name (e.g. searching last name or first name)
+        // Word boundary match in full name
         const words = nameLower.split(/\s+/);
         for (let i = 0; i < words.length; i++) {
             if (words[i].startsWith(q)) {
@@ -423,7 +787,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const nameIdx = nameLower.indexOf(q);
         if (nameIdx !== -1) return 300 - nameIdx;
 
-        return 0; // No match
+        return 0;
     }
 
     function filterVoters() {
@@ -436,22 +800,34 @@ document.addEventListener('DOMContentLoaded', function () {
             const vStatus = row.getAttribute('data-status') || '';
             const origIndex = parseInt(row.getAttribute('data-index') || '0', 10);
 
-            const matchesTab = (activeFilter === 'all') || (vStatus === activeFilter);
+            const isActivelyAuthorized = (activeAuthorizedVoterId && String(vId) === String(activeAuthorizedVoterId));
+            const matchesTab = (activeFilter === 'all') ||
+                               (activeFilter === 'not_voted' && (vStatus === 'not_voted' || vStatus === 'in_progress')) ||
+                               (activeFilter === 'voted' && vStatus === 'voted');
             const score = getSearchScore(vId, vName, searchQuery);
 
-            if (matchesTab && (searchQuery === '' || score > 0)) {
+            let shouldShow = false;
+            if (isActivelyAuthorized) {
+                shouldShow = true;
+            } else if (searchQuery !== '') {
+                // Search bar filters ALWAYS from all voter list, not restricted to active tab
+                shouldShow = (score > 0);
+            } else {
+                shouldShow = matchesTab;
+            }
+
+            if (shouldShow) {
                 row.style.display = 'grid';
-                scoredRows.push({ row, score: searchQuery ? score : 0, origIndex });
+                const sortScore = isActivelyAuthorized ? 99999 : (searchQuery ? score : 0);
+                scoredRows.push({ row, score: sortScore, origIndex });
             } else {
                 row.style.display = 'none';
             }
         });
 
-        // Reorder closest matches to the top
+        // Reorder closest matches to the top (actively authorized pinned first)
         scoredRows.sort((a, b) => {
-            if (searchQuery) {
-                if (b.score !== a.score) return b.score - a.score;
-            }
+            if (b.score !== a.score) return b.score - a.score;
             return a.origIndex - b.origIndex;
         });
 
@@ -459,17 +835,14 @@ document.addEventListener('DOMContentLoaded', function () {
             voterListContainer.appendChild(item.row);
         });
 
-        // Maintain selection if currently selected voter is still visible, else keep unselected
+        // Maintain selection highlight if currently selected voter is visible in list
         if (selectedVoterId) {
-            const currentSelectedRow = voterListContainer.querySelector(`.officer-voter-row[data-voter-id="${selectedVoterId}"]`);
+            const currentSelectedRow = findVoterRow(selectedVoterId);
             if (currentSelectedRow && currentSelectedRow.style.display !== 'none') {
                 highlightRow(currentSelectedRow);
             } else {
                 unhighlightAllRows();
-                renderDetails(null);
             }
-        } else {
-            renderDetails(null);
         }
     }
 
@@ -493,8 +866,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (row) {
             highlightRow(row);
             const vId = row.getAttribute('data-voter-id');
-            const voter = votersData.find(v => v.voter_id === vId);
-            renderDetails(voter);
+            const voter = votersData.find(v => String(v.voter_id) === String(vId));
+            if (voter) {
+                renderDetails(voter);
+            }
         }
     });
 
@@ -518,6 +893,10 @@ document.addEventListener('DOMContentLoaded', function () {
             this.classList.add('is-active');
             this.setAttribute('aria-selected', 'true');
             activeFilter = this.getAttribute('data-filter');
+            if (searchInput) {
+                searchInput.value = '';
+                searchQuery = '';
+            }
             filterVoters();
         });
     });
@@ -547,8 +926,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     const data = await response.json();
                     if (data.success) {
-                        unlockOfficer();
+                        kioskSubmissionError = null;
                         handleRemoteAuthUpdate(prevVoterId, 'not_voted');
+                        unlockOfficer();
                     } else {
                         alert(data.error || 'Failed to cancel authorization.');
                         btnAuthorize.disabled = false;
@@ -564,6 +944,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             // Scenario 2: No active authorization -> Authorize Selected Voter
+            if (isElectionEnded) {
+                alert('Election has ended. New authorizations are no longer permitted.');
+                return;
+            }
+
             if (!selectedVoterId) return;
 
             btnAuthorize.disabled = true;
@@ -584,8 +969,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (data.success) {
                     const authVoterId = selectedVoterId;
                     const authId = data.authorization_id;
-                    handleRemoteAuthUpdate(authVoterId, 'in_progress');
                     lockOfficer(authId, authVoterId);
+                    handleRemoteAuthUpdate(authVoterId, 'in_progress');
                 } else {
                     alert(data.error || 'Failed to issue authorization.');
                     btnAuthorize.disabled = false;
@@ -600,81 +985,30 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Connect Officer WebSocket for real-time Kiosk presence and status updates
-    let officerSocket = null;
-    function connectOfficerSocket() {
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsScheme}://${window.location.host}/ws/officer/`;
-
-        try {
-            officerSocket = new WebSocket(wsUrl);
-
-            officerSocket.onmessage = function (e) {
-                try {
-                    const data = JSON.parse(e.data);
-                    if (data.event === 'kiosk.status') {
-                        updateKioskStatus(data.online);
-                    } else if (data.event === 'authorization.updated') {
-                        handleRemoteAuthUpdate(data.voter_id, data.status);
-                    } else if (data.event === 'ballot.recorded') {
-                        if (data.voter_id) {
-                            handleRemoteAuthUpdate(data.voter_id, 'voted');
-                        }
-                    } else if (data.event === 'election.started') {
-                        const draftOverlay = document.querySelector('.officer-draft-overlay');
-                        if (draftOverlay) draftOverlay.remove();
-                        const workspace = document.querySelector('.officer-workspace');
-                        if (workspace) {
-                            workspace.classList.remove('is-draft' + '-blurred');
-                            workspace.removeAttribute('aria-hidden');
-                        }
-                        const draftBadge = document.getElementById('officer-election-status-badge');
-                        if (draftBadge) draftBadge.remove();
-                        window.location.reload();
-                    } else if (data.event === 'election.closed') {
-                        window.location.reload();
-                    }
-                } catch (err) {
-                    console.error('Officer WS error parsing message:', err);
-                }
-            };
-
-            officerSocket.onclose = function () {
-                setTimeout(connectOfficerSocket, 3000);
-            };
-        } catch (e) {
-            console.warn('Could not establish Officer WebSocket:', e);
-        }
-    }
-
-    function updateKioskStatus(online) {
+    function updateKioskStatus(online, fullscreen) {
+        if (online !== undefined) isKioskOnline = !!online;
+        if (fullscreen !== undefined) isKioskFullscreen = !!fullscreen;
         const badge = document.getElementById('officer-kiosk-status-badge');
         const text = document.getElementById('officer-kiosk-status-text');
         if (badge && text) {
-            if (online) {
-                badge.className = 'officer-kiosk-status-pill is-online';
-                text.textContent = 'Kiosk ' + 'Ready';
-            } else {
+            if (!isKioskOnline) {
                 badge.className = 'officer-kiosk-status-pill is-offline';
                 text.textContent = 'Kiosk Offline';
+            } else if (!isKioskFullscreen) {
+                badge.className = 'officer-kiosk-status-pill is-warning';
+                text.textContent = 'Kiosk Not Fullscreen';
+            } else {
+                badge.className = 'officer-kiosk-status-pill is-online';
+                text.textContent = 'Kiosk ' + 'Ready';
             }
         }
-        if (selectedVoterId && !activeAuthorizationId) {
-            const voter = votersData.find(v => String(v.voter_id) === String(selectedVoterId));
-            if (voter && !voter.has_voted && voter.status_code !== 'in_progress') {
-                btnAuthorize.disabled = !online;
-                if (!online) {
-                    footnoteText.textContent = 'Voting Kiosk is offline or unauthenticated. Cannot issue authorization.';
-                } else {
-                    footnoteText.textContent = "Verify the voter's physical identification badge before authorization.";
-                }
-            }
-        }
+        const cur = getSelectedVoter();
+        if (cur) renderDetails(cur);
     }
 
     function updateTabCounts() {
-        const notVotedCount = votersData.filter(v => !v.has_voted && v.status_code !== 'voted').length;
-        const votedCount = votersData.filter(v => v.has_voted || v.status_code === 'voted').length;
+        const notVotedCount = votersData.filter(v => !v.has_voted).length;
+        const votedCount = votersData.filter(v => v.has_voted).length;
         const allCount = votersData.length;
 
         tabButtons.forEach(btn => {
@@ -690,11 +1024,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function handleRemoteAuthUpdate(voterId, status) {
-        if (activeAuthorizedVoterId && String(activeAuthorizedVoterId) === String(voterId)) {
-            if (status === 'voted' || status === 'not_voted') {
-                unlockOfficer();
-            }
-        }
         const voter = votersData.find(v => String(v.voter_id) === String(voterId));
         if (voter) {
             voter.status_code = status;
@@ -702,23 +1031,37 @@ document.addEventListener('DOMContentLoaded', function () {
             if (status === 'voted') {
                 voter.has_voted = true;
                 voter.voted_at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else if (status === 'not_voted') {
+                voter.has_voted = false;
+                voter.voted_at = null;
             }
         }
-        const row = voterListContainer.querySelector(`.officer-voter-row[data-voter-id="${voterId}"]`);
+        const row = findVoterRow(voterId);
         if (row) {
             row.setAttribute('data-status', status);
             row.setAttribute('data-has-voted', (status === 'voted') ? 'true' : 'false');
             const statusPill = row.querySelector('.officer-voter-status');
             if (statusPill) {
-                statusPill.className = `officer-voter-status is-${status}`;
+                const statusSlug = status.replace(/_/g, '-');
+                statusPill.className = `officer-voter-status is-${statusSlug}`;
                 statusPill.innerHTML = `<span class="status-dot"></span><span class="status-label">${voter ? voter.status_display : status}</span>`;
             }
         }
+
+        if (activeAuthorizedVoterId && String(activeAuthorizedVoterId) === String(voterId)) {
+            if (status === 'voted' || status === 'not_voted') {
+                kioskSubmissionError = null;
+                unlockOfficer();
+            }
+        }
+
         updateTabCounts();
         filterVoters();
+
         if (selectedVoterId && String(selectedVoterId) === String(voterId) && voter) {
             renderDetails(voter);
         }
+        checkBoothCompleted();
     }
 
     function getCookie(name) {
@@ -736,22 +1079,31 @@ document.addEventListener('DOMContentLoaded', function () {
         return cookieValue;
     }
 
-    connectOfficerSocket();
+    // Initial load: restore active authorization if exists, else restore saved voter selection
+    filterVoters();
 
-    // Initial load: restore active authorization if exists, else default state
     if (activeAuthorizationId && activeAuthorizedVoterId) {
-        filterVoters();
         const voter = votersData.find(v => String(v.voter_id) === String(activeAuthorizedVoterId));
         if (voter) {
-            renderDetails(voter);
-            const row = voterListContainer.querySelector(`.officer-voter-row[data-voter-id="${activeAuthorizedVoterId}"]`);
-            if (row) highlightRow(row);
+            voter.status_code = 'in_progress';
+            voter.status_display = 'In progress';
         }
         lockOfficer(activeAuthorizationId, activeAuthorizedVoterId);
+    } else if (selectedVoterId) {
+        const voter = votersData.find(v => String(v.voter_id) === String(selectedVoterId));
+        if (voter) {
+            renderDetails(voter);
+            const row = findVoterRow(selectedVoterId);
+            if (row && row.style.display !== 'none') {
+                highlightRow(row);
+            }
+        } else {
+            renderDetails(null);
+        }
     } else {
-        filterVoters();
         renderDetails(null);
     }
+    checkBoothCompleted();
 });
 </script>
 {% endblock %}

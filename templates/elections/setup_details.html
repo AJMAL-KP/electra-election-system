@@ -62,6 +62,38 @@
          ==================================================================== -->
     <main class="setup-scroll-area" id="setup-details-scroll-area">
         <div class="setup-scroll-inner">
+            <!-- In-page Electra Messages Banner (Server errors, warnings, successes) -->
+            {% if messages %}
+            <div class="setup-messages-wrap" id="setup-messages-banner">
+                {% for message in messages %}
+                <div class="setup-message-alert setup-message-{% if 'error' in message.tags or 'danger' in message.tags %}error{% elif 'warning' in message.tags %}warning{% elif 'success' in message.tags %}success{% else %}info{% endif %}" role="alert">
+                    <div class="setup-message-icon">
+                        {% if 'error' in message.tags or 'danger' in message.tags %}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        {% elif 'warning' in message.tags %}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        {% else %}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        {% endif %}
+                    </div>
+                    <div class="setup-message-text">{{ message }}</div>
+                    <button type="button" class="setup-message-dismiss" onclick="this.closest('.setup-message-alert').remove()" aria-label="Dismiss">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Dynamic Client Validation Banner -->
+            <div class="setup-messages-wrap" id="client-validation-banner" style="display: none;">
+                <div class="setup-message-alert setup-message-error" role="alert">
+                    <div class="setup-message-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div class="setup-message-text" id="client-validation-text"></div>
+                    <button type="button" class="setup-message-dismiss" onclick="document.getElementById('client-validation-banner').style.display='none'" aria-label="Dismiss">&times;</button>
+                </div>
+            </div>
+
             <!-- Main Election Details Form -->
             <form method="post" action="{% url 'elections:setup_details' election.id %}" id="form-election-details">
                 {% csrf_token %}
@@ -139,6 +171,19 @@
                                     {% endif %}
                                 </div>
                                 <div class="position-header-actions">
+                                    <button type="button" 
+                                            class="btn-position-edit" 
+                                            title="Edit position" 
+                                            aria-label="Edit {{ pos.name }}"
+                                            data-position-id="{{ pos.id }}"
+                                            data-position-name="{{ pos.name }}"
+                                            data-eligible-gender="{{ pos.eligible_gender|default:'ALL' }}"
+                                            data-eligible-groups="[{% for grp in pos.eligible_groups.all %}{{ grp.id }}{% if not forloop.last %},{% endif %}{% endfor %}]">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                        </svg>
+                                    </button>
                                     <form method="post" action="{% url 'elections:setup_details' election.id %}" class="delete-position-form" onsubmit="return confirm('Delete position \'{{ pos.name }}\' and all its candidates?');">
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="delete_position">
@@ -371,6 +416,130 @@
 </div>
 
 <!-- ====================================================================
+     MODAL 1b: EDIT POSITION
+     Electra themed modal for editing position details & eligibility
+     ==================================================================== -->
+<div class="setup-modal-backdrop" id="modal-edit-position" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-edit-pos-title">
+    <div class="setup-modal-dialog setup-modal-wide">
+        <form method="post" action="{% url 'elections:setup_details' election.id %}" id="form-edit-position" class="setup-modal-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit_position">
+            <input type="hidden" name="position_id" id="edit-pos-id" value="">
+            <input type="hidden" name="current_name" id="edit-pos-mirror-name">
+            <input type="hidden" name="current_desc" id="edit-pos-mirror-desc">
+            <input type="hidden" name="eligibility_mode" id="edit-pos-eligibility-mode" value="all">
+            <div id="edit-hidden-eligible-groups"></div>
+
+            <div class="setup-modal-header">
+                <div>
+                    <h3 class="setup-modal-title" id="modal-edit-pos-title">Edit position</h3>
+                    <span class="setup-modal-subtitle">Update role name, gender restrictions, and voter cohorts</span>
+                </div>
+                <button type="button" class="setup-modal-close" data-close-modal aria-label="Close modal">&times;</button>
+            </div>
+
+            <div class="setup-modal-body">
+                <div class="setup-field-group">
+                    <label for="edit-pos-name" class="setup-field-label">
+                        Position name <span class="required-asterisk">*</span>
+                    </label>
+                    <input type="text" 
+                           id="edit-pos-name" 
+                           name="position_name" 
+                           class="setup-text-input" 
+                           placeholder="e.g. President, Vice President, General Secretary" 
+                           required 
+                           autocomplete="off">
+                </div>
+
+                <div class="setup-field-group" style="margin-top: 18px;">
+                    <label class="setup-field-label">Gender eligibility</label>
+                    <p class="setup-field-hint">Specify whether this post is restricted to specific gender voters.</p>
+                    <div class="eligibility-bubbles-grid gender-bubbles-grid">
+                        <div class="bubble-card edit-gender-bubble is-selected" data-gender="ALL" role="button" tabindex="0">
+                            <div class="bubble-check-indicator">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <div class="bubble-content">
+                                <span class="bubble-name">All genders</span>
+                                <span class="bubble-sub">Open to all voters</span>
+                            </div>
+                        </div>
+                        <div class="bubble-card edit-gender-bubble" data-gender="FEMALE" role="button" tabindex="0">
+                            <div class="bubble-check-indicator">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <div class="bubble-content">
+                                <span class="bubble-name">Female only</span>
+                                <span class="bubble-sub">Reserved for female voters</span>
+                            </div>
+                        </div>
+                        <div class="bubble-card edit-gender-bubble" data-gender="MALE" role="button" tabindex="0">
+                            <div class="bubble-check-indicator">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <div class="bubble-content">
+                                <span class="bubble-name">Male only</span>
+                                <span class="bubble-sub">Reserved for male voters</span>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="hidden" name="eligible_gender" id="edit-pos-gender" value="ALL">
+                </div>
+
+                <div class="setup-field-group" style="margin-top: 20px;">
+                    <label class="setup-field-label">Group eligibility</label>
+                    <p class="setup-field-hint">Choose which registered voter cohorts or departments are eligible to vote for this post.</p>
+
+                    <div class="eligibility-bubbles-scrollable">
+                        <div class="eligibility-bubbles-grid">
+                            <!-- Universal 'All voters' Bubble -->
+                            <div class="bubble-card is-selected" id="edit-bubble-all-voters" data-type="all" role="button" tabindex="0">
+                                <div class="bubble-check-indicator">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="bubble-content">
+                                    <span class="bubble-name">All voters</span>
+                                    <span class="bubble-sub">{{ total_enrolled_voters }} total registered</span>
+                                </div>
+                            </div>
+
+                            <!-- Individual Academic Groups -->
+                            {% for grp in available_groups %}
+                            <div class="bubble-card edit-group-bubble" data-type="group" data-group-id="{{ grp.id }}" role="button" tabindex="0">
+                                <div class="bubble-check-indicator">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="bubble-content">
+                                    <span class="bubble-name">{{ grp.name }}</span>
+                                    <span class="bubble-sub">{{ grp.voter_count|default:"0" }} voter{{ grp.voter_count|pluralize }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setup-modal-footer">
+                <button type="button" class="btn-modal-cancel" data-close-modal>Cancel</button>
+                <button type="submit" class="btn-modal-submit" id="btn-submit-edit-position">Save changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ====================================================================
      MODAL 2: ADD CANDIDATE
      "clicking on it opens a modal that can search for a voter from election voter,
       add his photo and symbol, both optional.
@@ -594,6 +763,62 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnSaveDraft = document.getElementById('btn-top-save-draft');
     const btnContinue = document.getElementById('btn-top-continue');
 
+    function showValidationAlert(msg, type = 'error') {
+        const clientBanner = document.getElementById('client-validation-banner');
+        const clientText = document.getElementById('client-validation-text');
+        if (clientBanner && clientText) {
+            clientText.textContent = msg;
+            clientBanner.style.display = 'flex';
+        }
+        showElectraToast(msg, type);
+
+        const scrollArea = document.getElementById('setup-details-scroll-area');
+        if (scrollArea) {
+            scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }
+
+    function validateSetupDetails() {
+        const currentName = nameInput ? nameInput.value.trim() : '';
+        if (!currentName) {
+            showValidationAlert("Election title is required.");
+            if (nameInput) nameInput.focus();
+            return false;
+        }
+
+        const positionCards = document.querySelectorAll('.position-card');
+        if (positionCards.length === 0) {
+            showValidationAlert("Please add at least one position to continue.");
+            return false;
+        }
+
+        let emptyPositions = [];
+        let hasContested = false;
+
+        positionCards.forEach(card => {
+            const pTitle = card.querySelector('.position-name') ? card.querySelector('.position-name').textContent.trim() : 'Position';
+            const candRows = card.querySelectorAll('.candidate-row');
+            if (candRows.length === 0) {
+                emptyPositions.push(pTitle);
+            }
+            if (candRows.length > 1) {
+                hasContested = true;
+            }
+        });
+
+        if (emptyPositions.length > 0) {
+            showValidationAlert(`Every position must have at least one candidate. Missing candidates for: ${emptyPositions.join(', ')}.`);
+            return false;
+        }
+
+        if (!hasContested) {
+            showValidationAlert("At least one position must have more than one candidate for contested voting.");
+            return false;
+        }
+
+        return true;
+    }
+
     if (btnSaveDraft && mainForm && actionInput) {
         btnSaveDraft.addEventListener('click', function () {
             actionInput.value = 'save_draft';
@@ -602,7 +827,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (btnContinue && mainForm && actionInput) {
-        btnContinue.addEventListener('click', function () {
+        btnContinue.addEventListener('click', function (e) {
+            if (!validateSetupDetails()) {
+                e.preventDefault();
+                return;
+            }
             actionInput.value = 'continue';
             mainForm.submit();
         });
@@ -728,6 +957,121 @@ document.addEventListener('DOMContentLoaded', function () {
     if (formAddPos) {
         formAddPos.addEventListener('submit', function () {
             syncEligibilityState();
+            syncDraftFormState();
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // 5b. Edit Position Modal & Eligibility Bubble Selection
+    // -------------------------------------------------------------------------
+    const modalEditPos = document.getElementById('modal-edit-position');
+    const formEditPos = document.getElementById('form-edit-position');
+    const editPosIdInput = document.getElementById('edit-pos-id');
+    const editPosNameInput = document.getElementById('edit-pos-name');
+    const editGenderInput = document.getElementById('edit-pos-gender');
+    const editEligibilityModeInput = document.getElementById('edit-pos-eligibility-mode');
+    const editHiddenGroupsContainer = document.getElementById('edit-hidden-eligible-groups');
+    const editBubbleAll = document.getElementById('edit-bubble-all-voters');
+    const editGroupBubbles = document.querySelectorAll('.edit-group-bubble[data-type="group"]');
+    const editGenderBubbles = document.querySelectorAll('.edit-gender-bubble');
+
+    function syncEditEligibilityState() {
+        if (!editHiddenGroupsContainer) return;
+        editHiddenGroupsContainer.innerHTML = '';
+        const selectedGroupBubbles = Array.from(editGroupBubbles).filter(b => b.classList.contains('is-selected'));
+
+        if (editBubbleAll && (editBubbleAll.classList.contains('is-selected') || selectedGroupBubbles.length === 0)) {
+            if (editBubbleAll) editBubbleAll.classList.add('is-selected');
+            editGroupBubbles.forEach(b => b.classList.remove('is-selected'));
+            if (editEligibilityModeInput) editEligibilityModeInput.value = 'all';
+        } else {
+            if (editBubbleAll) editBubbleAll.classList.remove('is-selected');
+            if (editEligibilityModeInput) editEligibilityModeInput.value = 'groups';
+            selectedGroupBubbles.forEach(b => {
+                const gid = b.getAttribute('data-group-id');
+                const inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = 'eligible_group_ids';
+                inp.value = gid;
+                editHiddenGroupsContainer.appendChild(inp);
+            });
+        }
+    }
+
+    if (editBubbleAll) {
+        editBubbleAll.addEventListener('click', function () {
+            editBubbleAll.classList.add('is-selected');
+            editGroupBubbles.forEach(b => b.classList.remove('is-selected'));
+            syncEditEligibilityState();
+        });
+    }
+
+    editGroupBubbles.forEach(b => {
+        b.addEventListener('click', function () {
+            this.classList.toggle('is-selected');
+            if (editBubbleAll) editBubbleAll.classList.remove('is-selected');
+            syncEditEligibilityState();
+        });
+    });
+
+    editGenderBubbles.forEach(b => {
+        b.addEventListener('click', function () {
+            editGenderBubbles.forEach(gb => gb.classList.remove('is-selected'));
+            this.classList.add('is-selected');
+            if (editGenderInput) editGenderInput.value = this.getAttribute('data-gender');
+        });
+    });
+
+    document.querySelectorAll('.btn-position-edit').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const posId = this.getAttribute('data-position-id');
+            const posName = this.getAttribute('data-position-name');
+            const posGender = this.getAttribute('data-eligible-gender') || 'ALL';
+            let posGroups = [];
+            try {
+                posGroups = JSON.parse(this.getAttribute('data-eligible-groups') || '[]');
+            } catch (e) {
+                posGroups = [];
+            }
+
+            if (editPosIdInput) editPosIdInput.value = posId;
+            if (editPosNameInput) editPosNameInput.value = posName;
+            if (editGenderInput) editGenderInput.value = posGender;
+
+            // Pre-select gender bubbles
+            editGenderBubbles.forEach(b => {
+                if (b.getAttribute('data-gender') === posGender) {
+                    b.classList.add('is-selected');
+                } else {
+                    b.classList.remove('is-selected');
+                }
+            });
+
+            // Pre-select group bubbles
+            if (!posGroups || posGroups.length === 0) {
+                if (editBubbleAll) editBubbleAll.classList.add('is-selected');
+                editGroupBubbles.forEach(b => b.classList.remove('is-selected'));
+            } else {
+                if (editBubbleAll) editBubbleAll.classList.remove('is-selected');
+                editGroupBubbles.forEach(b => {
+                    const gid = parseInt(b.getAttribute('data-group-id'), 10);
+                    if (posGroups.includes(gid)) {
+                        b.classList.add('is-selected');
+                    } else {
+                        b.classList.remove('is-selected');
+                    }
+                });
+            }
+
+            syncEditEligibilityState();
+            openModal('modal-edit-position');
+            if (editPosNameInput) editPosNameInput.focus();
+        });
+    });
+
+    if (formEditPos) {
+        formEditPos.addEventListener('submit', function () {
+            syncEditEligibilityState();
             syncDraftFormState();
         });
     }
@@ -906,32 +1250,71 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    if (formAddCand) {
-        formAddCand.addEventListener('submit', syncDraftFormState);
+    function showElectraToast(text, type = 'error') {
+        let toastContainer = document.querySelector('.setup-toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'setup-toast-container';
+            document.body.appendChild(toastContainer);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `setup-toast is-${type}`;
+        toast.textContent = text;
+        toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('is-hiding');
+            setTimeout(() => toast.remove(), 260);
+        }, 4500);
     }
+    window.showElectraToast = showElectraToast;
 
-    // -------------------------------------------------------------------------
-    // 7. Auto-expiring Toast Notifications
-    // -------------------------------------------------------------------------
-    const messagesData = document.querySelectorAll('#django-messages-data [data-django-message]');
-    if (messagesData.length > 0) {
-        const toastContainer = document.createElement('div');
-        toastContainer.className = 'setup-toast-container';
-        document.body.appendChild(toastContainer);
-
-        messagesData.forEach(msg => {
-            const toast = document.createElement('div');
-            const isError = msg.getAttribute('data-type') === 'error';
-            toast.className = `setup-toast ${isError ? 'is-error' : 'is-success'}`;
-            toast.textContent = msg.textContent;
-            toastContainer.appendChild(toast);
-
-            setTimeout(() => {
-                toast.classList.add('is-hiding');
-                setTimeout(() => toast.remove(), 300);
-            }, 4000);
+    if (formAddPos) {
+        formAddPos.addEventListener('submit', function (e) {
+            const posName = document.getElementById('id_position_name');
+            if (posName && !posName.value.trim()) {
+                e.preventDefault();
+                showElectraToast('Position title is required.', 'error');
+                posName.focus();
+                return false;
+            }
+            syncDraftFormState();
         });
     }
+
+    if (formEditPos) {
+        formEditPos.addEventListener('submit', function (e) {
+            if (editPosNameInput && !editPosNameInput.value.trim()) {
+                e.preventDefault();
+                showElectraToast('Position title is required.', 'error');
+                editPosNameInput.focus();
+                return false;
+            }
+            syncDraftFormState();
+        });
+    }
+
+    if (formAddCand) {
+        formAddCand.addEventListener('submit', function (e) {
+            const nameEl = document.getElementById('id_candidate_name_hidden');
+            if (nameEl && !nameEl.value.trim()) {
+                e.preventDefault();
+                showElectraToast('Please select a voter or enter candidate name.', 'error');
+                return false;
+            }
+            syncDraftFormState();
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. Auto-expiring Toast Notifications from Server
+    // -------------------------------------------------------------------------
+    const messagesData = document.querySelectorAll('#django-messages-data [data-django-message]');
+    messagesData.forEach(msg => {
+        const type = msg.getAttribute('data-type') || 'info';
+        showElectraToast(msg.textContent, type);
+    });
 });
 </script>
 

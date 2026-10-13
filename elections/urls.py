@@ -11,6 +11,9 @@ urlpatterns = [
     path("<int:election_id>/edit/", views.election_edit_view, name="edit"),
     path("<int:election_id>/delete/", views.election_delete_view, name="delete"),
     path("<int:election_id>/start/", views.election_start_view, name="start"),
+    path("<int:election_id>/close/", views.election_close_view, name="close"),
+    path("<int:election_id>/live/", views.election_live_view, name="live"),
+    path("<int:election_id>/live/stats/", views.election_live_stats_view, name="live_stats"),
     path("<int:election_id>/publish-results/", views.election_publish_results_view, name="publish_results"),
 
     # 4-Stage Election Setup Workflow
@@ -25,6 +28,7 @@ urlpatterns = [
     path("<int:election_id>/setup/voter-slips/pdf/", views.election_voter_slips_pdf_view, name="setup_voter_slips_pdf"),
     path("<int:election_id>/setup/voter-slips/print/", views.election_voter_slips_print_view, name="setup_voter_slips_print"),
     path("<int:election_id>/setup/review/", views.election_setup_review_view, name="setup_review"),
+    path("<int:election_id>/setup/review/status/", views.election_setup_review_status_api, name="setup_review_status"),
     
     # Position endpoints
     path("<int:election_id>/positions/create/", views.position_create_view, name="position_create"),

@@ -13,22 +13,24 @@
 
 {% block content %}
 <div class="history-layout">
-    <!-- Top Minimal Navigation -->
-    <header class="history-top-bar">
-        <a href="{% url 'elections:dashboard' %}" class="history-back-btn" aria-label="Back to Dashboard">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-            <span>Back</span>
-        </a>
-    </header>
+    <!-- ====================================================================
+         FIXED TOP HEADER: Back button, Hero title & Filters
+         Pinned in view while only the history list scrolls.
+         ==================================================================== -->
+    <header class="history-fixed-header">
+        <div class="history-top-bar">
+            <a href="{% url 'elections:dashboard' %}" class="history-back-btn" aria-label="Back to Dashboard">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                <span>Back</span>
+            </a>
+        </div>
 
-    <main class="history-container">
-        <!-- Hero Title & Subtitle -->
         <div class="history-hero">
             <h1 class="history-title">Election history</h1>
             <p class="history-subtitle">View and manage all past elections.</p>
         </div>
 
-        <!-- Filter Bar (Search + Year) -->
+        <!-- Filter Bar (Search + Year dropdown) -->
         <form method="get" action="{% url 'elections:history' %}" class="history-filter-bar" id="history-filter-form">
             <div class="history-search-wrap">
                 <svg class="history-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -63,7 +65,12 @@
                 </svg>
             </div>
         </form>
+    </header>
 
+    <!-- ====================================================================
+         SCROLLABLE LIST: Only this element scrolls, with no visible scrollbar.
+         ==================================================================== -->
+    <main class="history-list-scrollable">
         <!-- Hidden Django Messages Container -->
         {% if messages %}
         <div style="display:none;" id="django-messages-data">
@@ -84,34 +91,56 @@
                     <p class="history-item-desc">{{ item.election.description }}</p>
                     {% endif %}
                     <div class="history-item-meta">
-                        <time datetime="{{ item.date|date:'c' }}">{{ item.date|date:"j M Y · g:i A" }}</time>
+                        <time class="js-history-time" datetime="{{ item.date|date:'c' }}">{{ item.date|date:"j M Y · g:i A" }}</time>
                     </div>
                 </div>
 
                 <div class="history-col-stats">
-                    <div class="history-stat-box">
-                        <span class="history-stat-number">{{ item.total_voters }}</span>
-                        <span class="history-stat-label">Total voters</span>
-                    </div>
-                    <div class="history-stat-box">
-                        <span class="history-stat-number">{{ item.voted_count }}</span>
-                        <span class="history-stat-label">Voted ({{ item.turnout_pct }}%)</span>
-                    </div>
-                    <div class="history-stat-box">
-                        <span class="history-stat-number">{{ item.positions_count }}</span>
-                        <span class="history-stat-label">Positions</span>
+                    <div class="history-stats-group">
+                        <div class="history-stat-box">
+                            <span class="history-stat-number">{{ item.total_voters }}</span>
+                            <span class="history-stat-label">Total voters</span>
+                        </div>
+                        <div class="history-stat-box">
+                            <span class="history-stat-number">{{ item.voted_count }}</span>
+                            <span class="history-stat-label">Voted ({{ item.turnout_pct }}%)</span>
+                        </div>
+                        <div class="history-stat-box">
+                            <span class="history-stat-number">{{ item.positions_count }}</span>
+                            <span class="history-stat-label">Positions</span>
+                        </div>
                     </div>
                 </div>
 
                 <div class="history-col-actions">
                     <a href="{% url 'elections:results' item.election.id %}" class="history-btn-primary">View results</a>
-                    <a href="{% url 'elections:edit' item.election.id %}" class="history-btn-secondary">View details</a>
+                    <button type="button" class="history-btn-secondary btn-open-history-details" data-election-id="{{ item.election.id }}">View details</button>
                 </div>
+
+                <!-- Structured Election Details JSON for Modal -->
+                {{ item.positions_detail|json_script:item.election.id|stringformat:"s"|add:"_pos" }}
+                <script id="history-data-{{ item.election.id }}" type="application/json">
+                {
+                    "id": {{ item.election.id }},
+                    "name": "{{ item.election.name|escapejs }}",
+                    "description": "{{ item.election.description|default:''|escapejs }}",
+                    "status": "{{ item.status_display }}",
+                    "dateIso": "{{ item.date|date:'c' }}",
+                    "startsAtIso": "{{ item.starts_at|date:'c'|default:'' }}",
+                    "closedAtIso": "{{ item.closed_at|date:'c'|default:'' }}",
+                    "totalVoters": {{ item.total_voters }},
+                    "votedCount": {{ item.voted_count }},
+                    "turnoutPct": {{ item.turnout_pct }},
+                    "positionsCount": {{ item.positions_count }},
+                    "boothsCount": {{ item.booths_count }},
+                    "resultsUrl": "{% url 'elections:results' item.election.id %}"
+                }
+                </script>
             </article>
             {% endfor %}
         </div>
         {% else %}
-        <!-- Electra Themed Borderless Minimal Empty Placeholder -->
+        <!-- Electra Borderless Minimal Empty Placeholder -->
         {% if has_filters %}
         <div class="electra-empty-state history-empty-state">
             <svg class="electra-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -141,4 +170,200 @@
         {% endif %}
     </main>
 </div>
+
+<!-- ====================================================================
+     ELECTRA THEMED MODAL: VIEW ELECTION DETAILS
+     ==================================================================== -->
+<div class="history-modal-backdrop" id="modal-election-details" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-details-title">
+    <div class="history-modal-dialog">
+        <div class="history-modal-header">
+            <div>
+                <h3 class="history-modal-title" id="modal-details-title">Election details</h3>
+                <span class="history-modal-subtitle" id="modal-details-sub">Archived election summary</span>
+            </div>
+            <button type="button" class="history-modal-close" id="modal-details-close" aria-label="Close modal">&times;</button>
+        </div>
+
+        <div class="history-modal-body">
+            <!-- Header status and meta -->
+            <div>
+                <div style="margin-bottom: 8px;">
+                    <span style="font-size: 13px; color: #6B7280;" id="modal-date-display">—</span>
+                </div>
+                <p id="modal-desc-display" style="font-size: 14px; color: #4B5563; margin: 0; line-height: 1.5;"></p>
+            </div>
+
+            <!-- Stats Grid -->
+            <div>
+                <h4 class="modal-section-title">Turnout Summary</h4>
+                <div class="modal-stats-grid">
+                    <div class="modal-stat-item">
+                        <span class="modal-stat-number" id="modal-stat-total">0</span>
+                        <span class="modal-stat-label">Total registered</span>
+                    </div>
+                    <div class="modal-stat-item">
+                        <span class="modal-stat-number" id="modal-stat-voted">0</span>
+                        <span class="modal-stat-label">Ballots cast</span>
+                    </div>
+                    <div class="modal-stat-item">
+                        <span class="modal-stat-number" id="modal-stat-turnout">0%</span>
+                        <span class="modal-stat-label">Voter turnout</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline -->
+            <div>
+                <h4 class="modal-section-title">Timeline</h4>
+                <div class="modal-time-rows">
+                    <div class="modal-time-row">
+                        <span>Voting started</span>
+                        <strong id="modal-time-started">—</strong>
+                    </div>
+                    <div class="modal-time-row">
+                        <span>Voting closed</span>
+                        <strong id="modal-time-closed">—</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Positions & Candidates -->
+            <div>
+                <h4 class="modal-section-title">Ballot Positions (<span id="modal-positions-count">0</span>)</h4>
+                <div class="modal-positions-stack" id="modal-positions-stack">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+        </div>
+
+        <div class="history-modal-footer">
+            <button type="button" class="history-btn-secondary" id="modal-btn-close">Close</button>
+            <a href="#" class="history-btn-primary" id="modal-btn-view-results">View full results</a>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // 1. Format election time into accurate local browser time
+    function formatLocalTime(isoStr) {
+        if (!isoStr) return '—';
+        const dt = new Date(isoStr);
+        if (isNaN(dt.getTime())) return isoStr;
+        
+        const day = dt.getDate();
+        const month = dt.toLocaleString('en-US', { month: 'short' });
+        const year = dt.getFullYear();
+        let hours = dt.getHours();
+        const minutes = dt.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        return `${day} ${month} ${year} · ${hours}:${minutes} ${ampm}`;
+    }
+
+    document.querySelectorAll('.js-history-time').forEach(el => {
+        const iso = el.getAttribute('datetime');
+        if (iso) {
+            el.textContent = formatLocalTime(iso);
+        }
+    });
+
+    // 2. Election Details Modal
+    const modal = document.getElementById('modal-election-details');
+    const modalTitle = document.getElementById('modal-details-title');
+    const modalBadge = document.getElementById('modal-badge-status');
+    const modalDate = document.getElementById('modal-date-display');
+    const modalDesc = document.getElementById('modal-desc-display');
+    const statTotal = document.getElementById('modal-stat-total');
+    const statVoted = document.getElementById('modal-stat-voted');
+    const statTurnout = document.getElementById('modal-stat-turnout');
+    const timeStarted = document.getElementById('modal-time-started');
+    const timeClosed = document.getElementById('modal-time-closed');
+    const posCount = document.getElementById('modal-positions-count');
+    const positionsStack = document.getElementById('modal-positions-stack');
+    const btnResults = document.getElementById('modal-btn-view-results');
+
+    function openDetailsModal(electionId) {
+        const dataScript = document.getElementById(`history-data-${electionId}`);
+        if (!dataScript) return;
+
+        let data = {};
+        try {
+            data = JSON.parse(dataScript.textContent);
+        } catch (e) {
+            console.error('Failed to parse history data:', e);
+            return;
+        }
+
+        modalTitle.textContent = data.name;
+        modalDate.textContent = formatLocalTime(data.dateIso);
+        modalDesc.textContent = data.description || 'No description provided.';
+        statTotal.textContent = (data.totalVoters || 0).toLocaleString();
+        statVoted.textContent = (data.votedCount || 0).toLocaleString();
+        statTurnout.textContent = `${data.turnoutPct || 0}%`;
+        timeStarted.textContent = data.startsAtIso ? formatLocalTime(data.startsAtIso) : '—';
+        timeClosed.textContent = data.closedAtIso ? formatLocalTime(data.closedAtIso) : '—';
+        posCount.textContent = data.positionsCount || 0;
+        btnResults.href = data.resultsUrl;
+
+        // Render positions
+        positionsStack.innerHTML = '';
+        const posScript = document.getElementById(`${electionId}_pos`);
+        let positions = [];
+        if (posScript) {
+            try {
+                positions = JSON.parse(posScript.textContent) || [];
+            } catch (e) {}
+        }
+
+        if (positions.length === 0) {
+            positionsStack.innerHTML = '<span style="font-size: 13px; color: #6B7280;">No positions recorded.</span>';
+        } else {
+            positions.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'modal-pos-card';
+                let candsHtml = '';
+                if (p.candidates && p.candidates.length > 0) {
+                    candsHtml = p.candidates.map(c => `<span class="modal-cand-pill">${c}</span>`).join('');
+                } else {
+                    candsHtml = '<span style="font-size: 12px; color: #9CA3AF;">No candidates registered</span>';
+                }
+                card.innerHTML = `
+                    <div class="modal-pos-header">
+                        <span class="modal-pos-name">${p.name}</span>
+                        <span class="modal-pos-count">${p.candidates_count} candidate${p.candidates_count === 1 ? '' : 's'}</span>
+                    </div>
+                    <div class="modal-cands-wrap">${candsHtml}</div>
+                `;
+                positionsStack.appendChild(card);
+            });
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function closeDetailsModal() {
+        modal.style.display = 'none';
+    }
+
+    document.querySelectorAll('.btn-open-history-details').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const eid = this.getAttribute('data-election-id');
+            openDetailsModal(eid);
+        });
+    });
+
+    document.getElementById('modal-details-close').addEventListener('click', closeDetailsModal);
+    document.getElementById('modal-btn-close').addEventListener('click', closeDetailsModal);
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal) closeDetailsModal();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            closeDetailsModal();
+        }
+    });
+});
+</script>
 {% endblock %}

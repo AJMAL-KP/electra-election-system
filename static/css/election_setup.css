@@ -1352,6 +1352,24 @@ body.setup-body .main-content {
     gap: 8px;
 }
 
+.btn-position-edit {
+    background: none;
+    border: none;
+    color: #9CA3AF;
+    padding: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-position-edit:hover {
+    color: #111827;
+    background-color: #F3F4F6;
+}
+
 .btn-position-delete {
     background: none;
     border: none;
@@ -3610,4 +3628,178 @@ body.setup-body .main-content {
 .btn-review-start[disabled] {
     opacity: 0.55;
     cursor: not-allowed;
+}
+
+/* ==========================================================================
+   ELECTRA IN-PAGE VALIDATION & ALERT NOTIFICATIONS
+   ========================================================================== */
+.setup-messages-wrap {
+    width: 100%;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.setup-message-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 13px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.45;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    animation: setupAlertSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes setupAlertSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.setup-message-alert.setup-message-error,
+.setup-message-alert.setup-message-danger {
+    background-color: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: #991B1B;
+}
+
+.setup-message-alert.setup-message-error .setup-message-icon,
+.setup-message-alert.setup-message-danger .setup-message-icon {
+    color: #DC2626;
+}
+
+.setup-message-alert.setup-message-warning {
+    background-color: #FFFBEB;
+    border: 1px solid #FDE68A;
+    color: #92400E;
+}
+
+.setup-message-alert.setup-message-warning .setup-message-icon {
+    color: #D97706;
+}
+
+.setup-message-alert.setup-message-success {
+    background-color: #ECFDF5;
+    border: 1px solid #A7F3D0;
+    color: #065F46;
+}
+
+.setup-message-alert.setup-message-success .setup-message-icon {
+    color: #059669;
+}
+
+.setup-message-alert.setup-message-info {
+    background-color: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    color: #1E40AF;
+}
+
+.setup-message-alert.setup-message-info .setup-message-icon {
+    color: #2563EB;
+}
+
+.setup-message-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+.setup-message-text {
+    flex: 1;
+    font-weight: 500;
+}
+
+.setup-message-dismiss {
+    background: none;
+    border: none;
+    font-size: 18px;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+    padding: 0 4px;
+    margin-left: 8px;
+    border-radius: 4px;
+    transition: opacity 0.15s ease;
+}
+
+.setup-message-dismiss:hover {
+    opacity: 1;
+}
+
+/* ==========================================================================
+   ELECTRA FLOATING TOAST SYSTEM
+   ========================================================================== */
+.setup-toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+    max-width: 440px;
+}
+
+.setup-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #F9FAFB;
+    background-color: #111827;
+    border: 1px solid #374151;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    animation: setupToastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.setup-toast.is-error {
+    background-color: #1F1315;
+    border-color: #7F1D1D;
+    color: #FCA5A5;
+}
+
+.setup-toast.is-warning {
+    background-color: #211B0E;
+    border-color: #78350F;
+    color: #FCD34D;
+}
+
+.setup-toast.is-success {
+    background-color: #0E1F18;
+    border-color: #064E3B;
+    color: #6EE7B7;
+}
+
+.setup-toast.is-hiding {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+}
+
+@keyframes setupToastIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }

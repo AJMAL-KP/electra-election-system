@@ -40,4 +40,25 @@ document.addEventListener('DOMContentLoaded', function() {
             window.location.reload();
         }
     });
+
+    // Enforce fullscreen on kiosk login submit
+    const authForm = document.querySelector('.auth-form');
+    if (authForm) {
+        authForm.addEventListener('submit', function() {
+            const usernameInput = document.getElementById('id_username');
+            const val = usernameInput ? usernameInput.value.trim().toLowerCase() : '';
+            if (val.startsWith('kiosk')) {
+                const docEl = document.documentElement;
+                const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+                if (req) {
+                    try {
+                        const p = req.call(docEl);
+                        if (p && typeof p.catch === 'function') {
+                            p.catch(function() {});
+                        }
+                    } catch (_) {}
+                }
+            }
+        });
+    }
 });

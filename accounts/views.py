@@ -8,7 +8,6 @@ from accounts.models import Role
 from accounts.permissions import admin_required
 from accounts.selectors import is_installation_initialized
 from accounts.services import (
-    cleanup_past_credentials,
     get_post_login_redirect_url,
     initialize_installation,
     login_device_user,
@@ -93,9 +92,6 @@ def login_view(request):
         return redirect(get_post_login_redirect_url(request.user))
 
     if request.method == "POST":
-        # Automatically clean up non-active/draft device credentials and their sessions
-        cleanup_past_credentials()
-
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
 
@@ -132,13 +128,25 @@ def login_view(request):
                 "username": username,
             }, status=403)
 
-    return render(request, "accounts/login.html")
+    reason = request.GET.get("reason")
+    election_ended = (reason == "election_ended")
+
+    return render(request, "accounts/login.html", {
+        "election_ended": election_ended,
+    })
 
 
 @never_cache
 def logout_view(request):
     """Log out current identity and terminate any active device session."""
+    reason = request.GET.get("reason")
     logout_user(request)
+    if reason == "election_ended":
+        from django.urls import reverse
+        return redirect(f"{reverse('index')}?reason=election_ended")
+    elif reason:
+        from django.urls import reverse
+        return redirect(f"{reverse('accounts:login')}?reason={reason}")
     return redirect("index")
 
 

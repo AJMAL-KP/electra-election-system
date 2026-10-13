@@ -11,8 +11,10 @@ def index_view(request):
         return redirect(get_post_login_redirect_url(request.user))
 
     initialized = is_installation_initialized()
+    election_ended = (request.GET.get("reason") == "election_ended")
     return render(request, "index.html", {
         "is_initialized": initialized,
         "is_authenticated": False,
+        "election_ended": election_ended,
     })
 

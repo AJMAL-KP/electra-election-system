@@ -7,10 +7,31 @@ Owns:
 - Installation first-run initialization
 """
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db import transaction
-from accounts.models import Role, User
+from django.db import models, transaction
+from django.utils import timezone
+from accounts.models import CredentialStatus, Device, DeviceSession, Role, User
 from accounts.selectors import is_installation_initialized
+
+
+def _notify_credentials_revoked(device_id: int) -> None:
+    """Post-commit: broadcast credentials.revoked to the device's WS channel."""
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                f"kiosk_{device_id}",
+                {"type": "credentials.revoked"},
+            )
+            async_to_sync(channel_layer.group_send)(
+                f"officer_{device_id}",
+                {"type": "credentials.revoked"},
+            )
+    except Exception:
+        pass  # channel layer not configured — non-fatal
 
 
 import secrets
@@ -71,31 +92,99 @@ def initialize_installation(username: str, email: str, password: str) -> User:
         return admin_user
 
 
+def purge_device_sessions(device: Device) -> int:
+    """Purge all sessions (both active and revoked/old) for a technical device,
+    removing matching rows from both Django's Session store and DeviceSession table
+    to guarantee zero ambiguous or stale sessions remain.
+    """
+    from django.contrib.sessions.models import Session
+
+    session_qs = DeviceSession.objects.filter(device=device)
+    session_keys = list(session_qs.values_list("session_key", flat=True))
+    if session_keys:
+        Session.objects.filter(session_key__in=session_keys).delete()
+    deleted_count, _ = session_qs.delete()
+    return deleted_count
+
+
+def purge_stale_device_sessions(device: Device) -> int:
+    """Purge any inactive or expired sessions for the device."""
+    from django.contrib.sessions.models import Session
+
+    inactive_qs = DeviceSession.objects.filter(device=device, is_active=False)
+    keys = list(inactive_qs.values_list("session_key", flat=True))
+    if keys:
+        Session.objects.filter(session_key__in=keys).delete()
+    deleted_count, _ = inactive_qs.delete()
+    return deleted_count
+
+
 def cleanup_past_credentials() -> int:
     """Automatically remove station device credentials (User and Device records)
     that belong to a booth whose election is no longer in draft or active status.
+    At any given time, device credentials that are in draft and active election state remain.
     """
+    from django.contrib.sessions.models import Session
+    from accounts.models import Device, DeviceSession, DeviceType, Role, User
     from elections.models import Election, ElectionStatus
 
-    active_or_draft_election_ids = Election.objects.filter(
+    active_or_draft_election_ids = list(Election.objects.filter(
         status__in=[ElectionStatus.DRAFT, ElectionStatus.ACTIVE]
-    ).values_list("id", flat=True)
+    ).values_list("id", flat=True))
 
-    # Station devices that belong to an election that is NOT draft or active (e.g. CLOSED)
+    # Station devices that do not belong to an election in DRAFT or ACTIVE status
     stale_devices = Device.objects.filter(
-        booth__isnull=False
-    ).exclude(
-        booth__election_id__in=active_or_draft_election_ids
-    )
+        device_type__in=[DeviceType.OFFICER, DeviceType.KIOSK]
+    ).exclude(booth__election_id__in=active_or_draft_election_ids)
     stale_user_ids = set(stale_devices.values_list("user_id", flat=True))
 
     deleted_count = 0
     if stale_user_ids:
-        # Invalidate any active sessions for stale devices
-        DeviceSession.objects.filter(device__user_id__in=stale_user_ids).delete()
-        Device.objects.filter(user_id__in=stale_user_ids).delete()
-        deleted_count, _ = User.objects.filter(id__in=stale_user_ids).delete()
+        # Purge all sessions from Django session store and DeviceSession table
+        stale_sessions = DeviceSession.objects.filter(device__user_id__in=stale_user_ids)
+        stale_keys = list(stale_sessions.values_list("session_key", flat=True))
+        if stale_keys:
+            Session.objects.filter(session_key__in=stale_keys).delete()
+        stale_sessions.delete()
+
+        stale_devices.delete()
+        deleted_count, _ = User.objects.filter(id__in=stale_user_ids, role__in=[Role.OFFICER, Role.KIOSK]).delete()
     return deleted_count
+
+
+def purge_election_stale_credentials_and_sessions(election) -> dict:
+    """For an active election:
+    1. Purges all revoked/old/inactive sessions across all booths of the election.
+    2. Ensures exactly one valid active credential per device.
+       If any booth device was marked REVOKED, automatically rotates it to fresh ACTIVE credentials.
+    3. Purges all credentials and sessions from past/closed elections or orphan devices.
+    """
+    from django.contrib.sessions.models import Session
+
+    with transaction.atomic():
+        booth_devices = Device.objects.filter(booth__election=election)
+
+        # 1. Purge all inactive sessions belonging to devices in this election
+        stale_sessions = DeviceSession.objects.filter(device__in=booth_devices, is_active=False)
+        stale_keys = list(stale_sessions.values_list("session_key", flat=True))
+        if stale_keys:
+            Session.objects.filter(session_key__in=stale_keys).delete()
+        stale_sessions_count = stale_sessions.delete()[0]
+
+        # 2. Re-activate/rotate any REVOKED device in this active election so every device
+        # has exactly ONE valid active credential and no ambiguity
+        reactivated_count = 0
+        for dev in booth_devices.filter(credential_status=CredentialStatus.REVOKED):
+            rotate_device_credentials(dev.id)
+            reactivated_count += 1
+
+        # 3. Purge past credentials from non-active elections
+        cleanup_past_credentials()
+
+        return {
+            "purged_sessions": stale_sessions_count,
+            "reactivated_devices": reactivated_count,
+        }
 
 
 def create_device(
@@ -115,9 +204,6 @@ def create_device(
         initial_password = generate_secure_readable_password()
 
     with transaction.atomic():
-        # First ensure past unused station credentials are swept away
-        cleanup_past_credentials()
-
         # If an orphan user with this username still exists, remove it
         orphan = User.objects.filter(username=identifier, role__in=[Role.OFFICER, Role.KIOSK]).first()
         if orphan and (not hasattr(orphan, "device") or orphan.device.booth is None):
@@ -150,7 +236,8 @@ def create_device(
 
 
 def rotate_device_credentials(device_id: int) -> Tuple[Device, str]:
-    """Rotate credentials for a device: generates a new readable password, updates cleartext_password, and invalidates active sessions.
+    """Rotate credentials for a device: generates a new readable password, updates cleartext_password,
+    and completely purges all old/revoked sessions for the device to eliminate ambiguity.
     
     Returns (Device, new_plain_password).
     """
@@ -170,26 +257,39 @@ def rotate_device_credentials(device_id: int) -> Tuple[Device, str]:
         device.credential_status = CredentialStatus.ACTIVE
         device.save()
 
-        # Invalidate any active session immediately
-        DeviceSession.objects.filter(device=device, is_active=True).update(
-            is_active=False,
-            revoked_at=timezone.now()
-        )
+        # Invalidate active sessions so only a future newly authenticated session can exist
+        active_sessions = DeviceSession.objects.filter(device=device, is_active=True)
+        session_keys = list(active_sessions.values_list("session_key", flat=True))
+        if session_keys:
+            from django.contrib.sessions.models import Session
+            Session.objects.filter(session_key__in=session_keys).delete()
+        active_sessions.update(is_active=False, revoked_at=timezone.now())
+
+        device_id_val = device.id
+        transaction.on_commit(lambda: _notify_credentials_revoked(device_id_val))
 
         return device, new_password
 
 
 def revoke_device_credentials(device_id: int) -> Device:
-    """Revoke credentials for a device and terminate any active session."""
+    """Revoke credentials for a device and invalidate active sessions.
+    
+    Emits a 'credentials.revoked' WebSocket event post-commit.
+    """
     with transaction.atomic():
         device = Device.objects.select_for_update().get(id=device_id)
         device.credential_status = CredentialStatus.REVOKED
         device.save()
 
-        DeviceSession.objects.filter(device=device, is_active=True).update(
-            is_active=False,
-            revoked_at=timezone.now()
-        )
+        active_sessions = DeviceSession.objects.filter(device=device, is_active=True)
+        session_keys = list(active_sessions.values_list("session_key", flat=True))
+        if session_keys:
+            from django.contrib.sessions.models import Session
+            Session.objects.filter(session_key__in=session_keys).delete()
+        active_sessions.update(is_active=False, revoked_at=timezone.now())
+
+        device_id_val = device.id
+        transaction.on_commit(lambda: _notify_credentials_revoked(device_id_val))
         return device
 
 
@@ -216,24 +316,50 @@ def create_device_session(device: Device, session_key: str) -> DeviceSession:
 
 
 def terminate_device_session(session_key: str) -> None:
-    """Terminate an active device session."""
+    """Terminate and mark an active device session as inactive."""
     with transaction.atomic():
-        DeviceSession.objects.filter(session_key=session_key, is_active=True).update(
+        from django.contrib.sessions.models import Session
+        Session.objects.filter(session_key=session_key).delete()
+        DeviceSession.objects.filter(session_key=session_key).update(
             is_active=False,
             revoked_at=timezone.now()
         )
+        def _notify_admin_live():
+            try:
+                from asgiref.sync import async_to_sync
+                from channels.layers import get_channel_layer
+                layer = get_channel_layer()
+                if layer:
+                    async_to_sync(layer.group_send)("admin_live", {"type": "review.refresh"})
+            except Exception:
+                pass
+        transaction.on_commit(_notify_admin_live)
 
 
 def login_device_user(request, user: User) -> None:
-    """Authenticate and log in a User, enforcing one active session for devices."""
+    """Authenticate and log in a User, enforcing one active session for Admin and technical devices."""
     if user.role == Role.ADMIN:
+        from django.contrib.sessions.models import Session
+        from django.utils import timezone
+
+        active_sess_key = cache.get(f"active_admin_session_{user.id}")
+        if active_sess_key and active_sess_key != request.session.session_key:
+            if Session.objects.filter(session_key=active_sess_key, expire_date__gte=timezone.now()).exists():
+                raise ValidationError("Administrator already has an active session. Simultaneous sessions are prohibited.")
+
         login(request, user)
+        if not request.session.session_key:
+            request.session.save()
+        cache.set(f"active_admin_session_{user.id}", request.session.session_key, timeout=86400)
         return
 
     # For technical device identities (OFFICER, KIOSK)
     try:
         device = user.device
     except (AttributeError, Device.DoesNotExist):
+        device = Device.objects.filter(identifier=user.username).first()
+
+    if not device:
         raise ValidationError("No associated device found for this identity.")
 
     if device.credential_status != CredentialStatus.ACTIVE:
@@ -243,7 +369,7 @@ def login_device_user(request, user: User) -> None:
     if booth and getattr(booth, "election", None):
         from elections.models import ElectionStatus
         if booth.election.status not in (ElectionStatus.DRAFT, ElectionStatus.ACTIVE):
-            raise ValidationError("Officer credentials are only valid for draft or active elections.")
+            raise ValidationError("Station credentials are only valid for draft or active elections.")
 
     with transaction.atomic():
         locked_device = Device.objects.select_for_update().get(id=device.id)
@@ -267,12 +393,35 @@ def login_device_user(request, user: User) -> None:
             is_active=True
         )
 
+        def _notify_admin_live():
+            try:
+                from asgiref.sync import async_to_sync
+                from channels.layers import get_channel_layer
+                layer = get_channel_layer()
+                if layer:
+                    async_to_sync(layer.group_send)(
+                        "admin_live",
+                        {
+                            "type": "review.refresh",
+                            "election_id": locked_device.booth.election_id if locked_device.booth else None,
+                        }
+                    )
+            except Exception:
+                pass
+        transaction.on_commit(_notify_admin_live)
+
 
 def logout_user(request) -> None:
-    """Log out user and terminate any associated active device session."""
-    if request.user.is_authenticated and hasattr(request.user, 'device'):
-        if request.session.session_key:
-            terminate_device_session(request.session.session_key)
+    """Log out user and terminate any associated active device or admin session."""
+    if request.user.is_authenticated:
+        if getattr(request.user, "role", None) == Role.ADMIN:
+            cache.delete(f"active_admin_session_{request.user.id}")
+            if request.session.session_key:
+                from django.contrib.sessions.models import Session
+                Session.objects.filter(session_key=request.session.session_key).delete()
+        elif hasattr(request.user, 'device'):
+            if request.session.session_key:
+                terminate_device_session(request.session.session_key)
     logout(request)
 
 

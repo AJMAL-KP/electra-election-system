@@ -325,28 +325,28 @@
 
                                 <div class="review-booth-lines-stack">
                                     {% for b in booth_review_data %}
-                                    <div class="review-booth-line">
+                                    <div class="review-booth-line" id="review-booth-row-{{ b.booth_id }}">
                                         <span class="review-booth-col-num">Booth {{ b.booth_number|stringformat:"02d" }}</span>
                                         <span class="review-booth-col-voters">{{ b.voter_count }} voters</span>
                                         <span class="review-booth-col-sep" aria-hidden="true">|</span>
                                         <span class="review-booth-col-name">{{ b.display_name }}</span>
                                         <div class="review-booth-col-badges">
                                             {% if b.officer_online %}
-                                            <span class="review-stat-pill is-online" title="Officer device has an active session">
+                                            <span class="review-stat-pill is-online booth-officer-pill-{{ b.booth_id }}" title="Officer device has an active session">
                                                 <span class="stat-dot"></span> Officer: Online
                                             </span>
                                             {% else %}
-                                            <span class="review-stat-pill is-offline" title="Officer station is not currently authenticated in session">
+                                            <span class="review-stat-pill is-offline booth-officer-pill-{{ b.booth_id }}" title="Officer station is not currently authenticated in session">
                                                 <span class="stat-dot"></span> Officer: Not in session
                                             </span>
                                             {% endif %}
 
                                             {% if b.kiosk_online %}
-                                            <span class="review-stat-pill is-online" title="Voting Kiosk has an active session">
+                                            <span class="review-stat-pill is-online booth-kiosk-pill-{{ b.booth_id }}" title="Voting Kiosk has an active session">
                                                 <span class="stat-dot"></span> Kiosk: Online
                                             </span>
                                             {% else %}
-                                            <span class="review-stat-pill is-offline" title="Voting Kiosk is not currently authenticated in session">
+                                            <span class="review-stat-pill is-offline booth-kiosk-pill-{{ b.booth_id }}" title="Voting Kiosk is not currently authenticated in session">
                                                 <span class="stat-dot"></span> Kiosk: Not in session
                                             </span>
                                             {% endif %}
@@ -466,6 +466,7 @@
                        value="{{ election.ends_at|date:'Y-m-d\TH:i' }}" 
                        required
                        style="width: 100%; padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
+                <input type="hidden" id="id_ends_at_iso" name="ends_at_iso">
                 <span style="font-size: 12px; color: #6B7280; margin-top: 4px; display: block;">Voting stations will automatically stop accepting authorizations at this cutoff.</span>
             </div>
 
@@ -542,18 +543,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnCancelStart = document.getElementById('btn-cancel-start-modal');
 
     function openStartModal() {
+        const endsInput = document.getElementById('id_ends_at');
+        if (endsInput) {
+            const now = new Date();
+            if (!endsInput.value || new Date(endsInput.value) <= now) {
+                const defaultEnd = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+                const pad = (n) => String(n).padStart(2, '0');
+                const yr = defaultEnd.getFullYear();
+                const mo = pad(defaultEnd.getMonth() + 1);
+                const da = pad(defaultEnd.getDate());
+                const ho = pad(defaultEnd.getHours());
+                const mi = pad(defaultEnd.getMinutes());
+                endsInput.value = `${yr}-${mo}-${da}T${ho}:${mi}`;
+            }
+        }
         if (startModal) {
             startModal.classList.add('active');
             startModal.setAttribute('aria-hidden', 'false');
-            // If cutoff input is empty, default to 8 hours from now
-            const endsInput = document.getElementById('id_ends_at');
-            if (endsInput && !endsInput.value) {
-                const d = new Date();
-                d.setHours(d.getHours() + 8);
-                d.setMinutes(0);
-                const pad = n => String(n).padStart(2, '0');
-                endsInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-            }
         }
     }
 
@@ -564,7 +570,27 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    if (btnStart && !btnStart.disabled) btnStart.addEventListener('click', openStartModal);
+    // Convert local datetime-local value to exact ISO 8601 with timezone on submit
+    const startForm = document.getElementById('form-start-election');
+    if (startForm) {
+        startForm.addEventListener('submit', function () {
+            const endsInput = document.getElementById('id_ends_at');
+            const isoInput = document.getElementById('id_ends_at_iso');
+            if (endsInput && endsInput.value && isoInput) {
+                const localDate = new Date(endsInput.value);
+                if (!isNaN(localDate.getTime())) {
+                    isoInput.value = localDate.toISOString();
+                }
+            }
+        });
+    }
+
+    if (btnStart) {
+        btnStart.addEventListener('click', function (e) {
+            if (this.disabled) return;
+            openStartModal();
+        });
+    }
     if (startBackdrop) startBackdrop.addEventListener('click', closeStartModal);
     if (btnCloseStart) btnCloseStart.addEventListener('click', closeStartModal);
     if (btnCancelStart) btnCancelStart.addEventListener('click', closeStartModal);
@@ -598,6 +624,141 @@ document.addEventListener('DOMContentLoaded', function () {
             }, 4000);
         });
     }
+
+    // -------------------------------------------------------------------------
+    // 5. Real-Time Validation Checks via WebSocket
+    // -------------------------------------------------------------------------
+    const electionId = {{ election.id }};
+    const statusApiUrl = "{% url 'elections:setup_review_status' election.id %}";
+
+    function updateValidationUI(data) {
+        if (!data) return;
+
+        // Update Validation Column 1
+        const col1Container = document.querySelector('#review-row-validation .review-val-col:first-child');
+        if (col1Container && data.validation_col1) {
+            col1Container.innerHTML = data.validation_col1.map(item => `
+                <div class="review-val-item">
+                    <span class="review-val-dot ${item.passed ? 'is-green' : 'is-red'}" aria-hidden="true"></span>
+                    <span class="review-val-text">${item.label}</span>
+                </div>
+            `).join('');
+        }
+
+        // Update Validation Column 2
+        const col2Container = document.querySelector('#review-row-validation .review-val-col:last-child');
+        if (col2Container && data.validation_col2) {
+            col2Container.innerHTML = data.validation_col2.map(item => `
+                <div class="review-val-item">
+                    <span class="review-val-dot ${item.passed ? 'is-green' : (item.is_warning ? 'is-amber' : 'is-red')}" aria-hidden="true"></span>
+                    <span class="review-val-text">${item.label}</span>
+                </div>
+            `).join('');
+        }
+
+        // Update Header Checkmark
+        const valCheckmark = document.querySelector('#review-row-validation .review-col-check');
+        if (valCheckmark) {
+            valCheckmark.classList.remove('is-error', 'is-warning');
+            if (!data.critical_passed) {
+                valCheckmark.classList.add('is-error');
+            } else if (!data.all_validations_ok) {
+                valCheckmark.classList.add('is-warning');
+            }
+        }
+
+        // Update Summary Banner Text
+        const summaryContainer = document.querySelector('#review-row-validation .review-col-collapsed-summary');
+        if (summaryContainer && data.summary_text) {
+            let color = '#DC2626';
+            if (data.ready_to_start) color = '#059669';
+            else if (data.critical_passed) color = '#D97706';
+            summaryContainer.innerHTML = `<span style="color: ${color}; font-weight: 500;">${data.summary_text}</span>`;
+        }
+
+        // Update Start Election Button
+        if (btnStart) {
+            if (data.ready_to_start) {
+                btnStart.removeAttribute('disabled');
+                btnStart.removeAttribute('title');
+            } else {
+                btnStart.setAttribute('disabled', 'disabled');
+                btnStart.setAttribute('title', 'All station sessions must be active and validation checks passed before launching live election.');
+            }
+        }
+
+        // Update Booth Review Lines Badges
+        if (data.booth_review_data) {
+            data.booth_review_data.forEach(b => {
+                const boothId = b.booth_id;
+                const officerPill = document.querySelector(`.booth-officer-pill-${boothId}`);
+                if (officerPill) {
+                    officerPill.className = `review-stat-pill booth-officer-pill-${boothId} ${b.officer_online ? 'is-online' : 'is-offline'}`;
+                    officerPill.innerHTML = `<span class="stat-dot"></span> Officer: ${b.officer_online ? 'Online' : 'Not in session'}`;
+                    officerPill.setAttribute('title', b.officer_online ? 'Officer device has an active session' : 'Officer station is not currently authenticated in session');
+                }
+                const kioskPill = document.querySelector(`.booth-kiosk-pill-${boothId}`);
+                if (kioskPill) {
+                    kioskPill.className = `review-stat-pill booth-kiosk-pill-${boothId} ${b.kiosk_online ? 'is-online' : 'is-offline'}`;
+                    kioskPill.innerHTML = `<span class="stat-dot"></span> Kiosk: ${b.kiosk_online ? 'Online' : 'Not in session'}`;
+                    kioskPill.setAttribute('title', b.kiosk_online ? 'Voting Kiosk has an active session' : 'Voting Kiosk is not currently authenticated in session');
+                }
+            });
+        }
+    }
+
+    function fetchReviewStatus() {
+        fetch(statusApiUrl)
+            .then(res => res.json())
+            .then(data => updateValidationUI(data))
+            .catch(err => console.error("Error fetching review validation status:", err));
+    }
+
+    // Connect WebSocket to ws/admin/live/
+    const wsScheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsScheme}//${window.location.host}/ws/admin/live/`;
+    let reviewSocket = null;
+
+    function connectReviewSocket() {
+        try {
+            reviewSocket = new WebSocket(wsUrl);
+
+            reviewSocket.onopen = function () {
+                reviewSocket.send(JSON.stringify({
+                    action: 'check_review_status',
+                    election_id: electionId
+                }));
+            };
+
+            reviewSocket.onmessage = function (e) {
+                try {
+                    const msg = JSON.parse(e.data);
+                    if (msg.event === 'review.status') {
+                        updateValidationUI(msg.status);
+                    } else if (['kiosk.presence', 'officer.presence', 'review.refresh', 'election.started', 'election.closed'].includes(msg.event)) {
+                        if (reviewSocket.readyState === WebSocket.OPEN) {
+                            reviewSocket.send(JSON.stringify({
+                                action: 'check_review_status',
+                                election_id: electionId
+                            }));
+                        } else {
+                            fetchReviewStatus();
+                        }
+                    }
+                } catch (err) {
+                    console.error("WS message parse error:", err);
+                }
+            };
+
+            reviewSocket.onclose = function () {
+                setTimeout(connectReviewSocket, 3000);
+            };
+        } catch (err) {
+            console.error("WS connection error:", err);
+        }
+    }
+
+    connectReviewSocket();
 });
 </script>
 {% endblock %}

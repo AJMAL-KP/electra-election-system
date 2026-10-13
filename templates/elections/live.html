@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Live Election — {{ election.name }} — Electra{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/live.css' %}">
+{% endblock %}
+
+{% block body_class %}live-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<!-- Hidden CSRF and Django messages data -->
+{% csrf_token %}
+{% if messages %}
+<div style="display:none;" id="django-messages-data">
+    {% for message in messages %}
+    <div data-django-message data-type="{% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Top-Right Corner Actions: Minimal Logout Button -->
+<div class="live-top-actions">
+    <form method="post" action="{% url 'accounts:logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="live-logout-btn">
+            Logout
+        </button>
+    </form>
+</div>
+
+<!-- Center Composition (Faithfully matched to references/07_live.png) -->
+<div class="live-container">
+    <!-- Header Branding & Live Badge -->
+    <div class="live-header-group">
+        <div class="live-status-pill">
+            <span class="live-status-dot"></span>
+            Election live
+        </div>
+        <h1 class="live-election-title">{{ election.name }}</h1>
+        <p class="live-election-sub">
+            Voting is in progress. Monitor turnout, booth status and device activity in real time.
+        </p>
+    </div>
+
+    <!-- Countdown Timer Card -->
+    <div class="live-countdown-card" id="countdown-card">
+        <span class="countdown-eyebrow">TIME REMAINING</span>
+        <div class="countdown-digits" id="countdown-digits">-- : -- : --</div>
+        <div class="countdown-labels">
+            <span>Hours</span>
+            <span>Minutes</span>
+            <span>Seconds</span>
+        </div>
+    </div>
+
+    <!-- Live Turnout Metrics Row -->
+    <div class="live-metrics-row">
+        <div class="live-metric-col">
+            <span class="metric-num" id="metric-total-voters">{{ total_voters }}</span>
+            <span class="metric-lbl">Total voters</span>
+        </div>
+        <div class="live-metric-divider" aria-hidden="true"></div>
+        <div class="live-metric-col">
+            <span class="metric-num" id="metric-total-voted">{{ total_voted }}</span>
+            <span class="metric-lbl">Voted</span>
+        </div>
+        <div class="live-metric-divider" aria-hidden="true"></div>
+        <div class="live-metric-col">
+            <span class="metric-num" id="metric-turnout-pct">{{ turnout_pct }}%</span>
+            <span class="metric-lbl">Live turnout</span>
+        </div>
+        <div class="live-metric-progress-col">
+            <div class="metric-progress-track">
+                <div class="metric-progress-fill" id="metric-progress-fill" style="width: {{ turnout_pct }}%;"></div>
+            </div>
+            <span class="metric-progress-pct" id="metric-progress-pct">{{ turnout_pct }}%</span>
+        </div>
+    </div>
+
+    <!-- Grey horizontal line divider below live stats -->
+    <div class="live-stats-divider" aria-hidden="true"></div>
+
+    <!-- Device Status Section -->
+    <div class="live-device-section">
+        <div class="live-section-header">
+            <h2 class="live-section-title">Device status</h2>
+            <span class="live-section-meta" id="live-section-meta">{{ total_booths }} booths &middot; {{ total_devices }} devices</span>
+        </div>
+
+        <div class="live-booths-grid" id="live-booths-grid">
+            {% for item in booth_data %}
+            <div class="live-booth-card" id="booth-card-{{ item.booth.id }}">
+                <!-- Card Header -->
+                <div class="booth-card-header">
+                    <div class="booth-card-title-group">
+                        <span class="booth-card-num">Booth {{ item.booth.booth_number }}</span>
+                        {% if item.booth.name %}
+                        <span class="booth-card-name">{{ item.booth.name }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="booth-card-stats">
+                        <span class="booth-stats-ratio" id="booth-ratio-{{ item.booth.id }}">{{ item.voted_count }} / {{ item.allocated_count }}</span>
+                        <span class="booth-stats-pct" id="booth-pct-{{ item.booth.id }}">{{ item.turnout_pct }}%</span>
+                    </div>
+                </div>
+
+                <!-- Station 1: Officer Station -->
+                <div class="booth-station-row">
+                    <div class="station-meta-line">
+                        <span class="station-type-label">Officer station</span>
+                        <span class="device-status-badge {% if item.officer_online %}is-online{% else %}is-offline{% endif %}" id="status-badge-{{ item.officer_device.id }}">
+                            <span class="status-dot"></span>
+                            <span class="status-text">{% if item.officer_online %}Online{% else %}Offline{% endif %}</span>
+                        </span>
+                    </div>
+                    <div class="station-creds-line">
+                        <!-- ID Pill -->
+                        <div class="device-cred-pill" title="Officer username: {{ item.officer_device.identifier }}">
+                            <span class="cred-label">ID</span>
+                            <span class="cred-text" id="user-text-{{ item.officer_device.id }}">{{ item.officer_device.identifier }}</span>
+                            <button type="button" class="btn-copy-micro" onclick="copyLiveText('{{ item.officer_device.identifier }}', this)" title="Copy username">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <!-- Full Password Pill with Copy & Rotate Micro Icons -->
+                        <div class="device-cred-pill is-password" title="Officer password: {{ item.officer_device.cleartext_password }}">
+                            <span class="cred-text pw-full-text" id="pw-text-{{ item.officer_device.id }}">{{ item.officer_device.cleartext_password }}</span>
+                            <div class="pill-actions-group">
+                                <button type="button" class="btn-copy-micro" id="copy-btn-pw-{{ item.officer_device.id }}" onclick="copyLiveText('{{ item.officer_device.cleartext_password }}', this)" title="Copy password">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                </button>
+                                <button type="button" class="btn-rotate-micro" 
+                                        data-device-id="{{ item.officer_device.id }}" 
+                                        data-identifier="{{ item.officer_device.identifier }}"
+                                        onclick="rotateLivePass(this)"
+                                        title="Rotate password">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Station 2: Voting Kiosk -->
+                <div class="booth-station-row">
+                    <div class="station-meta-line">
+                        <span class="station-type-label">Voting kiosk</span>
+                        <span class="device-status-badge {% if item.kiosk_online %}is-online{% else %}is-offline{% endif %}" id="status-badge-{{ item.kiosk_device.id }}">
+                            <span class="status-dot"></span>
+                            <span class="status-text">{% if item.kiosk_online %}Online{% else %}Offline{% endif %}</span>
+                        </span>
+                    </div>
+                    <div class="station-creds-line">
+                        <!-- ID Pill -->
+                        <div class="device-cred-pill" title="Kiosk username: {{ item.kiosk_device.identifier }}">
+                            <span class="cred-label">ID</span>
+                            <span class="cred-text" id="user-text-{{ item.kiosk_device.id }}">{{ item.kiosk_device.identifier }}</span>
+                            <button type="button" class="btn-copy-micro" onclick="copyLiveText('{{ item.kiosk_device.identifier }}', this)" title="Copy username">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <!-- Full Password Pill with Copy & Rotate Micro Icons -->
+                        <div class="device-cred-pill is-password" title="Kiosk password: {{ item.kiosk_device.cleartext_password }}">
+                            <span class="cred-text pw-full-text" id="pw-text-{{ item.kiosk_device.id }}">{{ item.kiosk_device.cleartext_password }}</span>
+                            <div class="pill-actions-group">
+                                <button type="button" class="btn-copy-micro" id="copy-btn-pw-{{ item.kiosk_device.id }}" onclick="copyLiveText('{{ item.kiosk_device.cleartext_password }}', this)" title="Copy password">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                </button>
+                                <button type="button" class="btn-rotate-micro" 
+                                        data-device-id="{{ item.kiosk_device.id }}" 
+                                        data-identifier="{{ item.kiosk_device.identifier }}"
+                                        onclick="rotateLivePass(this)"
+                                        title="Rotate password">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Floating Transparent Footer: End Election Button -->
+    <div class="live-bottom-cta">
+        <button type="button" class="btn-live-end" id="btn-trigger-end-election">
+            End election
+        </button>
+    </div>
+</div>
+
+<!-- ========================================================================
+     MODAL: END ELECTION CONFIRMATION
+     ======================================================================== -->
+<div id="modal-end-election" class="modal-overlay" aria-hidden="true" role="dialog" aria-labelledby="end-modal-title">
+    <div class="modal-backdrop" id="end-modal-backdrop"></div>
+    <div class="modal-dialog">
+        <form method="post" action="{% url 'elections:close' election.id %}" id="form-end-election">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h2 class="modal-title" id="end-modal-title">End election live?</h2>
+                <button type="button" class="modal-close" id="btn-close-end-modal" aria-label="Close dialog">&times;</button>
+            </div>
+            <p class="modal-desc">
+                Ending this election will immediately freeze voting across all booths. Officer stations and voting kiosks will be locked and will no longer accept voter authorizations or ballots.
+            </p>
+            <div class="modal-actions">
+                <button type="button" id="btn-cancel-end-modal" class="btn-modal-cancel">Cancel</button>
+                <button type="submit" class="btn-modal-danger">Confirm &amp; End Election</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="live-toast-container" id="live-toast-container"></div>
+
+<!-- Configuration parameters for Live JavaScript -->
+<div id="live-config" 
+     data-election-id="{{ election.id }}" 
+     data-ends-at="{{ ends_at_iso }}" 
+     data-now="{{ now_iso }}" 
+     data-stats-url="{% url 'elections:live_stats' election.id %}" 
+     data-results-url="{% url 'elections:results' election.id %}" 
+     style="display:none;"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/live.js' %}"></script>
+{% endblock %}

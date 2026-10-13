@@ -422,6 +422,51 @@ class OfficerDashboardWorkflowTests(TestCase):
         self.assertContains(res, "Session Inactive or Revoked", status_code=403)
         self.assertContains(res, "Return to Login", status_code=403)
 
+    def test_kiosk_locked_page_device_name_and_logout_button(self):
+        """Kiosk locked page displays device identifier, logout station button, and submission error banner."""
+        client = Client()
+        client.post(reverse("accounts:login"), {
+            "username": self.kiosk1.identifier,
+            "password": self.kiosk1_pass,
+        })
+
+        res = client.get(reverse("voting:kiosk"))
+        self.assertEqual(res.status_code, 200)
+        self.assertTemplateUsed(res, "voting/kiosk/kiosk_landing.html")
+
+        # 1. Device Name & Logout on Kiosk Locked Page
+        self.assertContains(res, "Voting Station Locked")
+        self.assertContains(res, self.kiosk1.identifier)
+        self.assertContains(res, 'id="btn-kiosk-logout"')
+        self.assertContains(res, "Log Out Station")
+
+        # 2. Submission Error banner
+        self.assertContains(res, 'id="kiosk-submission-error"')
+        self.assertContains(res, "Submission failed, vote again.")
+
+    def test_officer_dashboard_status_box_states_and_unscoped_search(self):
+        """Officer dashboard template contains all required status box states and unscoped search filtering."""
+        client = Client()
+        client.post(reverse("accounts:login"), {
+            "username": self.officer1.identifier,
+            "password": self.officer1_pass,
+        })
+
+        res = client.get(reverse("voting:officer_dashboard"))
+        self.assertEqual(res.status_code, 200)
+
+        # Status headings in template
+        self.assertContains(res, "Ready to authorize")
+        self.assertContains(res, "In progress")
+        self.assertContains(res, "Submission error")
+        self.assertContains(res, "Kiosk disconnected")
+        self.assertContains(res, "Ballot recorded")
+        self.assertContains(res, "Kiosk not full screen")
+
+        # Persistent voter selection via sessionStorage
+        self.assertContains(res, "officer_selected_voter_id")
+
+
 
 class Slice10KioskAuthorizationTests(TestCase):
     """Unit and integration tests for Slice 10: Voter Authorization and Kiosk Unlocking."""
@@ -974,7 +1019,10 @@ class Slice12AtomicVotingTests(TestCase):
         auth = create_authorization(self.officer1, "CS-001")
 
         client = Client()
-        client.login(username=self.officer1.identifier, password=self.officer1_pass)
+        client.post(reverse("accounts:login"), {
+            "username": self.officer1.identifier,
+            "password": self.officer1_pass,
+        })
         res = client.get(reverse("voting:officer_dashboard"))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.context["active_auth_id"], auth.id)
@@ -989,7 +1037,10 @@ class Slice12AtomicVotingTests(TestCase):
         auth = create_authorization(self.officer1, "CS-001")
 
         client = Client()
-        client.login(username=self.officer1.identifier, password=self.officer1_pass)
+        client.post(reverse("accounts:login"), {
+            "username": self.officer1.identifier,
+            "password": self.officer1_pass,
+        })
         res = client.post(
             reverse("voting:officer_cancel_authorization"),
             data='{"authorization_id": %d}' % auth.id,
@@ -1003,4 +1054,489 @@ class Slice12AtomicVotingTests(TestCase):
         self.assertEqual(auth.status, AuthorizationStatus.CANCELLED)
 
 
+from django.test import Client, TestCase, TransactionTestCase
 
+
+class KioskAndOfficerWebSocketConsumerTests(TransactionTestCase):
+    """Verifies KioskConsumer and OfficerConsumer WebSocket lifecycles and event handling."""
+
+    def setUp(self):
+        from accounts.services import initialize_installation, create_device_session
+        from elections.services import create_election
+        from voters.services import create_booth
+
+        self.admin = initialize_installation("ws_admin_u", "ws_admin@inst.edu", "pass1234")
+        self.election = create_election(name="WS Test Election")
+        booth_res = create_booth(election_id=self.election.id, name="WS Booth")
+        self.booth = booth_res["booth"]
+        self.officer_device = booth_res["officer_device"]
+        self.kiosk_device = booth_res["kiosk_device"]
+        self.officer_user = self.officer_device.user
+        self.kiosk_user = self.kiosk_device.user
+
+    def tearDown(self):
+        from django.db import connections
+        connections.close_all()
+
+    def test_kiosk_consumer_rejects_unauthenticated_user(self):
+        import asyncio
+        from channels.testing import WebsocketCommunicator
+        from voting.consumers import KioskConsumer
+
+        async def _test():
+            communicator = WebsocketCommunicator(KioskConsumer.as_asgi(), "/ws/kiosk/")
+            connected, close_code = await communicator.connect()
+            self.assertFalse(connected)
+            self.assertEqual(close_code, 4003)
+
+        asyncio.run(_test())
+
+    def test_kiosk_consumer_rejects_wrong_role(self):
+        import asyncio
+        from channels.testing import WebsocketCommunicator
+        from voting.consumers import KioskConsumer
+
+        async def _test():
+            communicator = WebsocketCommunicator(KioskConsumer.as_asgi(), "/ws/kiosk/")
+            communicator.scope["user"] = self.officer_user  # Officer trying to connect to Kiosk WS
+            connected, close_code = await communicator.connect()
+            self.assertFalse(connected)
+            self.assertEqual(close_code, 4003)
+
+        asyncio.run(_test())
+
+    def test_kiosk_consumer_resilient_to_booth_events(self):
+        """KioskConsumer ignores authorization.updated and ballot.recorded without crashing or disconnecting."""
+        import asyncio
+        from channels.testing import WebsocketCommunicator
+        from channels.layers import get_channel_layer
+        from voting.consumers import KioskConsumer
+
+        async def _test():
+            communicator = WebsocketCommunicator(KioskConsumer.as_asgi(), "/ws/kiosk/")
+            communicator.scope["user"] = self.kiosk_user
+            connected, _ = await communicator.connect()
+            self.assertTrue(connected)
+
+            channel_layer = get_channel_layer()
+
+            # 1. Send authorization.updated to booth group (previously caused AttributeError / disconnect)
+            await channel_layer.group_send(
+                f"booth_{self.booth.id}",
+                {
+                    "type": "authorization.updated",
+                    "voter_id": "V-123",
+                    "status": "in_progress",
+                }
+            )
+
+            # 2. Send ballot.recorded to booth group (previously caused AttributeError / disconnect)
+            await channel_layer.group_send(
+                f"booth_{self.booth.id}",
+                {
+                    "type": "ballot.recorded",
+                }
+            )
+
+            # 3. Send kiosk.unlock to kiosk group -> Kiosk must still be connected and receive it!
+            await channel_layer.group_send(
+                f"kiosk_{self.kiosk_device.id}",
+                {
+                    "type": "kiosk.unlock",
+                    "authorization_id": 42,
+                    "eligible_position_ids": [101, 102],
+                }
+            )
+
+            response = await communicator.receive_json_from(timeout=3)
+            self.assertEqual(response["event"], "kiosk.unlock")
+            self.assertEqual(response["authorization_id"], 42)
+            self.assertEqual(response["eligible_position_ids"], [101, 102])
+
+            # 4. Send kiosk.lock
+            await channel_layer.group_send(
+                f"kiosk_{self.kiosk_device.id}",
+                {
+                    "type": "kiosk.lock",
+                }
+            )
+            response_lock = await communicator.receive_json_from(timeout=3)
+            self.assertEqual(response_lock["event"], "kiosk.lock")
+
+            await communicator.disconnect()
+
+        asyncio.run(_test())
+
+    def test_officer_consumer_receives_status_and_updates(self):
+        """OfficerConsumer connects, receives initial kiosk status, and receives authorization updates."""
+        import asyncio
+        from accounts.services import create_device_session
+        from channels.testing import WebsocketCommunicator
+        from channels.layers import get_channel_layer
+        from voting.consumers import OfficerConsumer
+
+        create_device_session(self.kiosk_device, "kiosk-sess-ws-online")
+
+        async def _test():
+            communicator = WebsocketCommunicator(OfficerConsumer.as_asgi(), "/ws/officer/")
+            communicator.scope["user"] = self.officer_user
+            connected, _ = await communicator.connect()
+            self.assertTrue(connected)
+
+            # Officer receives initial kiosk.status
+            initial_status = await communicator.receive_json_from(timeout=3)
+            self.assertEqual(initial_status["event"], "kiosk.status")
+            self.assertTrue(initial_status["online"])
+
+            channel_layer = get_channel_layer()
+
+            # Send authorization.updated
+            await channel_layer.group_send(
+                f"booth_officer_{self.booth.id}",
+                {
+                    "type": "authorization.updated",
+                    "voter_id": "V-999",
+                    "status": "in_progress",
+                }
+            )
+            msg_auth = await communicator.receive_json_from(timeout=3)
+            self.assertEqual(msg_auth["event"], "authorization.updated")
+            self.assertEqual(msg_auth["voter_id"], "V-999")
+            self.assertEqual(msg_auth["status"], "in_progress")
+
+            # Send ballot.recorded
+            await channel_layer.group_send(
+                f"booth_officer_{self.booth.id}",
+                {
+                    "type": "ballot.recorded",
+                }
+            )
+            msg_ballot = await communicator.receive_json_from(timeout=3)
+            self.assertEqual(msg_ballot["event"], "ballot.recorded")
+
+            await communicator.disconnect()
+
+        asyncio.run(_test())
+
+
+class ElectionClosingAndMultiBoothScenariosTests(TestCase):
+    """Verifies Electra's lazy closing logic, multi-booth independence, and countdown state.
+    
+    Covers the 6 required multi-booth scenarios:
+    1. Voter A is authorized at 5:59 PM and submits at 6:01 PM -> accepted.
+    2. Officer attempts to authorize Voter B at 6:01 PM -> rejected.
+    3. Voter A is active in Booth 1 while an officer attempts an authorization after closing in Booth 2 -> Voter A remains unaffected.
+    4. Multiple voters authorized before closing can all finish independently after end_time.
+    5. After the last active voting session finishes, the election can be persisted as CLOSED.
+    6. Refreshing the Officer Station after the end time correctly shows the ended state and prevents new authorization.
+    """
+
+    def setUp(self):
+        import datetime
+        from django.core.cache import cache
+        from elections.models import Candidate, Position
+        cache.clear()
+
+        # Single admin initialization
+        self.admin = initialize_installation("electra_admin", "admin@inst.edu", "admin_pass_1234")
+
+        # Fixed timestamps: 5:00 PM start, 6:00 PM end
+        self.t_start = datetime.datetime(2026, 10, 7, 17, 0, 0, tzinfo=datetime.timezone.utc)
+        self.t_before = datetime.datetime(2026, 10, 7, 17, 59, 0, tzinfo=datetime.timezone.utc)
+        self.t_close = datetime.datetime(2026, 10, 7, 18, 0, 0, tzinfo=datetime.timezone.utc)
+        self.t_after = datetime.datetime(2026, 10, 7, 18, 1, 0, tzinfo=datetime.timezone.utc)
+        self.t_later = datetime.datetime(2026, 10, 7, 18, 5, 0, tzinfo=datetime.timezone.utc)
+
+        # Election with starts_at and ends_at
+        self.election = create_election(
+            name="Student Council 2026",
+            starts_at=self.t_start,
+            ends_at=self.t_close,
+        )
+
+        # Contested Position & Candidates
+        self.pos = Position.objects.create(election=self.election, name="President", display_order=1)
+        self.cand_1 = Candidate.objects.create(position=self.pos, name="Candidate Alpha", symbol="Star")
+        self.cand_2 = Candidate.objects.create(position=self.pos, name="Candidate Beta", symbol="Moon")
+
+        # Booth 1 & Booth 2
+        booth1_res = create_booth(election_id=self.election.id, name="Booth 01")
+        self.booth1 = booth1_res["booth"]
+        self.officer1 = booth1_res["officer_device"]
+        self.officer1_pass = booth1_res["officer_password"]
+        self.kiosk1 = booth1_res["kiosk_device"]
+        self.kiosk1_pass = booth1_res["kiosk_password"]
+
+        booth2_res = create_booth(election_id=self.election.id, name="Booth 02")
+        self.booth2 = booth2_res["booth"]
+        self.officer2 = booth2_res["officer_device"]
+        self.officer2_pass = booth2_res["officer_password"]
+        self.kiosk2 = booth2_res["kiosk_device"]
+        self.kiosk2_pass = booth2_res["kiosk_password"]
+
+        # Ensure active sessions & kiosk readiness
+        create_device_session(self.kiosk1, "kiosk-1-session")
+        create_device_session(self.kiosk2, "kiosk-2-session")
+        cache.set(f"kiosk_online_{self.booth1.id}", True)
+        cache.set(f"kiosk_fullscreen_{self.booth1.id}", True)
+        cache.set(f"kiosk_online_{self.booth2.id}", True)
+        cache.set(f"kiosk_fullscreen_{self.booth2.id}", True)
+
+        # Voter Registry & Voters
+        self.registry = VoterRegistry.objects.create(name="Campus Registry 2026")
+        self.voter_a = Voter.objects.create(registry=self.registry, primary_registry_value="VOTER-A", name="Alice Anderson")
+        self.voter_b = Voter.objects.create(registry=self.registry, primary_registry_value="VOTER-B", name="Bob Brown")
+        self.voter_c = Voter.objects.create(registry=self.registry, primary_registry_value="VOTER-C", name="Charlie Clark")
+        self.voter_d = Voter.objects.create(registry=self.registry, primary_registry_value="VOTER-D", name="Diana Davis")
+
+        # Enroll Voters into Election and allocate to booths
+        self.ev_a = ElectionVoter.objects.create(election=self.election, voter=self.voter_a, booth=self.booth1)
+        self.ev_c = ElectionVoter.objects.create(election=self.election, voter=self.voter_c, booth=self.booth1)
+
+        self.ev_b = ElectionVoter.objects.create(election=self.election, voter=self.voter_b, booth=self.booth2)
+        self.ev_d = ElectionVoter.objects.create(election=self.election, voter=self.voter_d, booth=self.booth2)
+
+        # Activate election
+        self.election.status = ElectionStatus.ACTIVE
+        self.election.save(update_fields=["status"])
+
+    def test_scenario_1_voter_authorized_before_end_submits_after_end(self):
+        """1. Voter A is authorized at 5:59 PM and submits at 6:01 PM -> accepted."""
+        from unittest.mock import patch
+        from voting.models import AuthorizationStatus, Vote
+        from voting.services import create_authorization, submit_ballot
+
+        # Authorized at 5:59 PM
+        with patch("django.utils.timezone.now", return_value=self.t_before):
+            auth_a = create_authorization(self.officer1, self.voter_a.primary_registry_value)
+            self.assertEqual(auth_a.status, AuthorizationStatus.ACTIVE)
+
+        # Advance server time past election.ends_at (6:01 PM) and submit ballot
+        with patch("django.utils.timezone.now", return_value=self.t_after):
+            res = submit_ballot(self.kiosk1, auth_a.id, {str(self.pos.id): self.cand_1.id})
+            self.assertTrue(res["success"])
+            self.assertEqual(res["votes_recorded"], 1)
+
+            auth_a.refresh_from_db()
+            self.assertEqual(auth_a.status, AuthorizationStatus.USED)
+            self.ev_a.refresh_from_db()
+            self.assertTrue(self.ev_a.has_voted)
+
+            votes = Vote.objects.filter(election=self.election)
+            self.assertEqual(votes.count(), 1)
+            self.assertEqual(votes.first().candidate_id, self.cand_1.id)
+
+    def test_scenario_2_new_authorization_after_end_rejected(self):
+        """2. Officer attempts to authorize Voter B at 6:01 PM -> rejected."""
+        from unittest.mock import patch
+        from django.core.exceptions import ValidationError
+        from voting.models import VoterAuthorization
+        from voting.services import create_authorization
+
+        # Direct Service Call at 6:01 PM
+        with patch("django.utils.timezone.now", return_value=self.t_after):
+            with self.assertRaises(ValidationError) as ctx:
+                create_authorization(self.officer1, self.voter_c.primary_registry_value)
+            self.assertIn("concluded", str(ctx.exception).lower())
+
+            # Verify no authorization row was created
+            self.assertFalse(
+                VoterAuthorization.objects.filter(election_voter=self.ev_c).exists()
+            )
+
+        # HTTP Endpoint Call at 6:01 PM
+        client = Client()
+        client.post(reverse("accounts:login"), {
+            "username": self.officer1.identifier,
+            "password": self.officer1_pass,
+        })
+
+        with patch("django.utils.timezone.now", return_value=self.t_after):
+            res = client.post(
+                reverse("voting:officer_authorize"),
+                data='{"voter_id": "VOTER-C"}',
+                content_type="application/json"
+            )
+            self.assertEqual(res.status_code, 400)
+            data = res.json()
+            self.assertFalse(data["success"])
+            self.assertIn("concluded", data["error"].lower())
+
+    def test_scenario_3_booth2_post_end_rejection_does_not_affect_active_booth1_voter(self):
+        """3. Voter A is active in Booth 1 while an officer attempts authorization after closing in Booth 2 -> Voter A remains unaffected."""
+        import datetime
+        from unittest.mock import patch
+        from django.core.exceptions import ValidationError
+        from voting.models import AuthorizationStatus
+        from voting.services import create_authorization, submit_ballot
+
+        # 5:59 PM: Voter A authorized in Booth 1
+        with patch("django.utils.timezone.now", return_value=self.t_before):
+            auth_a = create_authorization(self.officer1, self.voter_a.primary_registry_value)
+            self.assertEqual(auth_a.status, AuthorizationStatus.ACTIVE)
+
+        # 6:01 PM: Officer in Booth 2 attempts to authorize Voter B -> rejected
+        with patch("django.utils.timezone.now", return_value=self.t_after):
+            with self.assertRaises(ValidationError):
+                create_authorization(self.officer2, self.voter_b.primary_registry_value)
+
+            # Assert Voter A in Booth 1 is completely unaffected
+            auth_a.refresh_from_db()
+            self.assertEqual(auth_a.status, AuthorizationStatus.ACTIVE)
+            self.ev_a.refresh_from_db()
+            self.assertFalse(self.ev_a.has_voted)
+
+            self.election.refresh_from_db()
+            self.assertEqual(self.election.status, ElectionStatus.ACTIVE)
+
+        # 6:02 PM: Voter A in Booth 1 finishes and submits ballot successfully
+        t_602 = datetime.datetime(2026, 10, 7, 18, 2, 0, tzinfo=datetime.timezone.utc)
+        with patch("django.utils.timezone.now", return_value=t_602):
+            res = submit_ballot(self.kiosk1, auth_a.id, {str(self.pos.id): self.cand_2.id})
+            self.assertTrue(res["success"])
+            auth_a.refresh_from_db()
+            self.assertEqual(auth_a.status, AuthorizationStatus.USED)
+            self.ev_a.refresh_from_db()
+            self.assertTrue(self.ev_a.has_voted)
+
+    def test_scenario_4_multiple_voters_finish_independently_after_end_time(self):
+        """4. Multiple voters authorized before closing can all finish independently after end_time."""
+        import datetime
+        from unittest.mock import patch
+        from voting.models import AuthorizationStatus, Vote
+        from voting.services import create_authorization, submit_ballot
+
+        # 5:59 PM: Authorize Voter A in Booth 1 and Voter B in Booth 2
+        with patch("django.utils.timezone.now", return_value=self.t_before):
+            auth_a = create_authorization(self.officer1, self.voter_a.primary_registry_value)
+            auth_b = create_authorization(self.officer2, self.voter_b.primary_registry_value)
+            self.assertEqual(auth_a.status, AuthorizationStatus.ACTIVE)
+            self.assertEqual(auth_b.status, AuthorizationStatus.ACTIVE)
+
+        t_601 = datetime.datetime(2026, 10, 7, 18, 1, 0, tzinfo=datetime.timezone.utc)
+        t_603 = datetime.datetime(2026, 10, 7, 18, 3, 0, tzinfo=datetime.timezone.utc)
+
+        # Voter A finishes at 6:01 PM
+        with patch("django.utils.timezone.now", return_value=t_601):
+            res_a = submit_ballot(self.kiosk1, auth_a.id, {str(self.pos.id): self.cand_1.id})
+            self.assertTrue(res_a["success"])
+
+            auth_a.refresh_from_db()
+            self.assertEqual(auth_a.status, AuthorizationStatus.USED)
+
+            # Voter B in Booth 2 is STILL active and untouched
+            auth_b.refresh_from_db()
+            self.assertEqual(auth_b.status, AuthorizationStatus.ACTIVE)
+
+            # Election remains ACTIVE because Voter B has not finished
+            self.election.refresh_from_db()
+            self.assertEqual(self.election.status, ElectionStatus.ACTIVE)
+
+        # Voter B finishes at 6:03 PM
+        with patch("django.utils.timezone.now", return_value=t_603):
+            res_b = submit_ballot(self.kiosk2, auth_b.id, {str(self.pos.id): self.cand_2.id})
+            self.assertTrue(res_b["success"])
+
+            auth_b.refresh_from_db()
+            self.assertEqual(auth_b.status, AuthorizationStatus.USED)
+
+        # Both voters finished independently
+        self.ev_a.refresh_from_db()
+        self.ev_b.refresh_from_db()
+        self.assertTrue(self.ev_a.has_voted)
+        self.assertTrue(self.ev_b.has_voted)
+        self.assertEqual(Vote.objects.filter(election=self.election).count(), 2)
+
+    def test_scenario_5_election_persists_as_closed_after_last_session_finishes(self):
+        """5. After the last active voting session finishes, the election can be persisted as CLOSED."""
+        from unittest.mock import patch
+        from elections.services import close_if_expired
+        from voting.services import create_authorization, submit_ballot
+
+        # 5:59 PM: Authorize Voter A in Booth 1 and Voter B in Booth 2
+        with patch("django.utils.timezone.now", return_value=self.t_before):
+            auth_a = create_authorization(self.officer1, self.voter_a.primary_registry_value)
+            auth_b = create_authorization(self.officer2, self.voter_b.primary_registry_value)
+
+        # 6:01 PM: Both are active
+        with patch("django.utils.timezone.now", return_value=self.t_after):
+            # Attempt lazy closing while sessions active -> returns False, election stays ACTIVE
+            closed = close_if_expired(election_id=self.election.id)
+            self.assertFalse(closed)
+            self.election.refresh_from_db()
+            self.assertEqual(self.election.status, ElectionStatus.ACTIVE)
+
+            # Kiosk 1 finishes
+            submit_ballot(self.kiosk1, auth_a.id, {str(self.pos.id): self.cand_1.id})
+            self.election.refresh_from_db()
+            self.assertEqual(self.election.status, ElectionStatus.ACTIVE)
+
+            # Kiosk 2 finishes (last active session!)
+            submit_ballot(self.kiosk2, auth_b.id, {str(self.pos.id): self.cand_2.id})
+            self.election.refresh_from_db()
+            self.assertEqual(self.election.status, ElectionStatus.CLOSED)
+            self.assertIsNotNone(self.election.closed_at)
+
+    def test_scenario_5b_cancelling_last_session_after_end_time_persists_election_closed(self):
+        """5b. Cancelling the last active authorization after end_time also transitions election to CLOSED."""
+        from unittest.mock import patch
+        from voting.services import create_authorization, cancel_authorization
+
+        with patch("django.utils.timezone.now", return_value=self.t_before):
+            auth_a = create_authorization(self.officer1, self.voter_a.primary_registry_value)
+
+        with patch("django.utils.timezone.now", return_value=self.t_after):
+            cancel_authorization(self.officer1, auth_a.id)
+            self.election.refresh_from_db()
+            self.assertEqual(self.election.status, ElectionStatus.CLOSED)
+            self.assertIsNotNone(self.election.closed_at)
+
+    def test_scenario_6_refreshing_officer_station_after_end_time_shows_ended_state(self):
+        """6. Refreshing the Officer Station after the end time correctly shows the ended state and prevents new authorization."""
+        from unittest.mock import patch
+        from voting.services import create_authorization, submit_ballot
+
+        # Active session exists for Voter A in Booth 1
+        with patch("django.utils.timezone.now", return_value=self.t_before):
+            auth_a = create_authorization(self.officer1, self.voter_a.primary_registry_value)
+
+        client = Client()
+        client.post(reverse("accounts:login"), {
+            "username": self.officer1.identifier,
+            "password": self.officer1_pass,
+        })
+
+        # At 6:01 PM: Refresh officer dashboard while Voter A is still in-progress
+        with patch("django.utils.timezone.now", return_value=self.t_after):
+            res = client.get(reverse("voting:officer_dashboard"))
+            self.assertEqual(res.status_code, 200)
+
+            # Context flags
+            self.assertTrue(res.context["is_ended"])
+            self.assertEqual(res.context["remaining_seconds"], 0)
+
+            content = res.content.decode("utf-8")
+            self.assertIn('id="officer-countdown-pill"', content)
+            self.assertIn('is-ended', content)
+            self.assertIn('Election ended', content)
+            self.assertIn('00:00:00', content)
+
+            # Attempting to authorize another voter fails
+            res_auth = client.post(
+                reverse("voting:officer_authorize"),
+                data='{"voter_id": "VOTER-C"}',
+                content_type="application/json"
+            )
+            self.assertEqual(res_auth.status_code, 400)
+            self.assertFalse(res_auth.json()["success"])
+
+        # Once Voter A submits, election transitions to CLOSED
+        with patch("django.utils.timezone.now", return_value=self.t_after):
+            submit_ballot(self.kiosk1, auth_a.id, {str(self.pos.id): self.cand_1.id})
+            self.election.refresh_from_db()
+            self.assertEqual(self.election.status, ElectionStatus.CLOSED)
+
+            # Now refreshing the officer dashboard renders election_closed.html (status 403)
+            res_closed = client.get(reverse("voting:officer_dashboard"))
+            self.assertEqual(res_closed.status_code, 403)
+            self.assertTemplateUsed(res_closed, "voting/officer/election_closed.html")

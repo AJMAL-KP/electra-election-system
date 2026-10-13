@@ -9,6 +9,7 @@ Owns:
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -38,7 +39,7 @@ def notify_kiosk_unlock(kiosk_device_id: int, authorization_id: int, eligible_po
         )
 
 
-def notify_kiosk_lock(kiosk_device_id: int):
+def notify_kiosk_lock(kiosk_device_id: int, booth_completed: bool = False):
     """Post-commit WebSocket broadcast to lock the target Voting Kiosk."""
     channel_layer = get_channel()
     if channel_layer:
@@ -46,6 +47,27 @@ def notify_kiosk_lock(kiosk_device_id: int):
             f"kiosk_{kiosk_device_id}",
             {
                 "type": "kiosk.lock",
+                "booth_completed": booth_completed,
+            }
+        )
+
+
+def notify_booth_completed(booth_id: int):
+    """Post-commit WebSocket broadcast when all voters in a booth have cast ballots."""
+    channel_layer = get_channel()
+    if channel_layer:
+        async_to_sync(channel_layer.group_send)(
+            f"booth_{booth_id}",
+            {
+                "type": "booth.completed",
+                "booth_id": booth_id,
+            }
+        )
+        async_to_sync(channel_layer.group_send)(
+            f"booth_officer_{booth_id}",
+            {
+                "type": "booth.completed",
+                "booth_id": booth_id,
             }
         )
 
@@ -54,6 +76,14 @@ def notify_officer_voter_status(booth_id: int, voter_id: str, status: str):
     """Post-commit WebSocket broadcast to update voter authorization state on Officer Station."""
     channel_layer = get_channel()
     if channel_layer:
+        async_to_sync(channel_layer.group_send)(
+            f"booth_officer_{booth_id}",
+            {
+                "type": "authorization.updated",
+                "voter_id": voter_id,
+                "status": status,
+            }
+        )
         async_to_sync(channel_layer.group_send)(
             f"booth_{booth_id}",
             {
@@ -101,7 +131,9 @@ def create_authorization(officer_device: Device, voter_identifier: str) -> Voter
         if election.starts_at and now < election.starts_at:
             raise ValidationError("Voting has not yet started for this election.")
         if election.ends_at and now >= election.ends_at:
-            raise ValidationError("Voting has concluded for this election.")
+            from elections.services import close_if_expired
+            close_if_expired(election_id=election.id)
+            raise ValidationError("Voting has concluded for this election. New voter authorizations are no longer permitted.")
 
         # 2. Lock ElectionVoter row
         if str(voter_identifier).isdigit():
@@ -146,8 +178,15 @@ def create_authorization(officer_device: Device, voter_identifier: str) -> Voter
             device=kiosk_device,
             is_active=True
         ).exists()
-        if not is_kiosk_connected:
+        is_kiosk_ws_offline = (cache.get(f"kiosk_online_{booth.id}") is False)
+        if not is_kiosk_connected or is_kiosk_ws_offline:
             raise ValidationError("Voting Kiosk is offline or not logged in. Cannot issue authorization.")
+
+        # Invariant: Kiosk Fullscreen Readiness (Section 23 of electra-locked-in.txt & Invariant 308)
+        # Fullscreen is a mandatory readiness signal before issuing voter authorization.
+        is_kiosk_fullscreen = cache.get(f"kiosk_fullscreen_{booth.id}")
+        if is_kiosk_fullscreen is False:
+            raise ValidationError("Voting Kiosk is not in fullscreen mode. Fullscreen is required before issuing authorization.")
 
         # 4. Lock and check existing ACTIVE authorizations
         active_voter_auth = (
@@ -206,6 +245,7 @@ def cancel_authorization(officer_device: Device, authorization_id: int) -> Voter
         raise ValidationError("Only the bound Officer Station can cancel an authorization.")
 
     with transaction.atomic():
+        election = Election.objects.select_for_update().get(id=officer_device.booth.election_id)
         auth = (
             VoterAuthorization.objects.select_for_update()
             .select_related("election_voter__voter", "kiosk")
@@ -222,6 +262,25 @@ def cancel_authorization(officer_device: Device, authorization_id: int) -> Voter
         auth.cancelled_at = timezone.now()
         auth.save(update_fields=["status", "cancelled_at"])
 
+        now = timezone.now()
+        if election.ends_at and now >= election.ends_at:
+            has_other_active = (
+                VoterAuthorization.objects
+                .filter(election_voter__election=election, status=AuthorizationStatus.ACTIVE)
+                .exclude(id=auth.id)
+                .exists()
+            )
+            if not has_other_active:
+                if election.is_active:
+                    election.status = ElectionStatus.CLOSED
+                    election.closed_at = now
+                    election.save(update_fields=["status", "closed_at", "updated_at"])
+                    from accounts.services import cleanup_past_credentials
+                    from elections.services import notify_election_closed
+                    cleanup_past_credentials()
+                    transaction.on_commit(cleanup_past_credentials)
+                    transaction.on_commit(lambda: notify_election_closed(election.id))
+
         kiosk_id_val = auth.kiosk_id
         booth_id_val = auth.booth_id
         voter_id_val = auth.election_voter.voter.primary_registry_value
@@ -237,16 +296,26 @@ def models_q_match(identifier: str):
     return Q(voter__primary_registry_value=identifier) | Q(id=int(identifier))
 
 
-def notify_ballot_recorded(booth_id: int):
+def notify_ballot_recorded(booth_id: int, voter_id: str = None):
     """Post-commit WebSocket broadcast when a ballot is recorded."""
     channel_layer = get_channel()
     if channel_layer:
+        officer_event = {
+            "type": "ballot.recorded",
+            "booth_id": booth_id,
+        }
+        if voter_id:
+            officer_event["voter_id"] = voter_id
+
+        async_to_sync(channel_layer.group_send)(
+            f"booth_officer_{booth_id}",
+            officer_event
+        )
         async_to_sync(channel_layer.group_send)(
             f"booth_{booth_id}",
-            {
-                "type": "ballot.recorded",
-            }
+            officer_event
         )
+        # BALLOT SECRECY: admin_live receives ONLY booth_id turnout signal, zero voter identity!
         async_to_sync(channel_layer.group_send)(
             "admin_live",
             {
@@ -318,8 +387,6 @@ def submit_ballot(kiosk_device: Device, authorization_id: int, selections: dict)
             raise ValidationError("Ballot submission rejected: Election is not currently active.")
 
         now = timezone.now()
-        if election.ends_at and now >= election.ends_at:
-            raise ValidationError("Ballot submission rejected: Voting window has concluded.")
 
         # 2. Lock ElectionVoter row
         try:
@@ -403,19 +470,94 @@ def submit_ballot(kiosk_device: Device, authorization_id: int, selections: dict)
         auth.used_at = now
         auth.save(update_fields=["status", "used_at"])
 
+        # Once end_time has passed AND there are no remaining active voting sessions, persist the election as CLOSED.
+        if election.ends_at and now >= election.ends_at:
+            has_other_active = (
+                VoterAuthorization.objects
+                .filter(election_voter__election=election, status=AuthorizationStatus.ACTIVE)
+                .exclude(id=auth.id)
+                .exists()
+            )
+            if not has_other_active:
+                election.status = ElectionStatus.CLOSED
+                election.closed_at = now
+                election.save(update_fields=["status", "closed_at", "updated_at"])
+                from accounts.services import cleanup_past_credentials
+                from elections.services import notify_election_closed
+                cleanup_past_credentials()
+                transaction.on_commit(cleanup_past_credentials)
+                transaction.on_commit(lambda: notify_election_closed(election.id))
+
         # 8. Post-commit event emissions (never emit before commit)
         kiosk_id_val = kiosk.id
         booth_id_val = booth.id
         voter_id_val = election_voter.voter.primary_registry_value
 
-        transaction.on_commit(lambda: notify_kiosk_lock(kiosk_id_val))
+        # Check if all voters in this booth have voted
+        booth_total = ElectionVoter.objects.filter(election=election, booth=booth).count()
+        booth_voted = ElectionVoter.objects.filter(election=election, booth=booth, has_voted=True).count()
+        booth_completed = (booth_total > 0 and booth_voted >= booth_total)
+
+        if booth_completed:
+            transaction.on_commit(lambda: notify_booth_completed(booth_id_val))
+
+        transaction.on_commit(lambda: notify_kiosk_lock(kiosk_id_val, booth_completed))
         transaction.on_commit(lambda: notify_officer_voter_status(booth_id_val, voter_id_val, "voted"))
-        transaction.on_commit(lambda: notify_ballot_recorded(booth_id_val))
+        transaction.on_commit(lambda: notify_ballot_recorded(booth_id_val, voter_id_val))
 
         return {
             "success": True,
             "message": "Ballot recorded successfully.",
             "votes_recorded": len(votes_to_create),
+            "booth_completed": booth_completed,
         }
+
+
+def calculate_turnout(election_id: int) -> dict:
+    """Calculates authoritative real-time aggregate and booth-level turnout metrics.
+    
+    BALLOT SECRECY INVARIANT: Turnout is calculated purely from ElectionVoter.has_voted.
+    Zero candidate or Vote record data is examined or exposed.
+    """
+    from elections.models import Election
+    from voters.models import Booth, ElectionVoter
+
+    election = Election.objects.get(id=election_id)
+    total_voters = election.election_voters.count()
+    voted_count = election.election_voters.filter(has_voted=True).count()
+    turnout_pct = round((voted_count / total_voters * 100), 1) if total_voters > 0 else 0.0
+
+    booths_list = []
+    for booth in election.booths.order_by("booth_number", "id"):
+        b_total = ElectionVoter.objects.filter(election=election, booth=booth).count()
+        b_voted = ElectionVoter.objects.filter(election=election, booth=booth, has_voted=True).count()
+        b_pct = round((b_voted / b_total * 100), 1) if b_total > 0 else 0.0
+        booths_list.append({
+            "booth_id": booth.id,
+            "booth_number": booth.booth_number,
+            "booth_name": booth.name or f"Booth {booth.booth_number}",
+            "total_voters": b_total,
+            "voted_count": b_voted,
+            "turnout_pct": b_pct,
+        })
+
+    return {
+        "election_id": election_id,
+        "total_voters": total_voters,
+        "voted_count": voted_count,
+        "turnout_pct": turnout_pct,
+        "booths": booths_list,
+    }
+
+
+def cancel_active_authorizations(election_id: int) -> int:
+    """Cancels any dangling ACTIVE authorizations for an election upon closure."""
+    from voting.models import AuthorizationStatus, VoterAuthorization
+    updated = VoterAuthorization.objects.filter(
+        election_voter__election_id=election_id,
+        status=AuthorizationStatus.ACTIVE,
+    ).update(status=AuthorizationStatus.CANCELLED)
+    return updated
+
 
 

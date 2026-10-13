@@ -94,7 +94,7 @@
     {% endif %}
 
     {% if active_election %}
-    <a href="{% url 'elections:results' active_election.id %}" class="home-active-banner">
+    <a href="{% url 'elections:live' active_election.id %}" class="home-active-banner">
         <span class="home-active-pill">
             <span class="home-active-dot"></span>
             Live polling: {{ active_election.name }}
@@ -110,7 +110,13 @@
             A simple and secure election management system<br>
             for conducting fair and transparent elections.
         </p>
-        {% if active_draft_election %}
+        {% if active_election %}
+        <div class="home-btn-start-wrapper" title="Election '{{ active_election.name }}' is currently in progress. Live polling must conclude before creating a new election.">
+            <button type="button" class="home-btn-start is-disabled" disabled>
+                Start election <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+            </button>
+        </div>
+        {% elif active_draft_election %}
         <button type="button" class="home-btn-start" id="btn-start-election-prompt">
             Start election <span class="btn-arrow" aria-hidden="true">&rarr;</span>
         </button>

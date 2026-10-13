@@ -58,7 +58,77 @@ body.officer-page .main-content {
 .officer-topbar-right {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+}
+
+.officer-countdown-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #374151;
+    background: #F3F4F6;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-variant-numeric: tabular-nums;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.officer-countdown-clock-icon {
+    color: #6B7280;
+    flex-shrink: 0;
+}
+
+.officer-countdown-label {
+    color: #6B7280;
+    font-size: 12px;
+}
+
+.officer-countdown-digits {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #111827;
+}
+
+.officer-countdown-pill.is-warning {
+    background: #FFFBEB;
+    border-color: #FDE68A;
+    color: #92400E;
+}
+
+.officer-countdown-pill.is-warning .officer-countdown-clock-icon {
+    color: #D97706;
+}
+
+.officer-countdown-pill.is-warning .officer-countdown-label {
+    color: #92400E;
+}
+
+.officer-countdown-pill.is-warning .officer-countdown-digits {
+    color: #B45309;
+}
+
+.officer-countdown-pill.is-ended {
+    background: #FEF2F2;
+    border-color: #FECACA;
+    color: #991B1B;
+}
+
+.officer-countdown-pill.is-ended .officer-countdown-clock-icon {
+    color: #DC2626;
+}
+
+.officer-countdown-pill.is-ended .officer-countdown-label {
+    color: #991B1B;
+    font-weight: 600;
+}
+
+.officer-countdown-pill.is-ended .officer-countdown-digits {
+    color: #DC2626;
 }
 
 .officer-btn-exit {
@@ -135,6 +205,10 @@ body.officer-page .main-content {
     color: #15803D;
 }
 
+.officer-kiosk-status-pill.is-warning {
+    color: #B45309;
+}
+
 .officer-kiosk-status-pill.is-offline {
     color: #64748B;
 }
@@ -147,6 +221,10 @@ body.officer-page .main-content {
 
 .officer-kiosk-status-pill.is-online .kiosk-dot {
     background-color: #10B981;
+}
+
+.officer-kiosk-status-pill.is-warning .kiosk-dot {
+    background-color: #F59E0B;
 }
 
 .officer-kiosk-status-pill.is-offline .kiosk-dot {
@@ -202,113 +280,49 @@ body.officer-page .main-content {
     cursor: not-allowed !important;
 }
 
-/* Centered Draft Overlay Modal */
+/* Minimalist Draft Standby Overlay (No Card Box, Light Blur) */
 .officer-draft-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     z-index: 40;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 20px;
-    pointer-events: auto;
-    background: rgba(250, 250, 250, 0.45);
-}
-
-.officer-draft-card {
-    background: #FFFFFF;
-    border: 1px solid #E5E7EB;
-    border-radius: 16px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-    padding: 36px 36px;
-    max-width: 500px;
-    width: 100%;
     text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    box-sizing: border-box;
+    padding: 24px;
+    background: #FFFFFF;
+    user-select: none;
 }
 
-.officer-draft-badge,
-.officer-card-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 12px;
-    font-weight: 500;
-    padding: 4px 12px;
-    border-radius: 9999px;
-    background: #F3F4F6;
+.officer-draft-symbol {
+    width: 48px;
+    height: 48px;
     color: #4B5563;
-    margin-bottom: 18px;
-    letter-spacing: 0.01em;
-}
-
-.officer-draft-dot,
-.officer-card-badge .badge-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background-color: #64748B;
-}
-
-.officer-card-badge.is-danger .badge-dot {
-    background-color: #EF4444;
-}
-
-.officer-card-badge.is-warning .badge-dot {
-    background-color: #F59E0B;
-}
-
-.officer-card-badge.is-neutral .badge-dot,
-.officer-card-badge.is-draft .badge-dot {
-    background-color: #64748B;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    opacity: 0.85;
 }
 
 .officer-draft-title {
     font-family: 'Newsreader', Georgia, serif;
-    font-size: 28px;
+    font-size: 32px;
     font-weight: 500;
     letter-spacing: -0.01em;
     color: #111827;
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
     line-height: 1.25;
 }
 
 .officer-draft-desc {
+    font-family: 'Inter', sans-serif;
     font-size: 14px;
-    color: #4B5563;
-    line-height: 1.55;
+    color: #6B7280;
+    line-height: 1.5;
     margin: 0 0 20px 0;
     max-width: 420px;
-}
-
-.officer-draft-station-info {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12.5px;
-    color: #64748B;
-    background: #F9FAFB;
-    border: 1px solid #E5E7EB;
-    border-radius: 8px;
-    padding: 8px 16px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-.officer-draft-station-info code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 12px;
-    color: #1E293B;
-    background: #EDF2F7;
-    padding: 2px 6px;
-    border-radius: 4px;
 }
 
 .officer-draft-actions {
@@ -317,29 +331,65 @@ body.officer-page .main-content {
     width: 100%;
 }
 
-.officer-btn-draft-logout {
+.officer-draft-logout-link {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 8px 20px;
-    font-size: 13.5px;
+    gap: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
     font-weight: 500;
-    color: #FFFFFF;
-    background-color: #111827;
-    border: 1px solid #111827;
-    border-radius: 8px;
-    text-decoration: none;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    color: #4B5563;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    transition: color 0.15s ease;
     cursor: pointer;
-    font-family: inherit;
-    line-height: 1.2;
 }
 
-.officer-btn-draft-logout:hover {
-    background-color: #374151;
-    border-color: #374151;
+.officer-draft-logout-link:hover {
+    color: #111827;
+}
+
+/* Subtle Officer Toast Container & Pills */
+.officer-toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.officer-toast {
+    padding: 10px 18px;
+    border-radius: 9999px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: auto;
+}
+
+.officer-toast.is-success {
+    background: #111827;
     color: #FFFFFF;
+}
+
+.officer-toast.is-error {
+    background: #DC2626;
+    color: #FFFFFF;
+}
+
+.officer-toast.is-info {
+    background: #1F2937;
+    color: #FFFFFF;
+}
+
+.officer-toast.is-hiding {
+    opacity: 0;
+    transform: translateY(6px);
 }
 
 /* Header pill for draft status */
@@ -546,7 +596,8 @@ body.officer-page .main-content {
     color: #15803D;
 }
 
-.officer-voter-status.is-in-progress {
+.officer-voter-status.is-in-progress,
+.officer-voter-status.is-in_progress {
     color: #D97706;
 }
 
@@ -565,7 +616,8 @@ body.officer-page .main-content {
     background-color: #10B981;
 }
 
-.officer-voter-status.is-in-progress .status-dot {
+.officer-voter-status.is-in-progress .status-dot,
+.officer-voter-status.is-in_progress .status-dot {
     background-color: #F59E0B;
 }
 
@@ -716,6 +768,97 @@ body.officer-page .main-content {
     line-height: 1.4;
 }
 
+.officer-status-box.is-danger {
+    background-color: #FEF2F2;
+    border: 1px solid #FEE2E2;
+}
+
+.officer-status-box.is-danger .status-title {
+    color: #DC2626;
+    font-weight: 600;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.officer-status-box.is-danger .status-desc {
+    color: #991B1B;
+    font-size: 13.5px;
+    line-height: 1.4;
+}
+
+.officer-status-box.is-warning {
+    background-color: #FFFBEB;
+    border: 1px solid #FEF3C7;
+}
+
+.officer-status-box.is-warning .status-title {
+    color: #D97706;
+    font-weight: 600;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.officer-status-box.is-warning .status-desc {
+    color: #92400E;
+    font-size: 13.5px;
+    line-height: 1.4;
+}
+
+.officer-status-box.is-busy {
+    background-color: #F8FAFC;
+    border: 1px solid #E2E8F0;
+}
+
+.officer-status-box.is-busy .status-title {
+    color: #475569;
+    font-weight: 600;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.officer-status-box.is-busy .status-desc {
+    color: #64748B;
+    font-size: 13.5px;
+    line-height: 1.4;
+}
+
+.officer-status-box .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.officer-status-box.is-voted .status-dot {
+    background-color: #10B981;
+}
+
+.officer-status-box.is-in-progress .status-dot {
+    background-color: #F59E0B;
+}
+
+.officer-status-box.is-not-voted .status-dot {
+    background-color: #94A3B8;
+}
+
+.officer-status-box.is-danger .status-dot {
+    background-color: #EF4444;
+}
+
+.officer-status-box.is-warning .status-dot {
+    background-color: #F59E0B;
+}
+
+.officer-status-box.is-busy .status-dot {
+    background-color: #64748B;
+}
+
 /* Action Button: Authorize Voter */
 .officer-btn-authorize {
     display: flex;
@@ -806,12 +949,11 @@ body.officer-page .main-content {
 }
 
 .officer-error-card {
-    background: #FFFFFF;
-    border: 1px solid #E5E7EB;
-    border-radius: 16px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-    padding: 36px 36px;
-    max-width: 500px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 24px 20px;
+    max-width: 540px;
     width: 100%;
     text-align: center;
     display: flex;
@@ -1036,4 +1178,129 @@ body.officer-page .main-content {
         font-size: 12px;
         text-align: center;
     }
+}
+
+/* --------------------------------------------------------------------------
+   Election Concluded Warning Modal (Officer Desk - Electra Theme)
+   Pure white background, borderless, minimalistic
+   -------------------------------------------------------------------------- */
+.officer-closed-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    box-sizing: border-box;
+    user-select: none;
+    animation: fadeIn 0.2s ease;
+}
+
+.officer-closed-symbol {
+    width: 48px;
+    height: 48px;
+    color: #4B5563;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    opacity: 0.85;
+}
+
+.officer-closed-title {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 32px;
+    font-weight: 500;
+    color: #111827;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+}
+
+.officer-closed-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #6B7280;
+    margin: 0 0 14px;
+    max-width: 460px;
+    line-height: 1.5;
+}
+
+.officer-closed-tag {
+    margin-bottom: 20px;
+    display: inline-flex;
+    align-items: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #6B7280;
+}
+
+.officer-closed-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.officer-closed-exit-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: #111827;
+    background: #FFFFFF;
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    padding: 6px 14px;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: all 0.15s ease;
+}
+
+.officer-closed-exit-link:hover {
+    background: #F9FAFB;
+    border-color: #9CA3AF;
+}
+
+/* Also for officer election_closed.html countdown box */
+.officer-error-countdown-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: #F9FAFB;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    padding: 10px 18px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.officer-error-countdown-box .countdown-sub {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #6B7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.officer-error-countdown-box .countdown-num {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 32px;
+    font-weight: 600;
+    color: #2563EB;
+    line-height: 1.1;
+}
+
+.officer-error-countdown-box .countdown-sec {
+    font-size: 11.5px;
+    color: #9CA3AF;
 }

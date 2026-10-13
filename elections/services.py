@@ -133,7 +133,14 @@ def create_position(
         return position
 
 
-def update_position(*, position_id: int, name: str, display_order: int) -> Position:
+def update_position(
+    *,
+    position_id: int,
+    name: str,
+    display_order: Optional[int] = None,
+    eligible_gender: Optional[str] = None,
+    eligible_group_ids: Optional[list] = None,
+) -> Position:
     """Update a position. Permitted ONLY when parent election is in DRAFT."""
     with transaction.atomic():
         position = Position.objects.select_for_update().select_related("election").get(id=position_id)
@@ -144,13 +151,53 @@ def update_position(*, position_id: int, name: str, display_order: int) -> Posit
         if Position.objects.filter(election=position.election, name__iexact=cleaned_name).exclude(id=position.id).exists():
             raise ValidationError(f"Another position named '{cleaned_name}' already exists in this election.")
 
-        if Position.objects.filter(election=position.election, display_order=display_order).exclude(id=position.id).exists():
+        if display_order is not None and Position.objects.filter(election=position.election, display_order=display_order).exclude(id=position.id).exists():
             raise ValidationError(f"Ballot order #{display_order} is already assigned to another position in this election.")
 
         position.name = cleaned_name
-        position.display_order = display_order
+        if display_order is not None:
+            position.display_order = display_order
+        if eligible_gender is not None:
+            position.eligible_gender = eligible_gender if eligible_gender in ['FEMALE', 'MALE'] else 'ALL'
         position.full_clean()
         position.save()
+
+        if eligible_group_ids is not None:
+            position.eligible_groups.set(eligible_group_ids)
+
+        # Remove candidates that no longer meet updated voter eligibility
+        removed_candidates = []
+        target_gender = position.eligible_gender
+        allowed_group_ids = set(position.eligible_groups.values_list("id", flat=True))
+        allowed_group_names = set(g.strip().lower() for g in position.eligible_groups.values_list("name", flat=True))
+
+        for cand in list(position.candidates.select_related("voter__academic_group").all()):
+            is_ineligible = False
+
+            # 1. Gender check
+            if target_gender and target_gender in ['FEMALE', 'MALE']:
+                cand_gender = ""
+                if cand.voter and cand.voter.gender:
+                    cand_gender = cand.voter.gender.strip().upper()
+                if cand_gender and cand_gender != target_gender:
+                    is_ineligible = True
+
+            # 2. Group eligibility check
+            if allowed_group_ids:
+                if cand.voter and cand.voter.academic_group_id:
+                    if cand.voter.academic_group_id not in allowed_group_ids:
+                        is_ineligible = True
+                elif cand.academic_group:
+                    if cand.academic_group.strip().lower() not in allowed_group_names:
+                        is_ineligible = True
+                else:
+                    is_ineligible = True
+
+            if is_ineligible:
+                removed_candidates.append(cand.name)
+                cand.delete()
+
+        position.removed_ineligible_candidates = removed_candidates
         return position
 
 
@@ -316,6 +363,9 @@ def validate_election_configuration(election: Election, *, check_cutoff: bool = 
         for pos in positions:
             if pos.candidates.count() == 0:
                 errors.append(f"Position '{pos.name}' has no registered candidates. Every position requires at least one candidate.")
+        has_contested = any(pos.candidates.count() > 1 for pos in positions)
+        if not has_contested:
+            errors.append("At least one position must have more than one candidate for contested voting.")
 
     booths = list(election.booths.prefetch_related("devices").all())
     if not booths:
@@ -364,6 +414,8 @@ def start_election(*, election_id: int, ends_at=None) -> Election:
 
         election.status = ElectionStatus.ACTIVE
         election.save(update_fields=["status", "starts_at", "ends_at", "updated_at"])
+        from accounts.services import purge_election_stale_credentials_and_sessions
+        purge_election_stale_credentials_and_sessions(election)
         transaction.on_commit(lambda: notify_election_started(election.id))
         return election
 
@@ -378,9 +430,19 @@ def close_election(*, election_id: int) -> Election:
         if not election.is_active:
             raise ValidationError(f"Cannot close election: current status is {election.status}, expected ACTIVE.")
 
+        from voting.models import AuthorizationStatus, VoterAuthorization
+        if VoterAuthorization.objects.filter(election_voter__election=election, status=AuthorizationStatus.ACTIVE).exists():
+            raise ValidationError(
+                "Cannot close election: there are active voters currently casting ballots. "
+                "Please wait for all authorized voters to submit their ballots or cancel active authorizations before closing."
+            )
+
         election.status = ElectionStatus.CLOSED
-        election.closed_at = timezone.now()
-        election.save(update_fields=["status", "closed_at", "updated_at"])
+        now = timezone.now()
+        election.closed_at = now
+        if not election.ends_at or election.ends_at > now:
+            election.ends_at = now
+        election.save(update_fields=["status", "closed_at", "ends_at", "updated_at"])
         from accounts.services import cleanup_past_credentials
         cleanup_past_credentials()
         transaction.on_commit(cleanup_past_credentials)
@@ -421,15 +483,22 @@ def close_if_expired(*, election_id: int) -> bool:
         except Election.DoesNotExist:
             return False
 
-        if election.is_active and timezone.now() >= election.ends_at:
-            election.status = ElectionStatus.CLOSED
-            election.closed_at = timezone.now()
-            election.save(update_fields=["status", "closed_at", "updated_at"])
-            from accounts.services import cleanup_past_credentials
-            cleanup_past_credentials()
-            transaction.on_commit(cleanup_past_credentials)
-            transaction.on_commit(lambda: notify_election_closed(election.id))
-            return True
+        if election.is_active and election.ends_at and timezone.now() >= election.ends_at:
+            from voting.models import AuthorizationStatus, VoterAuthorization
+            has_active_sessions = VoterAuthorization.objects.filter(
+                election_voter__election=election,
+                status=AuthorizationStatus.ACTIVE
+            ).exists()
+
+            if not has_active_sessions:
+                election.status = ElectionStatus.CLOSED
+                election.closed_at = timezone.now()
+                election.save(update_fields=["status", "closed_at", "updated_at"])
+                from accounts.services import cleanup_past_credentials
+                cleanup_past_credentials()
+                transaction.on_commit(cleanup_past_credentials)
+                transaction.on_commit(lambda: notify_election_closed(election.id))
+                return True
 
         return False
 
@@ -483,6 +552,36 @@ def notify_election_closed(election_id: int):
                     "admin_live",
                     {
                         "type": "election.closed",
+                        "election_id": election_id,
+                    }
+                )
+    except Exception:
+        pass
+
+    return False
+
+
+def notify_election_cutoff(election_id: int):
+    """Post-commit WebSocket broadcast when an election cutoff time has arrived / manual end freeze."""
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            election = Election.objects.prefetch_related("booths").filter(id=election_id).first()
+            if election:
+                for booth in election.booths.all():
+                    async_to_sync(channel_layer.group_send)(
+                        f"booth_{booth.id}",
+                        {
+                            "type": "election.cutoff",
+                            "election_id": election_id,
+                        }
+                    )
+                async_to_sync(channel_layer.group_send)(
+                    "admin_live",
+                    {
+                        "type": "election.cutoff",
                         "election_id": election_id,
                     }
                 )

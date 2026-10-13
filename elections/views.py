@@ -26,6 +26,7 @@ from elections.selectors import (
     get_active_election,
     get_election,
     get_election_details,
+    get_election_review_status,
     list_election_history,
     list_elections,
 )
@@ -41,6 +42,7 @@ from elections.services import (
     publish_results,
     start_election,
     update_election,
+    update_position,
 )
 from accounts.models import DeviceSession
 from accounts.services import cleanup_past_credentials, revoke_device_credentials, rotate_device_credentials
@@ -103,8 +105,8 @@ def dashboard_view(request):
         has_voted=True,
     ).count()
     active_election = get_active_election()
-    # Prompt on Home only if an election draft was explicitly saved as draft just before
-    active_draft_election = all_elections.filter(status=ElectionStatus.DRAFT, is_saved_draft=True).order_by("-created_at").first()
+    # Prompt on Home whenever any election draft exists
+    active_draft_election = all_elections.filter(status=ElectionStatus.DRAFT).order_by("-created_at").first()
 
     return render(request, "elections/home.html", {
         "all_elections": all_elections,
@@ -128,7 +130,10 @@ def election_history_view(request):
     search_query = request.GET.get("q", "").strip()
     year_filter = request.GET.get("year", "").strip()
 
-    history_data = list_election_history(search_query=search_query, year_filter=year_filter)
+    history_data = list_election_history(
+        search_query=search_query,
+        year_filter=year_filter,
+    )
 
     return render(request, "elections/history.html", {
         "history_items": history_data["items"],
@@ -196,7 +201,7 @@ def election_setup_start_view(request):
     existing_draft = Election.objects.filter(status=ElectionStatus.DRAFT).order_by("-created_at").first()
 
     if existing_draft:
-        if discard or not existing_draft.is_saved_draft:
+        if discard:
             existing_draft.delete()
             existing_draft = None
         else:
@@ -532,6 +537,42 @@ def election_setup_details_view(request, election_id: int):
                 messages.error(request, f"Could not add position: {msg}")
             return redirect("elections:setup_details", election_id=election.id)
 
+        elif action in ("edit_position", "update_position"):
+            pos_id = request.POST.get("position_id")
+            pos_name = request.POST.get("position_name", "").strip()
+            eligibility_mode = request.POST.get("eligibility_mode", "all")
+            eligible_gender = request.POST.get("eligible_gender", "ALL").strip().upper()
+            group_ids = request.POST.getlist("eligible_group_ids")
+
+            if not pos_id or not pos_id.isdigit():
+                messages.error(request, "Invalid position specified.")
+                return redirect("elections:setup_details", election_id=election.id)
+
+            if not pos_name:
+                messages.error(request, "Position name is required.")
+                return redirect("elections:setup_details", election_id=election.id)
+
+            selected_group_ids = [int(gid) for gid in group_ids if gid.isdigit()] if eligibility_mode != "all" else []
+            try:
+                pos = update_position(
+                    position_id=int(pos_id),
+                    name=pos_name,
+                    eligible_group_ids=selected_group_ids,
+                    eligible_gender=eligible_gender if eligible_gender in ['FEMALE', 'MALE'] else 'ALL',
+                )
+                removed = getattr(pos, "removed_ineligible_candidates", [])
+                if removed:
+                    messages.warning(
+                        request,
+                        f"Position '{pos_name}' updated. Removed {len(removed)} candidate(s) ({', '.join(removed)}) who no longer meet eligibility requirements."
+                    )
+                else:
+                    messages.success(request, f"Position '{pos_name}' updated successfully.")
+            except ValidationError as exc:
+                msg = exc.messages[0] if hasattr(exc, "messages") else str(exc)
+                messages.error(request, f"Could not update position: {msg}")
+            return redirect("elections:setup_details", election_id=election.id)
+
         elif action == "delete_position":
             pos_id = request.POST.get("position_id")
             if pos_id and pos_id.isdigit():
@@ -599,6 +640,14 @@ def election_setup_details_view(request, election_id: int):
                 messages.error(
                     request,
                     f"Every position must have at least one candidate. Missing candidates for: {', '.join(empty_positions)}."
+                )
+                return redirect("elections:setup_details", election_id=election.id)
+
+            has_contested = any(p.candidates.count() > 1 for p in positions)
+            if not has_contested:
+                messages.error(
+                    request,
+                    "At least one position must have more than one candidate for contested voting."
                 )
                 return redirect("elections:setup_details", election_id=election.id)
 
@@ -690,8 +739,6 @@ def election_setup_booths_view(request, election_id: int):
     - Validation before proceeding: requires at least 1 booth configured.
     """
     election = get_object_or_404(Election, id=election_id, status=ElectionStatus.DRAFT)
-    # Automatically remove past credentials that are not in use by any draft or ongoing election
-    cleanup_past_credentials()
 
     if request.method == "POST":
         action = request.POST.get("action", "").strip()
@@ -1156,6 +1203,7 @@ def election_setup_review_view(request, election_id: int):
         
         booth_review_data.append({
             "booth": b,
+            "booth_id": b.id,
             "booth_number": b.booth_number,
             "name": b.name,
             "display_name": f"Booth {b.booth_number}" + (f" ({b.name})" if b.name else ""),
@@ -1181,95 +1229,8 @@ def election_setup_review_view(request, election_id: int):
         pos.badge_type = preset["type"]
         pos.badge_icon = preset["icon"]
 
-    # 4. Compute Comprehensive System Validation Checks
-    c1_details = {
-        "label": "Election details provided",
-        "passed": bool(election.name.strip()),
-    }
-    c1_voters = {
-        "label": f"Voters selected ({total_enrolled_voters:,})" if total_enrolled_voters > 0 else "No voters selected",
-        "passed": total_enrolled_voters > 0,
-    }
-    c1_positions = {
-        "label": f"At least one position added ({len(positions)})" if len(positions) > 0 else "At least one position added",
-        "passed": len(positions) > 0,
-    }
-    c1_candidates = {
-        "label": "Candidates added for all positions",
-        "passed": len(positions) > 0 and all(p.candidates.count() > 0 for p in positions),
-    }
-    c1_booths = {
-        "label": f"Booths created ({len(booths)})" if len(booths) > 0 else "Booths created",
-        "passed": len(booths) > 0,
-    }
-    c1_allocation = {
-        "label": f"All voters allocated to booths ({allocated_percentage}%)",
-        "passed": total_enrolled_voters > 0 and unallocated_count == 0,
-    }
-
-    all_paired = len(booths) > 0 and all(
-        b.devices.filter(device_type=DeviceType.OFFICER).exists() and
-        b.devices.filter(device_type=DeviceType.KIOSK).exists()
-        for b in booths
-    )
-    c2_paired = {
-        "label": "All booths paired with devices",
-        "passed": all_paired,
-    }
-
-    online_officers = sum(1 for b in booth_review_data if b["officer_online"])
-    c2_officers = {
-        "label": f"Officer stations online ({online_officers}/{len(booths)})",
-        "passed": len(booths) > 0 and online_officers == len(booths),
-        "is_warning": len(booths) > 0 and online_officers < len(booths),
-    }
-
-    online_kiosks = sum(1 for b in booth_review_data if b["kiosk_online"])
-    c2_kiosks = {
-        "label": f"Kiosk devices online ({online_kiosks}/{len(booths)})",
-        "passed": len(booths) > 0 and online_kiosks == len(booths),
-        "is_warning": len(booths) > 0 and online_kiosks < len(booths),
-    }
-
-    # Duplicate candidate name checks
-    has_duplicates = False
-    for p in positions:
-        names = [c.name.strip().lower() for c in p.candidates.all()]
-        if len(names) != len(set(names)):
-            has_duplicates = True
-            break
-    c2_duplicates = {
-        "label": "No duplicate candidates",
-        "passed": not has_duplicates,
-    }
-
-    critical_passed = (
-        c1_details["passed"] and
-        c1_voters["passed"] and
-        c1_positions["passed"] and
-        c1_candidates["passed"] and
-        c1_booths["passed"] and
-        c1_allocation["passed"] and
-        c2_paired["passed"] and
-        c2_duplicates["passed"]
-    )
-
-    c2_validation = {
-        "label": "Validation passed" if critical_passed else "Validation issues found",
-        "passed": critical_passed,
-    }
-
-    ready_to_start = critical_passed and c2_officers["passed"] and c2_kiosks["passed"]
-    c2_ready = {
-        "label": "Ready to start election" if ready_to_start else ("Pending station logins" if critical_passed else "Configuration incomplete"),
-        "passed": ready_to_start,
-        "is_warning": critical_passed and not ready_to_start,
-    }
-
-    validation_col1 = [c1_details, c1_voters, c1_positions, c1_candidates, c1_booths, c1_allocation]
-    validation_col2 = [c2_paired, c2_officers, c2_kiosks, c2_duplicates, c2_validation, c2_ready]
-
-    all_validations_ok = all(item["passed"] for item in validation_col1 + validation_col2)
+    # 4. Compute Comprehensive System Validation Checks via Selector
+    review_status = get_election_review_status(election.id)
 
     return render(request, "elections/setup_review.html", {
         "election": election,
@@ -1282,12 +1243,22 @@ def election_setup_review_view(request, election_id: int):
         "total_allocated": total_allocated,
         "unallocated_count": unallocated_count,
         "allocated_percentage": allocated_percentage,
-        "validation_col1": validation_col1,
-        "validation_col2": validation_col2,
-        "critical_passed": critical_passed,
-        "ready_to_start": ready_to_start,
-        "all_validations_ok": all_validations_ok,
+        "validation_col1": review_status.get("validation_col1", []),
+        "validation_col2": review_status.get("validation_col2", []),
+        "critical_passed": review_status.get("critical_passed", False),
+        "ready_to_start": review_status.get("ready_to_start", False),
+        "all_validations_ok": review_status.get("all_validations_ok", False),
+        "summary_text": review_status.get("summary_text", ""),
+        "summary_type": review_status.get("summary_type", "error"),
     })
+
+
+@never_cache
+@admin_required
+def election_setup_review_status_api(request, election_id: int):
+    """Real-time validation checks status endpoint for Stage 4 Review."""
+    status_data = get_election_review_status(election_id)
+    return JsonResponse(status_data)
 
 
 
@@ -1345,14 +1316,20 @@ def election_start_view(request, election_id: int):
     Start time is automatically set to now, and voting cutoff time is validated.
     """
     if request.method == "POST":
+        ends_at_iso = request.POST.get("ends_at_iso", "").strip()
         ends_at_str = request.POST.get("ends_at", "").strip()
-        ends_at = parse_datetime(ends_at_str) if ends_at_str else None
-        if ends_at and timezone.is_naive(ends_at):
-            ends_at = timezone.make_aware(ends_at)
+        ends_at = None
+        if ends_at_iso:
+            ends_at = parse_datetime(ends_at_iso)
+        elif ends_at_str:
+            ends_at = parse_datetime(ends_at_str)
+            if ends_at and timezone.is_naive(ends_at):
+                ends_at = timezone.make_aware(ends_at)
 
         try:
             election = start_election(election_id=election_id, ends_at=ends_at)
             messages.success(request, f"Election '{election.name}' is now ACTIVE. Configuration is frozen and stations are live.")
+            return redirect("elections:live", election_id=election.id)
         except ValidationError as exc:
             if hasattr(exc, "message_dict") and "configuration" in exc.message_dict:
                 errors = exc.message_dict["configuration"]
@@ -1360,21 +1337,254 @@ def election_start_view(request, election_id: int):
             else:
                 msg = exc.messages[0] if hasattr(exc, "messages") else str(exc)
                 messages.error(request, f"Cannot start election: {msg}")
-    return redirect(f"/elections/?election_id={election_id}")
+    return redirect("elections:setup_review", election_id=election_id)
 
 
 @never_cache
 @admin_required
 def election_close_view(request, election_id: int):
-    """Atomically close the election (ACTIVE -> CLOSED)."""
+    """Atomically close the election (ACTIVE -> CLOSED).
+    
+    If active voter authorizations are currently in-flight:
+    1. Sets ends_at to now, immediately halting any new voter authorizations across all booths.
+    2. Broadcasts election cutoff so all terminals reflect concluded status.
+    3. Waits for active in-booth voters to submit ballots before final closure.
+    """
     if request.method == "POST":
+        election = get_object_or_404(Election, id=election_id)
+        if not election.is_active:
+            messages.info(request, f"Election '{election.name}' is already closed.")
+            return redirect("elections:results", election_id=election.id)
+
+        now = timezone.now()
+        # Immediately halt new authorizations by setting ends_at to now
+        if not election.ends_at or election.ends_at > now:
+            election.ends_at = now
+            election.save(update_fields=["ends_at", "updated_at"])
+            from elections.services import notify_election_cutoff
+            transaction.on_commit(lambda: notify_election_cutoff(election.id))
+
+        from voting.models import AuthorizationStatus, VoterAuthorization
+        active_auth_count = VoterAuthorization.objects.filter(
+            election_voter__election=election,
+            status=AuthorizationStatus.ACTIVE
+        ).count()
+
+        if active_auth_count > 0:
+            messages.info(
+                request,
+                f"Voting has been concluded. Waiting for {active_auth_count} voter(s) currently in voting booths to finish casting ballots before final closure."
+            )
+            return redirect("elections:live", election_id=election.id)
+
         try:
-            election = close_election(election_id=election_id)
-            messages.success(request, f"Election '{election.name}' is now CLOSED.")
+            closed_el = close_election(election_id=election.id)
+            messages.success(request, f"Election '{closed_el.name}' is now CLOSED.")
+            return redirect("elections:results", election_id=closed_el.id)
         except ValidationError as exc:
             msg = exc.messages[0] if hasattr(exc, "messages") else str(exc)
             messages.error(request, f"Cannot close election: {msg}")
-    return redirect(f"/elections/?election_id={election_id}")
+    return redirect("elections:live", election_id=election_id)
+
+
+@never_cache
+@admin_required
+def election_live_view(request, election_id: int):
+    """Admin Live Election Dashboard (references/07_live.png).
+    
+    Provides real-time operational monitoring:
+    - Countdown timer (time remaining until scheduled cutoff)
+    - Turnout statistics (total voters, voted count, percentage, progress bar)
+    - Device and booth status (officer station and kiosk online/offline status, identifiers, passwords, rotate pass)
+    - End election workflow
+    """
+    # 1. Automatic server-side deadline check
+    close_if_expired(election_id=election_id)
+    election = get_object_or_404(Election, id=election_id)
+
+    # If election is already closed or results published, redirect to results dashboard
+    if election.status in [ElectionStatus.CLOSED, ElectionStatus.RESULTS_PUBLISHED]:
+        return redirect("elections:results", election_id=election.id)
+
+    # If election is still in draft, redirect to setup review
+    if election.status == ElectionStatus.DRAFT:
+        messages.info(request, "This election has not been launched yet.")
+        return redirect("elections:setup_review", election_id=election.id)
+
+    # Handle in-place POST operations (Rotate Pass, End Election)
+    if request.method == "POST":
+        action = request.POST.get("action", "").strip()
+        is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest" or request.POST.get("is_ajax") == "1"
+
+        if action in ("rotate_credentials", "rotate_pass"):
+            device_id = request.POST.get("device_id")
+            try:
+                device = get_object_or_404(Device, id=device_id, booth__election=election)
+                rotated_dev, new_pw = rotate_device_credentials(device.id)
+                if is_ajax:
+                    return JsonResponse({
+                        "status": "success",
+                        "device_id": rotated_dev.id,
+                        "identifier": rotated_dev.identifier,
+                        "new_password": new_pw,
+                        "credential_status": rotated_dev.credential_status,
+                        "is_online": False,
+                    })
+                messages.success(request, f"Credentials rotated for {rotated_dev.identifier}.")
+            except ValidationError as exc:
+                msg = exc.messages[0] if hasattr(exc, "messages") else str(exc)
+                if is_ajax:
+                    return JsonResponse({"status": "error", "message": msg}, status=400)
+                messages.error(request, f"Credential change failed: {msg}")
+            return redirect("elections:live", election_id=election.id)
+
+        elif action in ("end_election", "close_election"):
+            now = timezone.now()
+            if not election.ends_at or election.ends_at > now:
+                election.ends_at = now
+                election.save(update_fields=["ends_at", "updated_at"])
+                from elections.services import notify_election_cutoff
+                transaction.on_commit(lambda: notify_election_cutoff(election.id))
+
+            from voting.models import AuthorizationStatus, VoterAuthorization
+            active_auth_count = VoterAuthorization.objects.filter(
+                election_voter__election=election,
+                status=AuthorizationStatus.ACTIVE
+            ).count()
+
+            if active_auth_count > 0:
+                messages.info(
+                    request,
+                    f"Voting has been concluded. Waiting for {active_auth_count} voter(s) currently in voting booths to finish casting ballots before final closure."
+                )
+                return redirect("elections:live", election_id=election.id)
+
+            try:
+                closed_el = close_election(election_id=election.id)
+                messages.success(request, f"Election '{closed_el.name}' has been ended.")
+                return redirect("elections:results", election_id=election.id)
+            except ValidationError as exc:
+                msg = exc.messages[0] if hasattr(exc, "messages") else str(exc)
+                messages.error(request, f"Cannot end election: {msg}")
+                return redirect("elections:live", election_id=election.id)
+
+    # Aggregate aggregate turnout metrics
+    enrolled_voters_qs = election.election_voters.all()
+    total_voters = enrolled_voters_qs.count()
+    total_voted = enrolled_voters_qs.filter(has_voted=True).count()
+    turnout_pct = round((total_voted / total_voters * 100), 1) if total_voters > 0 else 0.0
+
+    booths_qs = election.booths.all().order_by("booth_number").prefetch_related("devices", "allocated_voters")
+    booth_data = []
+    total_devices = 0
+
+    for booth in booths_qs:
+        allocated = booth.allocated_voters.count()
+        voted = booth.allocated_voters.filter(has_voted=True).count()
+        b_turnout = round((voted / allocated * 100), 1) if allocated > 0 else 0.0
+
+        officer_dev = None
+        kiosk_dev = None
+        for dev in booth.devices.all():
+            total_devices += 1
+            if dev.device_type == DeviceType.OFFICER:
+                officer_dev = dev
+            elif dev.device_type == DeviceType.KIOSK:
+                kiosk_dev = dev
+
+        officer_online = (
+            DeviceSession.objects.filter(device=officer_dev, is_active=True).exists()
+            if officer_dev else False
+        )
+        kiosk_online = (
+            DeviceSession.objects.filter(device=kiosk_dev, is_active=True).exists()
+            if kiosk_dev else False
+        )
+
+        booth_data.append({
+            "booth": booth,
+            "allocated_count": allocated,
+            "voted_count": voted,
+            "turnout_pct": b_turnout,
+            "officer_device": officer_dev,
+            "kiosk_device": kiosk_dev,
+            "officer_online": officer_online,
+            "kiosk_online": kiosk_online,
+        })
+
+    ends_at_iso = election.ends_at.isoformat() if election.ends_at else ""
+    now_iso = timezone.now().isoformat()
+
+    return render(request, "elections/live.html", {
+        "election": election,
+        "total_voters": total_voters,
+        "total_voted": total_voted,
+        "turnout_pct": turnout_pct,
+        "booth_data": booth_data,
+        "total_booths": len(booth_data),
+        "total_devices": total_devices,
+        "ends_at_iso": ends_at_iso,
+        "now_iso": now_iso,
+    })
+
+
+@never_cache
+@admin_required
+def election_live_stats_view(request, election_id: int):
+    """JSON API for real-time polling and WebSocket sync on Live Dashboard."""
+    # 1. Automatic server-side deadline check
+    close_if_expired(election_id=election_id)
+    election = get_object_or_404(Election, id=election_id)
+
+    if election.status in [ElectionStatus.CLOSED, ElectionStatus.RESULTS_PUBLISHED]:
+        return JsonResponse({
+            "is_closed": True,
+            "redirect_url": reverse("elections:results", kwargs={"election_id": election.id}),
+        })
+
+    enrolled_voters_qs = election.election_voters.all()
+    total_voters = enrolled_voters_qs.count()
+    total_voted = enrolled_voters_qs.filter(has_voted=True).count()
+    turnout_pct = round((total_voted / total_voters * 100), 1) if total_voters > 0 else 0.0
+
+    booths_qs = election.booths.all().order_by("booth_number").prefetch_related("devices", "allocated_voters")
+    booth_stats = []
+    for booth in booths_qs:
+        allocated = booth.allocated_voters.count()
+        voted = booth.allocated_voters.filter(has_voted=True).count()
+        b_turnout = round((voted / allocated * 100), 1) if allocated > 0 else 0.0
+
+        officer_dev = booth.devices.filter(device_type=DeviceType.OFFICER).first()
+        kiosk_dev = booth.devices.filter(device_type=DeviceType.KIOSK).first()
+
+        officer_online = (
+            DeviceSession.objects.filter(device=officer_dev, is_active=True).exists()
+            if officer_dev else False
+        )
+        kiosk_online = (
+            DeviceSession.objects.filter(device=kiosk_dev, is_active=True).exists()
+            if kiosk_dev else False
+        )
+
+        booth_stats.append({
+            "booth_id": booth.id,
+            "booth_number": booth.booth_number,
+            "allocated_count": allocated,
+            "voted_count": voted,
+            "turnout_pct": b_turnout,
+            "officer_online": officer_online,
+            "kiosk_online": kiosk_online,
+            "officer_device_id": officer_dev.id if officer_dev else None,
+            "kiosk_device_id": kiosk_dev.id if kiosk_dev else None,
+        })
+
+    return JsonResponse({
+        "is_closed": False,
+        "total_voters": total_voters,
+        "total_voted": total_voted,
+        "turnout_pct": turnout_pct,
+        "booth_stats": booth_stats,
+    })
 
 
 @never_cache

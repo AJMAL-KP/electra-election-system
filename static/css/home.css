@@ -179,6 +179,21 @@
   transform: translateX(3px);
 }
 
+.home-btn-start-wrapper {
+  display: inline-block;
+  cursor: not-allowed;
+}
+
+.home-btn-start.is-disabled,
+.home-btn-start:disabled {
+  opacity: 0.45;
+  background-color: #6B7280;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 /* Hairline Divider */
 .home-divider {
   width: 100%;

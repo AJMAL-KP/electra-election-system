@@ -7,6 +7,7 @@ Owns:
 - Results presentation
 """
 
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q
 from django.http import HttpResponseForbidden, JsonResponse
@@ -38,27 +39,47 @@ def officer_dashboard_view(request):
         }, status=403)
 
     election = booth.election
-
-    if election.status not in (ElectionStatus.DRAFT, ElectionStatus.ACTIVE):
-        return render(request, "voting/officer/election_closed.html", {
-            "device": device,
-            "booth": booth,
-            "election": election,
-            "error_title": "Election Concluded",
-            "error_message": "Voting for this election has officially concluded. The voting desk is now closed.",
-        }, status=403)
-
     is_draft = (election.status == ElectionStatus.DRAFT)
+    if not is_draft:
+        from elections.services import close_if_expired
+        close_if_expired(election_id=election.id)
+        election.refresh_from_db()
+        is_draft = (election.status == ElectionStatus.DRAFT)
+
+    if election.status in (ElectionStatus.CLOSED, ElectionStatus.RESULTS_PUBLISHED):
+        from accounts.services import logout_user
+        from django.urls import reverse
+        logout_user(request)
+        return redirect(f"{reverse('index')}?reason=election_ended")
+
     is_active = (election.status == ElectionStatus.ACTIVE)
+
+    from django.utils import timezone
+    now = timezone.now()
+    is_ended = False
+    remaining_seconds = None
+    if is_active and election.ends_at:
+        if now >= election.ends_at:
+            is_ended = True
+            remaining_seconds = 0
+        else:
+            remaining_seconds = max(0, int((election.ends_at - now).total_seconds()))
+
+    ends_at_iso = election.ends_at.isoformat() if (is_active and election.ends_at) else ""
+    now_iso = now.isoformat()
 
     # Derive Kiosk pairing and status for this booth
     kiosk_device = booth.devices.filter(device_type=DeviceType.KIOSK).first()
     kiosk_online = False
+    kiosk_fullscreen = False
     if kiosk_device:
-        kiosk_online = DeviceSession.objects.filter(
+        has_session = DeviceSession.objects.filter(
             device=kiosk_device,
             is_active=True
         ).exists()
+        is_ws_offline = (cache.get(f"kiosk_online_{booth.id}") is False)
+        kiosk_online = has_session and not is_ws_offline
+        kiosk_fullscreen = bool(cache.get(f"kiosk_fullscreen_{booth.id}", False)) if kiosk_online else False
 
     # Query allocated voters strictly for this booth (Booth Isolation)
     voter_qs = (
@@ -78,7 +99,7 @@ def officer_dashboard_view(request):
         .first()
     )
     in_progress_count = 1 if active_auth else 0
-    not_voted_count = max(0, total_voters - voted_count - in_progress_count)
+    not_voted_count = max(0, total_voters - voted_count)
     active_auth_voter_id = (
         active_auth.election_voter.voter.primary_registry_value
         if (active_auth and active_auth.election_voter and active_auth.election_voter.voter)
@@ -157,6 +178,7 @@ def officer_dashboard_view(request):
         "is_active": is_active,
         "kiosk_device": kiosk_device,
         "kiosk_online": kiosk_online,
+        "kiosk_fullscreen": kiosk_fullscreen,
         "total_voters": total_voters,
         "voted_count": voted_count,
         "in_progress_count": in_progress_count,
@@ -166,6 +188,12 @@ def officer_dashboard_view(request):
         "active_auth": active_auth,
         "active_auth_id": active_auth.id if active_auth else None,
         "active_voter_id": active_auth_voter_id,
+        "booth_completed": (total_voters > 0 and voted_count >= total_voters and active_auth is None),
+        "is_ended": is_ended,
+        "remaining_seconds": remaining_seconds,
+        "server_now": now,
+        "ends_at_iso": ends_at_iso,
+        "now_iso": now_iso,
     })
 
 
@@ -273,25 +301,35 @@ def kiosk_view(request):
         }, status=403)
 
     election = booth.election
-    if election.status != ElectionStatus.ACTIVE:
+    is_draft = (election.status == ElectionStatus.DRAFT)
+    if not is_draft:
+        from elections.services import close_if_expired
+        close_if_expired(election_id=election.id)
+        election.refresh_from_db()
         is_draft = (election.status == ElectionStatus.DRAFT)
-        return render(request, "voting/kiosk/kiosk_landing.html", {
-            "booth": booth,
-            "device": device,
-            "election": election,
-            "is_draft": is_draft,
-            "is_locked": True,
-            "positions": [],
-            "total_positions": 0,
-        })
+
+    if election.status in (ElectionStatus.CLOSED, ElectionStatus.RESULTS_PUBLISHED):
+        from accounts.services import logout_user
+        from django.urls import reverse
+        logout_user(request)
+        return redirect(f"{reverse('index')}?reason=election_ended")
+
+    from django.utils import timezone
+    now = timezone.now()
+    is_active = (election.status == ElectionStatus.ACTIVE)
+    is_ended = False
+    if is_active and election.ends_at:
+        is_ended = (now >= election.ends_at)
 
     # Check for an active authorization on this kiosk
-    active_auth = (
-        VoterAuthorization.objects
-        .filter(kiosk=device, status=AuthorizationStatus.ACTIVE)
-        .select_related("election_voter__voter__academic_group")
-        .first()
-    )
+    active_auth = None
+    if is_active:
+        active_auth = (
+            VoterAuthorization.objects
+            .filter(kiosk=device, status=AuthorizationStatus.ACTIVE)
+            .select_related("election_voter__voter__academic_group")
+            .first()
+        )
     is_locked = (active_auth is None)
 
     # Filter positions where candidate count > 1 (single-candidate positions win unanimously and are skipped on kiosk)
@@ -329,10 +367,18 @@ def kiosk_view(request):
             "candidates": cands_data,
         })
 
+    booth_total = ElectionVoter.objects.filter(election=election, booth=booth).count()
+    booth_voted = ElectionVoter.objects.filter(election=election, booth=booth, has_voted=True).count()
+    booth_completed = (booth_total > 0 and booth_voted >= booth_total and active_auth is None)
+
     return render(request, "voting/kiosk/kiosk_landing.html", {
         "booth": booth,
         "device": device,
         "election": election,
+        "is_draft": is_draft,
+        "is_active": is_active,
+        "is_ended": is_ended,
+        "booth_completed": booth_completed,
         "active_auth": active_auth,
         "is_locked": is_locked,
         "positions": positions,
@@ -373,7 +419,50 @@ def submit_ballot_view(request):
         return JsonResponse(res)
     except ValidationError as e:
         error_msg = e.message if hasattr(e, "message") else str(e)
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            channel_layer = get_channel_layer()
+            if channel_layer and getattr(device, "booth_id", None):
+                async_to_sync(channel_layer.group_send)(
+                    f"booth_officer_{device.booth_id}",
+                    {
+                        "type": "kiosk.ballot_error",
+                        "error": error_msg,
+                    }
+                )
+                async_to_sync(channel_layer.group_send)(
+                    f"booth_{device.booth_id}",
+                    {
+                        "type": "kiosk.ballot_error",
+                        "error": error_msg,
+                    }
+                )
+        except Exception:
+            pass
         return JsonResponse({"success": False, "error": error_msg}, status=400)
     except Exception as e:
-        return JsonResponse({"success": False, "error": f"Ballot submission error: {str(e)}"}, status=500)
+        error_msg = f"Ballot submission error: {str(e)}"
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            channel_layer = get_channel_layer()
+            if channel_layer and getattr(device, "booth_id", None):
+                async_to_sync(channel_layer.group_send)(
+                    f"booth_officer_{device.booth_id}",
+                    {
+                        "type": "kiosk.ballot_error",
+                        "error": error_msg,
+                    }
+                )
+                async_to_sync(channel_layer.group_send)(
+                    f"booth_{device.booth_id}",
+                    {
+                        "type": "kiosk.ballot_error",
+                        "error": error_msg,
+                    }
+                )
+        except Exception:
+            pass
+        return JsonResponse({"success": False, "error": error_msg}, status=500)
 

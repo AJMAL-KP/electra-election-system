@@ -639,10 +639,7 @@ def create_booth(
 
         import secrets
         from accounts.models import User
-        from accounts.services import READABLE_WORDS, cleanup_past_credentials, create_device
-
-        # Automatically remove past credentials not in use by any draft or ongoing election
-        cleanup_past_credentials()
+        from accounts.services import READABLE_WORDS, create_device
 
         # Randomly generate readable station usernames (e.g. officer-river-1, kiosk-river-1)
         # Ensure guaranteed uniqueness against both User and Device
