@@ -293,7 +293,7 @@ def revoke_device_credentials(device_id: int) -> Device:
         return device
 
 
-def create_device_session(device: Device, session_key: str) -> DeviceSession:
+def create_device_session(device: Device, session_key: str, takeover: bool = False) -> DeviceSession:
     """Establish an active session for a Device, enforcing single-active-session invariant."""
     with transaction.atomic():
         locked_device = Device.objects.select_for_update().get(id=device.id)
@@ -301,16 +301,27 @@ def create_device_session(device: Device, session_key: str) -> DeviceSession:
         if locked_device.credential_status != CredentialStatus.ACTIVE:
             raise ValidationError("Device credentials are not active.")
 
-        active_session = DeviceSession.objects.filter(device=locked_device, is_active=True).first()
-        if active_session:
-            raise ValidationError(
-                f"Device '{locked_device.identifier}' already has an active session. Simultaneous sessions are prohibited."
+        active_sessions = list(DeviceSession.objects.filter(device=locked_device, is_active=True))
+        if active_sessions:
+            if not takeover:
+                raise ValidationError(
+                    f"Device '{locked_device.identifier}' already has an active session. Simultaneous sessions are prohibited."
+                )
+            old_keys = [s.session_key for s in active_sessions]
+            from django.contrib.sessions.models import Session
+            Session.objects.filter(session_key__in=old_keys).delete()
+            DeviceSession.objects.filter(device=locked_device, is_active=True).update(
+                is_active=False,
+                revoked_at=timezone.now()
             )
 
-        session = DeviceSession.objects.create(
-            device=locked_device,
+        session, _ = DeviceSession.objects.update_or_create(
             session_key=session_key,
-            is_active=True
+            defaults={
+                "device": locked_device,
+                "is_active": True,
+                "revoked_at": None,
+            }
         )
         return session
 
@@ -337,21 +348,58 @@ def terminate_device_session(session_key: str) -> None:
 
 
 def login_device_user(request, user: User) -> None:
-    """Authenticate and log in a User, enforcing one active session for Admin and technical devices."""
+    """Authenticate and log in a User, enforcing single-active-session takeover."""
+    from accounts.models import AdminSession
+    from django.contrib.sessions.models import Session
+
     if user.role == Role.ADMIN:
-        from django.contrib.sessions.models import Session
-        from django.utils import timezone
+        with transaction.atomic():
+            locked_user = User.objects.select_for_update().get(id=user.id)
 
-        active_sess_key = cache.get(f"active_admin_session_{user.id}")
-        if active_sess_key and active_sess_key != request.session.session_key:
-            if Session.objects.filter(session_key=active_sess_key, expire_date__gte=timezone.now()).exists():
-                raise ValidationError("Administrator already has an active session. Simultaneous sessions are prohibited.")
+            # Revoke any previous active session(s) belonging to this Administrator
+            old_admin_sessions = list(AdminSession.objects.filter(user=locked_user, is_active=True))
+            old_keys = [s.session_key for s in old_admin_sessions]
+            if old_keys:
+                Session.objects.filter(session_key__in=old_keys).delete()
+                AdminSession.objects.filter(user=locked_user, is_active=True).update(
+                    is_active=False,
+                    revoked_at=timezone.now()
+                )
 
-        login(request, user)
-        if not request.session.session_key:
-            request.session.save()
-        cache.set(f"active_admin_session_{user.id}", request.session.session_key, timeout=86400)
-        return
+            # Establish the new session
+            login(request, user)
+            if not request.session.session_key:
+                request.session.save()
+
+            AdminSession.objects.update_or_create(
+                session_key=request.session.session_key,
+                defaults={
+                    "user": locked_user,
+                    "is_active": True,
+                    "revoked_at": None,
+                }
+            )
+
+            new_key = request.session.session_key
+
+            def _notify_admin_superseded():
+                try:
+                    from asgiref.sync import async_to_sync
+                    from channels.layers import get_channel_layer
+                    layer = get_channel_layer()
+                    if layer:
+                        async_to_sync(layer.group_send)(
+                            "admin_live",
+                            {
+                                "type": "session.superseded",
+                                "new_session_key": new_key,
+                            }
+                        )
+                except Exception:
+                    pass
+
+            transaction.on_commit(_notify_admin_superseded)
+            return
 
     # For technical device identities (OFFICER, KIOSK)
     try:
@@ -376,10 +424,14 @@ def login_device_user(request, user: User) -> None:
         if locked_device.credential_status != CredentialStatus.ACTIVE:
             raise ValidationError("Device credentials have been revoked.")
 
-        active_session = DeviceSession.objects.filter(device=locked_device, is_active=True).first()
-        if active_session:
-            raise ValidationError(
-                f"Device '{locked_device.identifier}' already has an active session. Simultaneous sessions are prohibited."
+        # Revoke any previous active session(s) belonging to this logical device
+        old_device_sessions = list(DeviceSession.objects.filter(device=locked_device, is_active=True))
+        old_keys = [s.session_key for s in old_device_sessions]
+        if old_keys:
+            Session.objects.filter(session_key__in=old_keys).delete()
+            DeviceSession.objects.filter(device=locked_device, is_active=True).update(
+                is_active=False,
+                revoked_at=timezone.now()
             )
 
         # Login with Django session
@@ -387,42 +439,70 @@ def login_device_user(request, user: User) -> None:
         if not request.session.session_key:
             request.session.save()
 
-        DeviceSession.objects.create(
-            device=locked_device,
+        DeviceSession.objects.update_or_create(
             session_key=request.session.session_key,
-            is_active=True
+            defaults={
+                "device": locked_device,
+                "is_active": True,
+                "revoked_at": None,
+            }
         )
 
-        def _notify_admin_live():
+        new_key = request.session.session_key
+        device_id = locked_device.id
+        device_type = locked_device.device_type
+        election_id = locked_device.booth.election_id if locked_device.booth else None
+
+        def _notify_takeover():
             try:
                 from asgiref.sync import async_to_sync
                 from channels.layers import get_channel_layer
                 layer = get_channel_layer()
-                if layer:
-                    async_to_sync(layer.group_send)(
-                        "admin_live",
-                        {
-                            "type": "review.refresh",
-                            "election_id": locked_device.booth.election_id if locked_device.booth else None,
-                        }
-                    )
+                if not layer:
+                    return
+
+                # Notify superseded sessions over WebSocket
+                group_name = f"kiosk_{device_id}" if device_type == DeviceType.KIOSK else f"officer_{device_id}"
+                async_to_sync(layer.group_send)(
+                    group_name,
+                    {
+                        "type": "session.superseded",
+                        "new_session_key": new_key,
+                    }
+                )
+
+                # Broadcast review.refresh to admin live dashboard
+                async_to_sync(layer.group_send)(
+                    "admin_live",
+                    {
+                        "type": "review.refresh",
+                        "election_id": election_id,
+                    }
+                )
             except Exception:
                 pass
-        transaction.on_commit(_notify_admin_live)
+
+        transaction.on_commit(_notify_takeover)
 
 
 def logout_user(request) -> None:
-    """Log out user and terminate any associated active device or admin session."""
+    """Log out user and terminate only the specific session matching this request."""
     if request.user.is_authenticated:
+        session_key = getattr(getattr(request, "session", None), "session_key", None)
         if getattr(request.user, "role", None) == Role.ADMIN:
-            cache.delete(f"active_admin_session_{request.user.id}")
-            if request.session.session_key:
+            if session_key:
                 from django.contrib.sessions.models import Session
-                Session.objects.filter(session_key=request.session.session_key).delete()
+                Session.objects.filter(session_key=session_key).delete()
+                from accounts.models import AdminSession
+                AdminSession.objects.filter(session_key=session_key).update(
+                    is_active=False,
+                    revoked_at=timezone.now()
+                )
         elif hasattr(request.user, 'device'):
-            if request.session.session_key:
-                terminate_device_session(request.session.session_key)
+            if session_key:
+                terminate_device_session(session_key)
     logout(request)
+
 
 
 def get_post_login_redirect_url(user: User) -> str:

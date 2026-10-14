@@ -4,7 +4,7 @@ from typing import List
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, KeepTogether
 from elections.models import Election
 from voters.models import ElectionVoter
 
@@ -186,3 +186,268 @@ def generate_voter_slips_pdf(election: Election) -> bytes:
     pdf_bytes = buffer.getvalue()
     buffer.close()
     return pdf_bytes
+
+
+def generate_election_results_pdf(election: Election, position_results: list, turnout: dict) -> bytes:
+    """Generate official certified election results PDF report.
+    
+    Layout:
+    - Standard A4 portrait (595.27 x 841.89 pt)
+    - Pinned header with Election title, date, certified metadata
+    - Turnout summary box
+    - Position-by-position results tables
+    - Highlighting winners, handling draw/tie across top candidates
+    - Suppressing vote counts and percentages for single-candidate (unopposed) positions
+    - Formal verification & signature seal at bottom
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=36,
+        rightMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+
+    styles = {
+        'OrgHeader': ParagraphStyle(
+            'ResultsOrgHeader',
+            fontName='Helvetica-Bold',
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor('#64748B'),
+            alignment=1,  # Center
+        ),
+        'DocTitle': ParagraphStyle(
+            'ResultsDocTitle',
+            fontName='Helvetica-Bold',
+            fontSize=18,
+            leading=22,
+            textColor=colors.HexColor('#0F172A'),
+            alignment=1,  # Center
+        ),
+        'DocSubtitle': ParagraphStyle(
+            'ResultsDocSubtitle',
+            fontName='Helvetica',
+            fontSize=10,
+            leading=13,
+            textColor=colors.HexColor('#475569'),
+            alignment=1,  # Center
+        ),
+        'MetaText': ParagraphStyle(
+            'ResultsMetaText',
+            fontName='Helvetica',
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor('#334155'),
+            alignment=1,  # Center
+        ),
+        'PositionTitle': ParagraphStyle(
+            'ResultsPosTitle',
+            fontName='Helvetica-Bold',
+            fontSize=13,
+            leading=16,
+            textColor=colors.HexColor('#0F172A'),
+        ),
+        'TableHeader': ParagraphStyle(
+            'ResultsTableHeader',
+            fontName='Helvetica-Bold',
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor('#475569'),
+        ),
+        'TableCell': ParagraphStyle(
+            'ResultsTableCell',
+            fontName='Helvetica',
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor('#1E293B'),
+        ),
+        'TableCellBold': ParagraphStyle(
+            'ResultsTableCellBold',
+            fontName='Helvetica-Bold',
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor('#0F172A'),
+        ),
+        'WinnerCell': ParagraphStyle(
+            'ResultsWinnerCell',
+            fontName='Helvetica-Bold',
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor('#166534'),
+        ),
+        'TieWinnerCell': ParagraphStyle(
+            'ResultsTieWinnerCell',
+            fontName='Helvetica-Bold',
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor('#92400E'),
+        ),
+        'Footnote': ParagraphStyle(
+            'ResultsFootnote',
+            fontName='Helvetica',
+            fontSize=7.5,
+            leading=9.5,
+            textColor=colors.HexColor('#94A3B8'),
+            alignment=1,
+        ),
+    }
+
+    story = []
+
+    # 1. Header Banner
+    story.append(Paragraph("ELECTRA — CONTROLLED POLLING-BOOTH ELECTION SYSTEM", styles['OrgHeader']))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph(election.name, styles['DocTitle']))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("OFFICIAL CERTIFIED ELECTION RESULTS", styles['DocSubtitle']))
+    story.append(Spacer(1, 8))
+
+    # Completion Date & Summary line
+    if election.closed_at:
+        date_str = election.closed_at.strftime("%d %b %Y, %I:%M %p")
+    elif election.ends_at:
+        date_str = election.ends_at.strftime("%d %b %Y, %I:%M %p")
+    else:
+        date_str = "Concluded"
+
+    ballots_cast = turnout.get("ballots_cast", 0)
+    enrolled_count = turnout.get("enrolled_count", 0)
+    turnout_pct = turnout.get("turnout_pct", 0.0)
+
+    summary_html = (
+        f"<b>Concluded:</b> {date_str} &nbsp;&bull;&nbsp; "
+        f"<b>Total Votes Cast:</b> {ballots_cast:,} &nbsp;&bull;&nbsp; "
+        f"<b>Registered Voters:</b> {enrolled_count:,} &nbsp;&bull;&nbsp; "
+        f"<b>Turnout:</b> {turnout_pct}%"
+    )
+    story.append(Paragraph(summary_html, styles['MetaText']))
+    story.append(Spacer(1, 14))
+
+    # Divider bar
+    divider = Table([[""]], colWidths=[523], rowHeights=[1])
+    divider.setStyle(TableStyle([
+        ('LINEABOVE', (0,0), (-1,-1), 0.75, colors.HexColor('#E2E8F0')),
+        ('TOPPADDING', (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+    ]))
+    story.append(divider)
+    story.append(Spacer(1, 12))
+
+    # 2. Position by Position Results
+    for pres in position_results:
+        pos = pres.get("position")
+        candidates = pres.get("candidates", [])
+        is_single = pres.get("is_single_candidate", len(candidates) == 1)
+        total_votes = pres.get("total_votes", 0)
+
+        pos_story = []
+        pos_story.append(Paragraph(pos.name, styles['PositionTitle']))
+        pos_story.append(Spacer(1, 6))
+
+        if is_single and candidates:
+            # Single candidate unopposed position: NO vote counts or turnout percentages!
+            cand = candidates[0]
+            cand_obj = cand.get("candidate")
+            group_name = cand_obj.academic_group or cand_obj.symbol or "—"
+            
+            table_data = [
+                [
+                    Paragraph("Candidate Name", styles['TableHeader']),
+                    Paragraph("Group", styles['TableHeader']),
+                    Paragraph("Result", styles['TableHeader']),
+                ],
+                [
+                    Paragraph(f"<b>{cand_obj.name}</b>", styles['TableCellBold']),
+                    Paragraph(group_name, styles['TableCell']),
+                    Paragraph("<b>WINNER (UNOPPOSED)</b>", styles['WinnerCell']),
+                ]
+            ]
+            pos_table = Table(table_data, colWidths=[240, 160, 123], rowHeights=[20, 22])
+            pos_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
+                ('BACKGROUND', (0,1), (-1,1), colors.HexColor('#F0FDF4')),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('LINEBELOW', (0,0), (-1,0), 0.5, colors.HexColor('#E2E8F0')),
+                ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+                ('LEFTPADDING', (0,0), (-1,-1), 8),
+                ('RIGHTPADDING', (0,0), (-1,-1), 8),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ]))
+            pos_story.append(pos_table)
+
+        elif candidates:
+            # Contested position with candidates
+            table_data = [
+                [
+                    Paragraph("Candidate Name", styles['TableHeader']),
+                    Paragraph("Group", styles['TableHeader']),
+                    Paragraph("Votes", styles['TableHeader']),
+                    Paragraph("Share", styles['TableHeader']),
+                    Paragraph("Result", styles['TableHeader']),
+                ]
+            ]
+            row_styles = []
+
+            for row_idx, cand in enumerate(candidates, start=1):
+                cand_obj = cand.get("candidate")
+                votes = cand.get("votes", 0)
+                pct = cand.get("percentage", 0.0)
+                is_winner = cand.get("is_winner", False)
+                is_tie = cand.get("is_tie", False)
+                group_name = cand_obj.academic_group or cand_obj.symbol or "—"
+
+                if is_winner:
+                    if is_tie:
+                        result_para = Paragraph("<b>WINNER (DRAW)</b>", styles['TieWinnerCell'])
+                    else:
+                        result_para = Paragraph("<b>WINNER</b>", styles['WinnerCell'])
+                    row_bg = colors.HexColor('#F0FDF4')
+                else:
+                    result_para = Paragraph("Runner-up", styles['TableCell'])
+                    row_bg = colors.HexColor('#FFFFFF') if row_idx % 2 == 1 else colors.HexColor('#F8FAFC')
+
+                row_styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), row_bg))
+
+                table_data.append([
+                    Paragraph(f"<b>{cand_obj.name}</b>" if is_winner else cand_obj.name, styles['TableCellBold'] if is_winner else styles['TableCell']),
+                    Paragraph(group_name, styles['TableCell']),
+                    Paragraph(f"<b>{votes:,}</b>", styles['TableCellBold'] if is_winner else styles['TableCell']),
+                    Paragraph(f"{pct}%", styles['TableCellBold'] if is_winner else styles['TableCell']),
+                    result_para,
+                ])
+
+            pos_table = Table(table_data, colWidths=[180, 135, 65, 55, 88])
+            table_style_rules = [
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('LINEBELOW', (0,0), (-1,0), 0.75, colors.HexColor('#CBD5E1')),
+                ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+                ('LEFTPADDING', (0,0), (-1,-1), 8),
+                ('RIGHTPADDING', (0,0), (-1,-1), 8),
+                ('TOPPADDING', (0,0), (-1,-1), 4),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ] + row_styles
+            pos_table.setStyle(TableStyle(table_style_rules))
+            pos_story.append(pos_table)
+
+        pos_story.append(Spacer(1, 14))
+        story.append(KeepTogether(pos_story))
+
+    # 3. Certification Footer
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(
+        "Official Electoral Record &bull; Certified and generated by Electra Election Management Platform &bull; Server-Authoritative Tally",
+        styles['Footnote']
+    ))
+
+    doc.build(story)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
+

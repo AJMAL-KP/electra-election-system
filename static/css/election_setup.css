@@ -90,21 +90,39 @@ body.setup-body .main-content {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 500;
     color: #4B5563;
-    text-decoration: none;
-    background: none;
-    border: none;
-    padding: 6px 0;
+    background-color: #FFFFFF;
+    border: 1px solid #D1D5DB;
+    padding: 7px 14px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: color 0.15s ease;
+    text-decoration: none;
+    line-height: 1.2;
+    transition: all 0.15s ease;
     font-family: inherit;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.setup-btn-exit svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    transition: transform 0.15s ease;
 }
 
 .setup-btn-exit:hover {
     color: #DC2626;
+    background-color: #FEF2F2;
+    border-color: #FCA5A5;
+    box-shadow: 0 1px 3px rgba(220, 38, 38, 0.08);
 }
+
+.setup-btn-exit:hover svg {
+    transform: scale(1.1);
+}
+
 
 .setup-nav-center {
     display: flex;
@@ -3802,4 +3820,47 @@ body.setup-body .main-content {
         opacity: 1;
         transform: translateY(0) scale(1);
     }
+}
+
+/* ==========================================================================
+   STAGE 2: Empty candidates placeholder and inline field validation
+   ========================================================================== */
+.position-candidates-empty {
+    padding: 12px 4px 6px 4px;
+    font-size: 13.5px;
+    color: #6B7280;
+    font-weight: 400;
+}
+
+.setup-field-inline-error {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #DC2626;
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    animation: fadeInInlineError 0.15s ease-out;
+}
+
+@keyframes fadeInInlineError {
+    from {
+        opacity: 0;
+        transform: translateY(-2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.setup-text-input.is-invalid,
+.setup-textarea-input.is-invalid {
+    border-color: #DC2626 !important;
+    background-color: #FEF2F2 !important;
+}
+
+.setup-text-input.is-invalid:focus,
+.setup-textarea-input.is-invalid:focus {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
 }

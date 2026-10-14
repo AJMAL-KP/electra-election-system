@@ -12,10 +12,11 @@
         <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
             <a href="{% url 'elections:setup_discard' election.id %}" 
                class="setup-btn-discard-exit" 
-               style="text-decoration: none; padding: 8px 16px; border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: #DC2626; background: #FEF2F2;"
-               onclick="return confirm('Are you sure you want to discard this election setup? All changes will be lost.');">
+               id="btn-discard-setup-link"
+               style="text-decoration: none; padding: 8px 16px; border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: #DC2626; background: #FEF2F2;">
                 Discard &amp; exit
             </a>
+
             <button type="button" 
                     id="btn-confirm-save-draft"
                     class="setup-btn-save-draft" 
@@ -60,11 +61,35 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnCloseExit) btnCloseExit.addEventListener('click', closeExitModal);
     if (btnCancelExit) btnCancelExit.addEventListener('click', closeExitModal);
 
+    const btnDiscardLink = document.getElementById('btn-discard-setup-link');
+    if (btnDiscardLink) {
+        btnDiscardLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetUrl = this.getAttribute('href');
+            closeExitModal();
+            if (window.electraConfirm) {
+                window.electraConfirm({
+                    title: 'Discard election setup?',
+                    message: 'Are you sure you want to discard this election setup? All changes will be lost.',
+                    confirmText: 'Discard & exit',
+                    cancelText: 'Keep editing',
+                    isDanger: true,
+                    onConfirm: () => {
+                        window.location.href = targetUrl;
+                    }
+                });
+            } else {
+                window.location.href = targetUrl;
+            }
+        });
+    }
+
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && exitModal && exitModal.classList.contains('active')) {
             closeExitModal();
         }
     });
+
 
     if (btnConfirmSaveDraft) {
         btnConfirmSaveDraft.addEventListener('click', function() {

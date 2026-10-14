@@ -1984,10 +1984,36 @@ def election_results_view(request, election_id: int):
 
         cand_list.sort(key=lambda x: x["votes"], reverse=True)
 
+        cand_count = len(cand_list)
+        is_single = (cand_count == 1)
+        max_votes = max((c["votes"] for c in cand_list), default=0)
+        top_cands = [c for c in cand_list if c["votes"] == max_votes] if cand_list else []
+        is_draw = (len(top_cands) > 1 and max_votes > 0)
+
+        for c in cand_list:
+            if is_single:
+                c["is_winner"] = True
+                c["is_tie"] = False
+                c["is_single_candidate"] = True
+            elif election.is_closed or election.is_results_published:
+                if max_votes > 0 and c["votes"] == max_votes:
+                    c["is_winner"] = True
+                    c["is_tie"] = is_draw
+                else:
+                    c["is_winner"] = False
+                    c["is_tie"] = False
+                c["is_single_candidate"] = False
+            else:
+                c["is_winner"] = False
+                c["is_tie"] = False
+                c["is_single_candidate"] = False
+
         position_results.append({
             "position": pos,
             "candidates": cand_list,
             "total_votes": total_pos_votes,
+            "is_single_candidate": is_single,
+            "is_draw": is_draw,
         })
 
     return render(request, "elections/results.html", {
@@ -1996,6 +2022,99 @@ def election_results_view(request, election_id: int):
         "position_results": position_results,
         "active_nav": "results",
     })
+
+
+@never_cache
+@admin_required
+def election_results_pdf_view(request, election_id: int):
+    """Generate and download the official election results PDF matching voter slips tool."""
+    from elections.reports import generate_election_results_pdf
+    from elections.selectors import get_election_positions
+    from django.db import connection
+
+    election = get_object_or_404(Election, id=election_id)
+    enrolled_count = election.election_voters.count()
+    ballots_cast = election.election_voters.filter(has_voted=True).count()
+    turnout_pct = round((ballots_cast / enrolled_count * 100), 1) if enrolled_count > 0 else 0.0
+
+    turnout = {
+        "enrolled_count": enrolled_count,
+        "ballots_cast": ballots_cast,
+        "turnout_pct": turnout_pct,
+    }
+
+    positions = list(get_election_positions(election.id))
+    position_results = []
+
+    has_vote_table = False
+    try:
+        has_vote_table = "voting_vote" in connection.introspection.table_names()
+    except Exception:
+        has_vote_table = False
+
+    for pos in positions:
+        cand_list = []
+        total_pos_votes = 0
+        for cand in pos.candidates.all():
+            cand_votes = 0
+            if has_vote_table and (election.is_closed or election.is_results_published):
+                try:
+                    from voting.models import Vote
+                    cand_votes = Vote.objects.filter(candidate=cand).count()
+                except Exception:
+                    cand_votes = 0
+            total_pos_votes += cand_votes
+            cand_list.append({
+                "candidate": cand,
+                "votes": cand_votes,
+            })
+
+        for c in cand_list:
+            c["percentage"] = round((c["votes"] / total_pos_votes * 100), 1) if total_pos_votes > 0 else 0.0
+
+        cand_list.sort(key=lambda x: x["votes"], reverse=True)
+
+        cand_count = len(cand_list)
+        is_single = (cand_count == 1)
+        max_votes = max((c["votes"] for c in cand_list), default=0)
+        top_cands = [c for c in cand_list if c["votes"] == max_votes] if cand_list else []
+        is_draw = (len(top_cands) > 1 and max_votes > 0)
+
+        for c in cand_list:
+            if is_single:
+                c["is_winner"] = True
+                c["is_tie"] = False
+                c["is_single_candidate"] = True
+            elif election.is_closed or election.is_results_published:
+                if max_votes > 0 and c["votes"] == max_votes:
+                    c["is_winner"] = True
+                    c["is_tie"] = is_draw
+                else:
+                    c["is_winner"] = False
+                    c["is_tie"] = False
+                c["is_single_candidate"] = False
+            else:
+                c["is_winner"] = False
+                c["is_tie"] = False
+                c["is_single_candidate"] = False
+
+        position_results.append({
+            "position": pos,
+            "candidates": cand_list,
+            "total_votes": total_pos_votes,
+            "is_single_candidate": is_single,
+            "is_draw": is_draw,
+        })
+
+    pdf_bytes = generate_election_results_pdf(election, position_results, turnout)
+
+    clean_name = re.sub(r'[^a-zA-Z0-9_\-]+', '_', election.name.strip()).strip('_') or f"election_{election.id}"
+    filename = f"{clean_name}_results.pdf"
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
+
 
 
 

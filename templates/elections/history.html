@@ -53,16 +53,25 @@
                 {% endif %}
             </div>
 
-            <div class="history-select-wrap">
-                <select name="year" class="history-select" onchange="this.form.submit()" aria-label="Filter by year">
-                    <option value="">All years</option>
+            <!-- Custom Electra-Themed All Years Dropdown -->
+            <div class="electra-dropdown-wrap history-year-dropdown" id="history-year-dropdown">
+                <button type="button" class="electra-dropdown-trigger" id="history-year-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter past elections by year">
+                    <span class="electra-dropdown-text" id="history-year-text">{% if selected_year %}{{ selected_year }}{% else %}All years{% endif %}</span>
+                    <svg class="electra-dropdown-arrow" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div class="electra-dropdown-menu" id="history-year-menu" role="listbox">
+                    <div class="electra-dropdown-item {% if not selected_year %}is-selected{% endif %}" role="option" data-value="">
+                        <span>All years</span>
+                        <svg class="electra-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
                     {% for yr in available_years %}
-                    <option value="{{ yr }}" {% if selected_year == yr|stringformat:"s" %}selected{% endif %}>{{ yr }}</option>
+                    <div class="electra-dropdown-item {% if selected_year == yr|stringformat:'s' %}is-selected{% endif %}" role="option" data-value="{{ yr }}">
+                        <span>{{ yr }}</span>
+                        <svg class="electra-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
                     {% endfor %}
-                </select>
-                <svg class="history-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+                </div>
+                <input type="hidden" name="year" id="history-year-select" value="{{ selected_year|default:'' }}">
             </div>
         </form>
     </header>
@@ -84,7 +93,7 @@
         {% if history_items %}
         <div class="history-list">
             {% for item in history_items %}
-            <article class="history-row" id="election-{{ item.election.id }}">
+            <article class="history-row" id="election-{{ item.election.id }}" data-name="{{ item.election.name|lower }}" data-desc="{{ item.election.description|default:''|lower }}" data-year="{{ item.date|date:'Y' }}">
                 <div class="history-col-info">
                     <h2 class="history-item-name">{{ item.election.name }}</h2>
                     {% if item.election.description %}
@@ -117,8 +126,20 @@
                     <button type="button" class="history-btn-secondary btn-open-history-details" data-election-id="{{ item.election.id }}">View details</button>
                 </div>
 
-                <!-- Structured Election Details JSON for Modal -->
-                {{ item.positions_detail|json_script:item.election.id|stringformat:"s"|add:"_pos" }}
+                <!-- Structured Election Positions JSON for Modal (No _pos stray text) -->
+                <script id="positions-data-{{ item.election.id }}" type="application/json">
+                [
+                    {% for pos in item.positions_detail %}
+                    {
+                        "name": "{{ pos.name|escapejs }}",
+                        "candidates_count": {{ pos.candidates_count }},
+                        "candidates": [
+                            {% for cand in pos.candidates %}"{{ cand|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}
+                        ]
+                    }{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ]
+                </script>
                 <script id="history-data-{{ item.election.id }}" type="application/json">
                 {
                     "id": {{ item.election.id }},
@@ -162,7 +183,7 @@
             </svg>
             <h2 class="electra-empty-title">No election history yet</h2>
             <p class="electra-empty-desc">
-                Past elections and their official voter turnout summaries will be automatically archived here once voting concludes.
+                Past elections and their official voter turnout summaries will be automatically recorded here once voting concludes.
             </p>
             <a href="{% url 'elections:dashboard' %}" class="history-btn-secondary">Return to home</a>
         </div>
@@ -179,18 +200,18 @@
         <div class="history-modal-header">
             <div>
                 <h3 class="history-modal-title" id="modal-details-title">Election details</h3>
-                <span class="history-modal-subtitle" id="modal-details-sub">Archived election summary</span>
+                <span class="history-modal-subtitle" id="modal-details-sub">Election summary</span>
             </div>
             <button type="button" class="history-modal-close" id="modal-details-close" aria-label="Close modal">&times;</button>
         </div>
 
         <div class="history-modal-body">
-            <!-- Header status and meta -->
+            <!-- Header meta & optional description (shown only if non-empty) -->
             <div>
                 <div style="margin-bottom: 8px;">
                     <span style="font-size: 13px; color: #6B7280;" id="modal-date-display">—</span>
                 </div>
-                <p id="modal-desc-display" style="font-size: 14px; color: #4B5563; margin: 0; line-height: 1.5;"></p>
+                <p id="modal-desc-display" style="font-size: 14px; color: #4B5563; margin: 0; line-height: 1.5; display: none;"></p>
             </div>
 
             <!-- Stats Grid -->
@@ -227,11 +248,11 @@
                 </div>
             </div>
 
-            <!-- Positions & Candidates -->
+            <!-- Positions -->
             <div>
-                <h4 class="modal-section-title">Ballot Positions (<span id="modal-positions-count">0</span>)</h4>
-                <div class="modal-positions-stack" id="modal-positions-stack">
-                    <!-- Populated dynamically via JS -->
+                <h4 class="modal-section-title">Positions</h4>
+                <div id="modal-positions-display" style="font-size: 14px; color: #111827; line-height: 1.6; font-weight: 500;">
+                    <!-- Populated dynamically via JS with positions separated by commas -->
                 </div>
             </div>
         </div>
@@ -269,10 +290,160 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // 2. Election Details Modal
+    // 2. Format stat numbers with comma thousands separators (e.g. 1,284)
+    document.querySelectorAll('.history-stat-number').forEach(el => {
+        const num = parseInt(el.textContent.replace(/,/g, ''), 10);
+        if (!isNaN(num)) {
+            el.textContent = num.toLocaleString('en-US');
+        }
+    });
+
+    // 3. Dynamic Real-Time Search & Year Filtering
+    const searchInput = document.querySelector('.history-search-input');
+    const searchClear = document.querySelector('.history-search-clear');
+    const yearSelect = document.getElementById('history-year-select');
+    const rows = document.querySelectorAll('.history-row');
+    const listWrap = document.querySelector('.history-list');
+    let dynamicEmpty = document.getElementById('history-dynamic-empty');
+
+    if (!dynamicEmpty && listWrap) {
+        dynamicEmpty = document.createElement('div');
+        dynamicEmpty.id = 'history-dynamic-empty';
+        dynamicEmpty.className = 'electra-empty-state history-empty-state';
+        dynamicEmpty.style.display = 'none';
+        dynamicEmpty.innerHTML = `
+            <svg class="electra-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+            <h2 class="electra-empty-title">No matching elections found</h2>
+            <p class="electra-empty-desc">No past elections matched your search criteria. Try a different term or clear your filters.</p>
+        `;
+        listWrap.parentElement.appendChild(dynamicEmpty);
+    }
+
+    function applyFilters() {
+        const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+        const selectedYear = (yearSelect ? yearSelect.value : '').trim();
+
+        if (searchClear) {
+            searchClear.style.display = query.length > 0 ? 'inline-flex' : 'none';
+        }
+
+        let visibleCount = 0;
+        rows.forEach(row => {
+            const name = (row.getAttribute('data-name') || '').toLowerCase();
+            const desc = (row.getAttribute('data-desc') || '').toLowerCase();
+            const year = (row.getAttribute('data-year') || '').trim();
+            const timeEl = row.querySelector('.js-history-time');
+            const timeText = (timeEl ? timeEl.textContent : '').toLowerCase();
+
+            const matchesQuery = !query || name.includes(query) || desc.includes(query) || year.includes(query) || timeText.includes(query);
+            const matchesYear = !selectedYear || year === selectedYear;
+
+            if (matchesQuery && matchesYear) {
+                row.style.display = 'flex';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        if (dynamicEmpty) {
+            if (rows.length > 0 && visibleCount === 0) {
+                dynamicEmpty.style.display = 'block';
+            } else {
+                dynamicEmpty.style.display = 'none';
+            }
+        }
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', applyFilters);
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyFilters();
+            }
+        });
+    }
+
+    if (searchClear) {
+        searchClear.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.focus();
+            }
+            applyFilters();
+        });
+    }
+
+    // Custom Electra-Themed Year Dropdown Interaction
+    const yearDropdown = document.getElementById('history-year-dropdown');
+    const yearTrigger = document.getElementById('history-year-trigger');
+    const yearText = document.getElementById('history-year-text');
+
+    if (yearDropdown && yearTrigger) {
+        yearTrigger.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const isOpen = yearDropdown.classList.contains('is-open');
+            if (isOpen) {
+                yearDropdown.classList.remove('is-open');
+                yearTrigger.setAttribute('aria-expanded', 'false');
+            } else {
+                yearDropdown.classList.add('is-open');
+                yearTrigger.setAttribute('aria-expanded', 'true');
+            }
+        });
+
+        yearDropdown.querySelectorAll('.electra-dropdown-item').forEach(item => {
+            item.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const val = this.getAttribute('data-value') || '';
+                const text = this.querySelector('span') ? this.querySelector('span').textContent.trim() : '';
+
+                if (yearSelect) {
+                    yearSelect.value = val;
+                }
+                if (yearText) {
+                    yearText.textContent = text;
+                }
+
+                yearDropdown.querySelectorAll('.electra-dropdown-item').forEach(i => i.classList.remove('is-selected'));
+                this.classList.add('is-selected');
+
+                yearDropdown.classList.remove('is-open');
+                yearTrigger.setAttribute('aria-expanded', 'false');
+
+                applyFilters();
+            });
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!yearDropdown.contains(e.target)) {
+                yearDropdown.classList.remove('is-open');
+                yearTrigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && yearDropdown.classList.contains('is-open')) {
+                yearDropdown.classList.remove('is-open');
+                yearTrigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    if (yearSelect) {
+        yearSelect.addEventListener('change', applyFilters);
+    }
+
+    // 4. Election Details Modal
     const modal = document.getElementById('modal-election-details');
     const modalTitle = document.getElementById('modal-details-title');
-    const modalBadge = document.getElementById('modal-badge-status');
     const modalDate = document.getElementById('modal-date-display');
     const modalDesc = document.getElementById('modal-desc-display');
     const statTotal = document.getElementById('modal-stat-total');
@@ -280,8 +451,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const statTurnout = document.getElementById('modal-stat-turnout');
     const timeStarted = document.getElementById('modal-time-started');
     const timeClosed = document.getElementById('modal-time-closed');
-    const posCount = document.getElementById('modal-positions-count');
-    const positionsStack = document.getElementById('modal-positions-stack');
+    const posDisplay = document.getElementById('modal-positions-display');
     const btnResults = document.getElementById('modal-btn-view-results');
 
     function openDetailsModal(electionId) {
@@ -298,46 +468,41 @@ document.addEventListener('DOMContentLoaded', function () {
 
         modalTitle.textContent = data.name;
         modalDate.textContent = formatLocalTime(data.dateIso);
-        modalDesc.textContent = data.description || 'No description provided.';
+        
+        // Show description only if non-empty
+        if (data.description && data.description.trim()) {
+            modalDesc.textContent = data.description.trim();
+            modalDesc.style.display = 'block';
+        } else {
+            modalDesc.textContent = '';
+            modalDesc.style.display = 'none';
+        }
+
         statTotal.textContent = (data.totalVoters || 0).toLocaleString();
         statVoted.textContent = (data.votedCount || 0).toLocaleString();
         statTurnout.textContent = `${data.turnoutPct || 0}%`;
         timeStarted.textContent = data.startsAtIso ? formatLocalTime(data.startsAtIso) : '—';
         timeClosed.textContent = data.closedAtIso ? formatLocalTime(data.closedAtIso) : '—';
-        posCount.textContent = data.positionsCount || 0;
         btnResults.href = data.resultsUrl;
 
-        // Render positions
-        positionsStack.innerHTML = '';
-        const posScript = document.getElementById(`${electionId}_pos`);
+        // Render positions in that election only with commas between (no candidate mention)
+        const posScript = document.getElementById(`positions-data-${electionId}`);
         let positions = [];
         if (posScript) {
             try {
                 positions = JSON.parse(posScript.textContent) || [];
-            } catch (e) {}
+            } catch (e) {
+                console.error('Failed to parse positions data:', e);
+            }
         }
 
         if (positions.length === 0) {
-            positionsStack.innerHTML = '<span style="font-size: 13px; color: #6B7280;">No positions recorded.</span>';
+            posDisplay.textContent = 'No positions recorded.';
+            posDisplay.style.color = '#6B7280';
         } else {
-            positions.forEach(p => {
-                const card = document.createElement('div');
-                card.className = 'modal-pos-card';
-                let candsHtml = '';
-                if (p.candidates && p.candidates.length > 0) {
-                    candsHtml = p.candidates.map(c => `<span class="modal-cand-pill">${c}</span>`).join('');
-                } else {
-                    candsHtml = '<span style="font-size: 12px; color: #9CA3AF;">No candidates registered</span>';
-                }
-                card.innerHTML = `
-                    <div class="modal-pos-header">
-                        <span class="modal-pos-name">${p.name}</span>
-                        <span class="modal-pos-count">${p.candidates_count} candidate${p.candidates_count === 1 ? '' : 's'}</span>
-                    </div>
-                    <div class="modal-cands-wrap">${candsHtml}</div>
-                `;
-                positionsStack.appendChild(card);
-            });
+            const posNames = positions.map(p => p.name).filter(Boolean).join(', ');
+            posDisplay.textContent = posNames;
+            posDisplay.style.color = '#111827';
         }
 
         modal.style.display = 'flex';

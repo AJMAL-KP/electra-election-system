@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Voter Registries — Electra{% endblock %}
+{% block title %}Voter Lists — Electra{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'css/registries.css' %}">
@@ -24,9 +24,9 @@
     <main class="registries-container">
         <!-- Hero Title & Subtitle -->
         <div class="registries-hero">
-            <h1 class="registries-title">Voter registries</h1>
+            <h1 class="registries-title">Voter lists</h1>
             <p class="registries-subtitle">
-                Manage voter registries used for elections. Each registry has a fixed schema configuration and can be used by multiple elections.
+                Manage voter lists used for elections. Each voter list has a fixed schema configuration and can be used by multiple elections.
             </p>
         </div>
 
@@ -34,7 +34,7 @@
         <div class="registries-actions-strip">
             <a href="{% url 'voters:registry_create' %}" class="registries-btn-create">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Create registry</span>
+                <span>Create voter list</span>
             </a>
         </div>
 
@@ -52,7 +52,7 @@
         <div class="registries-stack">
             {% for reg in registries %}
             <div class="registry-card-wrap">
-                <a href="{% url 'voters:registry_detail' reg.id %}" class="registry-card" aria-label="Open registry {{ reg.name }}">
+                <a href="{% url 'voters:registry_detail' reg.id %}" class="registry-card" aria-label="Open voter list {{ reg.name }}">
                     <div class="registry-card-header">
                         <h2 class="registry-card-name">{{ reg.name }}</h2>
                         <span class="registry-card-arrow" aria-hidden="true">
@@ -87,9 +87,9 @@
                         <span>Locked</span>
                     </span>
                     {% else %}
-                    <form method="post" action="{% url 'voters:registry_delete' reg.id %}" style="display:inline; margin:0;" onsubmit="return electraConfirmSubmit(event, this, 'Delete Registry', 'Are you sure you want to delete the \'{{ reg.name|escapejs }}\' registry? This action cannot be undone and will permanently remove all associated voter and department records.');">
+                    <form method="post" action="{% url 'voters:registry_delete' reg.id %}" style="display:inline; margin:0;" onsubmit="return electraConfirmSubmit(event, this, 'Delete Voter List', 'Are you sure you want to delete the \'{{ reg.name|escapejs }}\' voter list? This action cannot be undone and will permanently remove all associated voter records.');">
                         {% csrf_token %}
-                        <button type="submit" class="registry-delete-btn" title="Delete registry {{ reg.name }}" aria-label="Delete registry {{ reg.name }}">
+                        <button type="submit" class="registry-delete-btn" title="Delete voter list {{ reg.name }}" aria-label="Delete voter list {{ reg.name }}">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         </button>
                     </form>
@@ -101,13 +101,13 @@
         {% else %}
         <!-- Empty State -->
         <div class="registries-empty">
-            <h2 class="registries-empty-title">No voter registries found</h2>
+            <h2 class="registries-empty-title">No voter lists found</h2>
             <p class="registries-empty-desc">
-                Get started by creating your first voter registry to configure its schema and import voter data.
+                Get started by creating your first voter list to configure its schema and import voter data.
             </p>
             <a href="{% url 'voters:registry_create' %}" class="registries-btn-create">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Create registry</span>
+                <span>Create voter list</span>
             </a>
         </div>
         {% endif %}

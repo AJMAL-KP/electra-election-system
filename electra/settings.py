@@ -28,6 +28,18 @@ ALLOWED_HOSTS += ['*']
 if 'testserver' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('testserver')
 
+# CSRF trusted origins for LAN deployment (Django 4.0+ requires scheme, e.g. http://192.168.1.100:8000)
+_raw_csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() if origin.strip().startswith(('http://', 'https://')) else f"http://{origin.strip()}"
+    for origin in _raw_csrf_origins
+    if origin.strip()
+]
+for default_origin in ('http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost', 'http://127.0.0.1'):
+    if default_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(default_origin)
+
+
 # Application definition
 INSTALLED_APPS = [
     'daphne',
@@ -57,6 +69,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'accounts.middleware.SessionTakeoverMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]

@@ -29,6 +29,21 @@ class KioskConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4004)
             return
 
+        session = self.scope.get("session")
+        session_key = getattr(session, "session_key", None)
+        if not session_key:
+            session_key = self.scope.get("cookies", {}).get("sessionid")
+
+        if session_key:
+            is_active = await sync_to_async(self._is_session_active)(device, session_key)
+            if not is_active:
+                await self.close(code=4003)
+                return
+        else:
+            active_sess = await sync_to_async(lambda: DeviceSession.objects.filter(device=device, is_active=True).first())()
+            session_key = active_sess.session_key if active_sess else None
+
+        self.session_key = session_key
         self.device = device
         self.device_id = device.id
         self.booth_id = device.booth_id
@@ -190,12 +205,23 @@ class KioskConsumer(AsyncJsonWebsocketConsumer):
             "election_id": event.get("election_id"),
         })
 
-    async def credentials_revoked(self, event):
-        """Notify kiosk its credentials have been revoked — force logout redirect."""
-        await self.send_json({"event": "credentials.revoked"})
+    async def session_superseded(self, event):
+        """Notify kiosk that session has been taken over by another login."""
+        new_key = event.get("new_session_key")
+        if not hasattr(self, "session_key") or self.session_key != new_key:
+            await self.send_json({"event": "session.superseded"})
+            await self.close(code=4003)
 
     async def receive_json(self, content):
         """Handle incoming messages from Kiosk terminal (e.g. Fullscreen changes)."""
+        # Validate active session ownership on every incoming message
+        if hasattr(self, "device") and hasattr(self, "session_key"):
+            is_active = await sync_to_async(self._is_session_active)(self.device, self.session_key)
+            if not is_active:
+                await self.send_json({"event": "session.superseded"})
+                await self.close(code=4003)
+                return
+
         msg_type = content.get("type") or content.get("event")
         fullscreen_val = content.get("fullscreen")
         if msg_type in ("fullscreen_entered", "fullscreen.entered", "kiosk.fullscreen") or fullscreen_val is True:
@@ -236,6 +262,15 @@ class KioskConsumer(AsyncJsonWebsocketConsumer):
                         "fullscreen": False,
                     }
                 )
+
+    def _is_session_active(self, device, session_key):
+        if not session_key or not device:
+            return False
+        return DeviceSession.objects.filter(
+            device=device,
+            session_key=session_key,
+            is_active=True
+        ).exists()
 
     def _get_kiosk_device(self, user):
         device = getattr(user, "device", None)
@@ -290,6 +325,21 @@ class OfficerConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4004)
             return
 
+        session = self.scope.get("session")
+        session_key = getattr(session, "session_key", None)
+        if not session_key:
+            session_key = self.scope.get("cookies", {}).get("sessionid")
+
+        if session_key:
+            is_active = await sync_to_async(self._is_session_active)(device, session_key)
+            if not is_active:
+                await self.close(code=4003)
+                return
+        else:
+            active_sess = await sync_to_async(lambda: DeviceSession.objects.filter(device=device, is_active=True).first())()
+            session_key = active_sess.session_key if active_sess else None
+
+        self.session_key = session_key
         self.device = device
         self.device_id = device.id
         self.booth_id = device.booth_id
@@ -424,6 +474,30 @@ class OfficerConsumer(AsyncJsonWebsocketConsumer):
             "fullscreen": event.get("fullscreen", False),
         })
 
+    async def session_superseded(self, event):
+        """Notify officer station that session has been taken over by another login."""
+        new_key = event.get("new_session_key")
+        if not hasattr(self, "session_key") or self.session_key != new_key:
+            await self.send_json({"event": "session.superseded"})
+            await self.close(code=4003)
+
+    async def receive_json(self, content):
+        if hasattr(self, "device") and hasattr(self, "session_key"):
+            is_active = await sync_to_async(self._is_session_active)(self.device, self.session_key)
+            if not is_active:
+                await self.send_json({"event": "session.superseded"})
+                await self.close(code=4003)
+                return
+
+    def _is_session_active(self, device, session_key):
+        if not session_key or not device:
+            return False
+        return DeviceSession.objects.filter(
+            device=device,
+            session_key=session_key,
+            is_active=True
+        ).exists()
+
     def _get_officer_device(self, user):
         device = getattr(user, "device", None)
         if device and device.device_type == DeviceType.OFFICER:
@@ -469,6 +543,23 @@ class AdminLiveConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4003)
             return
 
+        session = self.scope.get("session")
+        session_key = getattr(session, "session_key", None)
+        if not session_key:
+            session_key = self.scope.get("cookies", {}).get("sessionid")
+
+        if session_key:
+            is_active = await sync_to_async(self._is_admin_session_active)(user, session_key)
+            if not is_active:
+                await self.close(code=4003)
+                return
+        else:
+            from accounts.models import AdminSession
+            active_sess = await sync_to_async(lambda: AdminSession.objects.filter(user=user, is_active=True).first())()
+            session_key = active_sess.session_key if active_sess else None
+
+        self.user = user
+        self.session_key = session_key
         self.group_name = "admin_live"
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
@@ -476,6 +567,12 @@ class AdminLiveConsumer(AsyncJsonWebsocketConsumer):
     async def disconnect(self, close_code):
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def session_superseded(self, event):
+        new_key = event.get("new_session_key")
+        if not hasattr(self, "session_key") or self.session_key != new_key:
+            await self.send_json({"event": "session.superseded"})
+            await self.close(code=4003)
 
     async def ballot_recorded(self, event):
         await self.send_json({
@@ -522,6 +619,13 @@ class AdminLiveConsumer(AsyncJsonWebsocketConsumer):
         })
 
     async def receive_json(self, content):
+        if hasattr(self, "user") and hasattr(self, "session_key"):
+            is_active = await sync_to_async(self._is_admin_session_active)(self.user, self.session_key)
+            if not is_active:
+                await self.send_json({"event": "session.superseded"})
+                await self.close(code=4003)
+                return
+
         action = content.get("action")
         if action == "check_review_status":
             election_id = content.get("election_id")
@@ -532,3 +636,8 @@ class AdminLiveConsumer(AsyncJsonWebsocketConsumer):
                     "event": "review.status",
                     "status": status_data,
                 })
+
+    def _is_admin_session_active(self, user, session_key):
+        from accounts.selectors import is_user_session_active
+        return is_user_session_active(user, session_key)
+

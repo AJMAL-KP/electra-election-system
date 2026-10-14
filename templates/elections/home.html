@@ -135,11 +135,11 @@
         <!-- Card 1: Voter registry -->
         <a href="{% url 'voters:registries' %}" class="home-hub-card">
             <div class="hub-card-header">
-                <h2 class="hub-card-title">Voter registry</h2>
+                <h2 class="hub-card-title">Voter lists</h2>
                 <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
             </div>
             <p class="hub-card-desc">
-                Manage the master list of voters, their details and group assignments.
+                Manage voter lists, voter rosters and department assignments.
             </p>
             <div class="hub-card-stats">
                 <div class="hub-stat-item">
@@ -196,10 +196,11 @@
         <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
             <a href="{% url 'elections:setup_start' %}?discard=1" 
                class="setup-btn-save-draft" 
-               style="text-decoration: none; padding: 9px 16px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 13.5px; color: #4B5563; background: #FFF;"
-               onclick="return confirm('Starting a new election will discard the current draft ({{ active_draft_election.name|escapejs }}). Proceed?');">
+               id="btn-start-fresh-draft"
+               style="text-decoration: none; padding: 9px 16px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 13.5px; color: #4B5563; background: #FFF;">
                 Start fresh
             </a>
+
             <a href="{% url 'elections:setup_resume' active_draft_election.id %}" 
                class="setup-btn-continue" 
                style="text-decoration: none; padding: 10px 20px; background: #111827; color: #FFF; border-radius: 8px; font-size: 14px; font-weight: 500;">
@@ -278,6 +279,30 @@
         if (startPromptBtn) startPromptBtn.addEventListener('click', openDraftModal);
         if (closeDraftModalBtn) closeDraftModalBtn.addEventListener('click', closeDraftModal);
         if (draftBackdrop) draftBackdrop.addEventListener('click', closeDraftModal);
+
+        const startFreshBtn = document.getElementById('btn-start-fresh-draft');
+        if (startFreshBtn) {
+            startFreshBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                const targetUrl = this.getAttribute('href');
+                closeDraftModal();
+                if (window.electraConfirm) {
+                    window.electraConfirm({
+                        title: 'Discard current draft?',
+                        message: 'Starting a new election will permanently discard your draft "{{ active_draft_election.name|escapejs }}". Proceed?',
+                        confirmText: 'Discard & start fresh',
+                        cancelText: 'Keep draft',
+                        isDanger: true,
+                        onConfirm: () => {
+                            window.location.href = targetUrl;
+                        }
+                    });
+                } else {
+                    window.location.href = targetUrl;
+                }
+            });
+        }
     })();
 </script>
+
 {% endblock %}

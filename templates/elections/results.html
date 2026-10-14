@@ -3,179 +3,491 @@
 
 {% block title %}Election Results — {{ election.name }} — Electra{% endblock %}
 
+{% block body_class %}results-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
 {% block extra_head %}
 <style>
-.results-container {
-    max-width: 960px;
-    margin: 40px auto 80px auto;
-    padding: 0 20px;
-    font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+/* ==========================================================================
+   ELECTRA — ELECTION RESULTS PAGE
+   - Pinned/non-scrollable viewport
+   - Only the positions & results container is scrollable
+   - 2 columns for positions when there are > 1 position
+   - Borderless Electra theme
+   - Candidate photo / symbol / placeholder priority
+   - Draw & Unopposed single candidate handling
+   ========================================================================== */
+
+html, body.results-body {
+    background-color: #FFFFFF;
+    color: #111827;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    overflow: hidden;
+    font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
-.results-header {
+
+body.results-body .main-content {
+    height: 100vh;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.results-page-layout {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-sizing: border-box;
+    background-color: #FFFFFF;
+}
+
+/* ==========================================================================
+   FIXED TOP ZONE (Election title & clean meta bar)
+   Pinned in place — no "Electra" tag, no status banners.
+   ========================================================================== */
+.results-fixed-header {
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 36px 32px 18px 32px;
+    box-sizing: border-box;
     text-align: center;
-    margin-bottom: 40px;
+    background-color: #FFFFFF;
+    z-index: 10;
 }
-.results-brand {
+
+.results-hero-title {
     font-family: 'Newsreader', Georgia, serif;
-    font-size: 28px;
+    font-size: 38px;
     font-weight: 500;
     color: #111827;
-    margin: 0 0 16px 0;
+    line-height: 1.2;
+    margin: 0 0 10px 0;
+    letter-spacing: -0.025em;
 }
-.results-title {
-    font-family: 'Newsreader', Georgia, serif;
-    font-size: 36px;
-    font-weight: 500;
-    color: #111827;
-    margin: 0 0 8px 0;
-}
-.results-meta {
+
+.results-meta-bar {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
     font-size: 14px;
     color: #6B7280;
-    margin-bottom: 24px;
 }
-.results-status-banner {
-    display: inline-block;
-    padding: 6px 16px;
-    border-radius: 9999px;
-    font-size: 13px;
-    font-weight: 500;
-    margin-bottom: 20px;
-}
-.status-draft { background: #FEF3C7; color: #92400E; }
-.status-active { background: #DCFCE7; color: #166534; }
-.status-closed { background: #F3F4F6; color: #374151; }
-.status-published { background: #E0E7FF; color: #3730A3; }
 
-.position-section {
-    margin-bottom: 44px;
+.results-meta-divider {
+    color: #CBD5E1;
+    font-size: 13px;
 }
-.position-header {
+
+/* ==========================================================================
+   SCROLLABLE MIDDLE ZONE
+   ONLY this section scrolls; scrollbar is hidden for clean presentation.
+   ========================================================================== */
+.results-scrollable-area {
+    flex: 1;
+    overflow-y: auto;
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 12px 32px 96px 32px;
+    box-sizing: border-box;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE & Edge */
+}
+
+.results-scrollable-area::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, WebKit */
+}
+
+/* ==========================================================================
+   2-COLUMN POSITIONS GRID
+   When more than 1 position exists, positions render in 2 columns.
+   ========================================================================== */
+.positions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 36px 44px;
+}
+
+.positions-grid.single-column {
+    grid-template-columns: minmax(0, 680px);
+    justify-content: center;
+}
+
+@media (max-width: 860px) {
+    .positions-grid {
+        grid-template-columns: 1fr;
+        gap: 28px;
+    }
+}
+
+.position-col {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    border-bottom: 1px solid #E5E7EB;
-    padding-bottom: 10px;
-    margin-bottom: 16px;
+    flex-direction: column;
 }
+
+/* Position Header — Clean, no unwanted tags */
+.position-header {
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #F1F5F9;
+}
+
 .position-title {
     font-family: 'Newsreader', Georgia, serif;
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 500;
     color: #111827;
     margin: 0;
+    letter-spacing: -0.015em;
 }
-.position-total-votes {
-    font-size: 13px;
-    color: #6B7280;
+
+/* ==========================================================================
+   BORDERLESS CANDIDATE CARDS
+   Electra signature borderless design.
+   ========================================================================== */
+.candidates-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
-.candidate-row {
+
+.candidate-card {
+    border: none;
+    border-radius: 12px;
+    background-color: #F8FAFC;
+    padding: 13px 18px;
     display: flex;
     align-items: center;
-    padding: 14px 18px;
-    border-radius: 10px;
-    margin-bottom: 8px;
-    background: #FFFFFF;
-}
-.candidate-row.is-winner {
-    background: #F0FDF4;
-}
-.cand-rank { width: 32px; font-size: 13px; color: #6B7280; font-weight: 500; }
-.cand-info { flex: 1; }
-.cand-name { font-size: 15px; font-weight: 600; color: #111827; }
-.cand-affiliation { font-size: 12.5px; color: #6B7280; margin-top: 2px; }
-.cand-votes { font-size: 15px; font-weight: 600; color: #111827; min-width: 60px; text-align: right; }
-.cand-pct { font-size: 13.5px; color: #4B5563; min-width: 55px; text-align: right; margin-left: 12px; }
-.cand-bar-wrap { width: 140px; height: 6px; background: #E5E7EB; border-radius: 9999px; margin-left: 16px; overflow: hidden; }
-.cand-bar-fill { height: 100%; background: #64748B; border-radius: 9999px; }
-.candidate-row.is-winner .cand-bar-fill { background: #22C55E; }
-
-.results-actions {
-    display: flex;
-    justify-content: center;
+    justify-content: space-between;
     gap: 16px;
-    margin-top: 48px;
+    transition: background-color 0.15s ease;
 }
-.btn-print {
-    padding: 10px 24px;
-    border: 1px solid #D1D5DB;
-    border-radius: 8px;
-    background: #FFFFFF;
-    color: #374151;
+
+.candidate-card:hover {
+    background-color: #F1F5F9;
+}
+
+/* Winner Card Styling (Single Winner or Draw) */
+.candidate-card.is-winner {
+    background-color: #F0FDF4;
+}
+
+.candidate-card.is-winner:hover {
+    background-color: #DCFCE7;
+}
+
+/* Left: Avatar & Candidate Info */
+.cand-main {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    flex: 1;
+}
+
+/* Photo Space: photo -> symbol_image -> symbol text -> placeholder */
+.cand-avatar-wrap {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background-color: #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.candidate-card.is-winner .cand-avatar-wrap {
+    background-color: #DCFCE7;
+    color: #15803D;
+}
+
+.cand-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.cand-avatar-symbol {
+    font-size: 13px;
+    font-weight: 700;
+    color: #475569;
+    letter-spacing: -0.01em;
+}
+
+.cand-avatar-placeholder {
+    color: #64748B;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.candidate-card.is-winner .cand-avatar-placeholder {
+    color: #15803D;
+}
+
+.cand-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.cand-name {
+    font-size: 15.5px;
+    font-weight: 600;
+    color: #0F172A;
+    line-height: 1.25;
+    word-break: break-word;
+}
+
+.cand-meta {
+    font-size: 12.5px;
+    color: #64748B;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Right: Stats Box or Unopposed Winner */
+.cand-stats-box {
+    text-align: right;
+    flex-shrink: 0;
+    min-width: 80px;
+}
+
+.cand-votes-text {
+    display: block;
+    font-size: 12px;
     font-weight: 500;
-    cursor: pointer;
+    color: #64748B;
+    line-height: 1.2;
 }
-.btn-continue {
-    padding: 10px 28px;
+
+.candidate-card.is-winner .cand-votes-text {
+    color: #166534;
+}
+
+.cand-pct-text {
+    display: block;
+    font-size: 19px;
+    font-weight: 700;
+    color: #1E293B;
+    line-height: 1.15;
+    margin-top: 2px;
+    letter-spacing: -0.02em;
+}
+
+.candidate-card.is-winner .cand-pct-text {
+    color: #15803D;
+}
+
+/* Single Candidate: Unopposed Winner label, NO vote count or turnout */
+.cand-winner-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #15803D;
+    background-color: #DCFCE7;
+    padding: 5px 14px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+/* ==========================================================================
+   FIXED FLOATING ACTION BUTTONS (NO FOOTER NEEDED)
+   Transparent, floating seamlessly at bottom center of viewport.
+   ========================================================================== */
+.results-floating-actions {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: transparent;
     border: none;
-    border-radius: 8px;
-    background: #111827;
-    color: #FFFFFF;
-    font-weight: 500;
-    text-decoration: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+    z-index: 100;
+}
+
+.btn-print {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    padding: 11px 22px;
+    border: 1px solid #E2E8F0;
+    border-radius: 9999px;
+    background: #FFFFFF;
+    color: #1E293B;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-print:hover {
+    background: #F8FAFC;
+    border-color: #CBD5E1;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+}
+
+.btn-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 28px;
+    border: none;
+    border-radius: 9999px;
+    background: #0F172A;
+    color: #FFFFFF;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-close:hover {
+    background: #1E293B;
+    color: #FFFFFF;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
+}
+
+/* Print Optimization */
+@media print {
+    html, body.results-body, .results-page-layout, .results-scrollable-area {
+        height: auto !important;
+        overflow: visible !important;
+        background: #FFFFFF !important;
+    }
+    .results-floating-actions,
+    .results-meta-divider,
+    nav,
+    header,
+    footer {
+        display: none !important;
+    }
+    .candidate-card {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="results-container">
-    <div class="results-header">
-        <div class="results-brand">Electra</div>
-        <h1 class="results-title">{{ election.name }}</h1>
+<div class="results-page-layout">
+    <!-- Pinned Top Header -->
+    <header class="results-fixed-header">
+        <h1 class="results-hero-title">{{ election.name }}</h1>
 
-        {% if election.is_draft %}
-        <div class="results-status-banner status-draft">
-            Election in Draft Setup
+        <div class="results-meta-bar">
+            {% if election.closed_at %}
+            <span>Election completed on {{ election.closed_at|date:"j M Y, g:i A" }}</span>
+            <span class="results-meta-divider">&bull;</span>
+            {% elif election.ends_at %}
+            <span>Scheduled end: {{ election.ends_at|date:"j M Y, g:i A" }}</span>
+            <span class="results-meta-divider">&bull;</span>
+            {% endif %}
+            <span>Total votes: <strong>{{ turnout.ballots_cast|default:0 }}</strong></span>
+            <span class="results-meta-divider">&bull;</span>
+            <span>Turnout: <strong>{{ turnout.turnout_pct|default:"0.0" }}%</strong></span>
         </div>
-        {% elif election.is_active %}
-        <div class="results-status-banner status-active">
-            Live Polling in Progress &bull; Enrolled Voters: {{ turnout.enrolled_count }}
-        </div>
-        {% elif election.is_closed %}
-        <div class="results-status-banner status-closed">
-            Polling Closed &bull; Awaiting Publication
-        </div>
-        {% elif election.is_results_published %}
-        <div class="results-status-banner status-published">
-            Official Certified Results
-        </div>
-        {% endif %}
+    </header>
 
-        <div class="results-meta">
-            Total votes: {{ turnout.ballots_cast }} &nbsp;|&nbsp; Turnout: {{ turnout.turnout_pct }}%
-        </div>
-    </div>
+    <!-- Scrollable Positions & Results Zone -->
+    <main class="results-scrollable-area">
+        <div class="positions-grid {% if position_results|length <= 1 %}single-column{% endif %}">
+            {% for pres in position_results %}
+            <section class="position-col">
+                <div class="position-header">
+                    <h2 class="position-title">{{ pres.position.name }}</h2>
+                </div>
 
-    {% for pres in position_results %}
-    <div class="position-section">
-        <div class="position-header">
-            <h2 class="position-title">{{ pres.position.name }}</h2>
-            <span class="position-total-votes">{{ pres.total_votes }} total votes</span>
-        </div>
+                <div class="candidates-stack">
+                    {% for cand in pres.candidates %}
+                    <article class="candidate-card {% if cand.is_winner %}is-winner{% endif %}">
+                        <!-- Left: Avatar (Photo / Symbol / Placeholder) + Candidate Details -->
+                        <div class="cand-main">
+                            <div class="cand-avatar-wrap">
+                                {% if cand.candidate.photo %}
+                                <img src="{{ cand.candidate.photo.url }}" alt="{{ cand.candidate.name }}" class="cand-avatar-img">
+                                {% elif cand.candidate.symbol_image %}
+                                <img src="{{ cand.candidate.symbol_image.url }}" alt="{{ cand.candidate.symbol }}" class="cand-avatar-img">
+                                {% elif cand.candidate.symbol %}
+                                <span class="cand-avatar-symbol">{{ cand.candidate.symbol|slice:":3"|upper }}</span>
+                                {% else %}
+                                <span class="cand-avatar-placeholder">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="12" cy="7" r="4"></circle>
+                                    </svg>
+                                </span>
+                                {% endif %}
+                            </div>
 
-        {% for cand in pres.candidates %}
-        <div class="candidate-row {% if forloop.first and election.is_closed or forloop.first and election.is_results_published %}is-winner{% endif %}">
-            <div class="cand-rank">{{ forloop.counter }}</div>
-            <div class="cand-info">
-                <div class="cand-name">{{ cand.candidate.name }}</div>
-                <div class="cand-affiliation">{{ cand.candidate.affiliation|default:"" }}</div>
+                            <div class="cand-info">
+                                <div class="cand-name">{{ cand.candidate.name }}</div>
+                                {% if cand.candidate.academic_group or cand.candidate.symbol %}
+                                <div class="cand-meta">
+                                    {{ cand.candidate.academic_group|default:"" }}{% if cand.candidate.academic_group and cand.candidate.symbol %} &bull; {% endif %}{{ cand.candidate.symbol|default:"" }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Right: Stats OR Winner Label for Unopposed (No vote counts/turnout for single candidate) -->
+                        {% if cand.is_single_candidate %}
+                        <div class="cand-winner-label">Winner</div>
+                        {% else %}
+                        <div class="cand-stats-box">
+                            <span class="cand-votes-text">{{ cand.votes }}</span>
+                            <span class="cand-pct-text">{{ cand.percentage }}%</span>
+                        </div>
+                        {% endif %}
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% empty %}
+            <div style="text-align: center; padding: 48px 0; color: #64748B; grid-column: 1 / -1;">
+                <p>No positions registered for this election.</p>
             </div>
-            <div class="cand-votes">{{ cand.votes }}</div>
-            <div class="cand-pct">{{ cand.percentage }}%</div>
-            <div class="cand-bar-wrap">
-                <div class="cand-bar-fill" style="width: {{ cand.percentage }}%;"></div>
-            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
-    {% endfor %}
+    </main>
 
-    <div class="results-actions">
-        <button type="button" class="btn-print" onclick="window.print()">Print results</button>
-        <a href="{% url 'elections:dashboard' %}" class="btn-continue">Continue &rarr;</a>
+    <!-- Fixed Floating Actions (No footer container) -->
+    <div class="results-floating-actions">
+        <a href="{% url 'elections:results_pdf' election.id %}" target="_blank" class="btn-print">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            Print results
+        </a>
+        <a href="{% url 'elections:history' %}" class="btn-close">Close</a>
     </div>
 </div>
 {% endblock %}

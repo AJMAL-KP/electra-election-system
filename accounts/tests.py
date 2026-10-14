@@ -190,26 +190,26 @@ class Phase2AuthenticationAndRBACTests(TestCase):
         self.assertIsNotNone(active_sess)
         self.assertTrue(active_sess.is_active)
 
-        # Second simultaneous login attempt while first is active is rejected
+        # Second simultaneous login attempt takes over the session
         client2 = Client()
-        rejected_res = client2.post(reverse('accounts:login'), {
+        takeover_res = client2.post(reverse('accounts:login'), {
             'username': 'booth-4-officer',
             'password': password
         })
-        self.assertEqual(rejected_res.status_code, 403)
-        self.assertIn("already has an active session", rejected_res.content.decode())
+        self.assertEqual(takeover_res.status_code, 302)
 
-        # Logout first client terminates session
-        client.get(reverse('accounts:logout'))
+        # First session must now be marked inactive
         active_sess.refresh_from_db()
         self.assertFalse(active_sess.is_active)
 
-        # Now client2 can log in
-        login_res2 = client2.post(reverse('accounts:login'), {
-            'username': 'booth-4-officer',
-            'password': password
-        })
-        self.assertEqual(login_res2.status_code, 302)
+        # Exactly one active session exists for this device, matching client2
+        active_sessions = DeviceSession.objects.filter(device=device, is_active=True)
+        self.assertEqual(active_sessions.count(), 1)
+        self.assertNotEqual(active_sessions.first().session_key, active_sess.session_key)
+
+        # Logout client2 terminates the new session
+        client2.get(reverse('accounts:logout'))
+        self.assertEqual(DeviceSession.objects.filter(device=device, is_active=True).count(), 0)
 
     def test_revoked_device_login_rejected(self):
         """A revoked device cannot log in."""
@@ -255,5 +255,238 @@ class Phase2AuthenticationAndRBACTests(TestCase):
 
         with self.assertRaises(PermissionDenied):
             dummy_kiosk(req)
+
+
+from accounts.models import AdminSession
+from django.utils import timezone
+from elections.models import Election, ElectionStatus
+from voters.models import Booth, VoterRegistry, Voter, ElectionVoter
+from voting.models import VoterAuthorization, AuthorizationStatus
+from voting.consumers import KioskConsumer, OfficerConsumer, AdminLiveConsumer
+from channels.testing import WebsocketCommunicator
+
+
+class SingleActiveSessionTakeoverTests(TestCase):
+    """Rigorous verification tests covering Single-Active-Session Takeover and Enforcement."""
+
+    def setUp(self):
+        self.admin = initialize_installation("inst_admin", "admin@inst.edu", "pass12345678")
+        self.election = Election.objects.create(
+            name="Session Test Election",
+            status=ElectionStatus.ACTIVE,
+            starts_at=timezone.now() - timezone.timedelta(hours=1),
+            ends_at=timezone.now() + timezone.timedelta(hours=5),
+        )
+        self.booth = Booth.objects.create(
+            election=self.election,
+            name="Booth 1",
+            booth_number=1,
+        )
+        self.officer_dev, self.officer_pw = create_device("booth-1-officer", DeviceType.OFFICER, booth=self.booth)
+        self.kiosk_dev, self.kiosk_pw = create_device("booth-1-kiosk", DeviceType.KIOSK, booth=self.booth)
+
+    def test_admin_single_active_session_takeover(self):
+        """Admin subsequent login takes over session; older session loses HTTP access."""
+        client1 = Client()
+        r1 = client1.post(reverse('accounts:login'), {'username': 'inst_admin', 'password': 'pass12345678'})
+        self.assertEqual(r1.status_code, 302)
+        sess1 = AdminSession.objects.filter(user=self.admin, is_active=True).first()
+        self.assertIsNotNone(sess1)
+
+        # Protected view succeeds for client1
+        res1 = client1.get(reverse('elections:dashboard'))
+        self.assertEqual(res1.status_code, 200)
+
+        # Client 2 logs in (Takeover)
+        client2 = Client()
+        r2 = client2.post(reverse('accounts:login'), {'username': 'inst_admin', 'password': 'pass12345678'})
+        self.assertEqual(r2.status_code, 302)
+
+        # Authoritative state: sess1 is inactive, exactly one active session exists
+        sess1.refresh_from_db()
+        self.assertFalse(sess1.is_active)
+        self.assertIsNotNone(sess1.revoked_at)
+        active_admin_sessions = AdminSession.objects.filter(user=self.admin, is_active=True)
+        self.assertEqual(active_admin_sessions.count(), 1)
+        sess2 = active_admin_sessions.first()
+        self.assertNotEqual(sess1.session_key, sess2.session_key)
+
+        # Client 1 loses authorization immediately (redirected to login or rejected)
+        res1_after = client1.get(reverse('elections:dashboard'))
+        self.assertEqual(res1_after.status_code, 302)
+        self.assertIn(reverse('accounts:login'), res1_after.url)
+
+        # Client 2 retains access
+        res2_after = client2.get(reverse('elections:dashboard'))
+        self.assertEqual(res2_after.status_code, 200)
+
+    def test_officer_single_active_session_takeover(self):
+        """Officer subsequent login takes over session; old session rejected on protected view."""
+        client1 = Client()
+        r1 = client1.post(reverse('accounts:login'), {'username': 'booth-1-officer', 'password': self.officer_pw})
+        self.assertEqual(r1.status_code, 302)
+        sess1 = DeviceSession.objects.filter(device=self.officer_dev, is_active=True).first()
+        self.assertIsNotNone(sess1)
+
+        res1 = client1.get(reverse('voting:officer_dashboard'))
+        self.assertEqual(res1.status_code, 200)
+
+        # Client 2 logs in (Takeover)
+        client2 = Client()
+        r2 = client2.post(reverse('accounts:login'), {'username': 'booth-1-officer', 'password': self.officer_pw})
+        self.assertEqual(r2.status_code, 302)
+
+        sess1.refresh_from_db()
+        self.assertFalse(sess1.is_active)
+        self.assertEqual(DeviceSession.objects.filter(device=self.officer_dev, is_active=True).count(), 1)
+
+        # Client 1 loses authorization immediately
+        res1_after = client1.get(reverse('voting:officer_dashboard'))
+        self.assertIn(res1_after.status_code, (302, 403))
+        if res1_after.status_code == 302:
+            self.assertIn(reverse('accounts:login'), res1_after.url)
+
+        # Client 2 preserves booth binding and accesses dashboard
+        res2_after = client2.get(reverse('voting:officer_dashboard'))
+        self.assertEqual(res2_after.status_code, 200)
+
+    def test_kiosk_takeover_preserves_active_voting_authorization(self):
+        """Kiosk takeover invalidates old session but preserves active authorization and voting state."""
+        registry = VoterRegistry.objects.create(name="Reg 1", primary_id_source="Roll No")
+        voter = Voter.objects.create(registry=registry, primary_registry_value="V001", name="Test Voter")
+        ev = ElectionVoter.objects.create(election=self.election, voter=voter, booth=self.booth)
+        auth = VoterAuthorization.objects.create(
+            booth=self.booth,
+            kiosk=self.kiosk_dev,
+            election_voter=ev,
+            status=AuthorizationStatus.ACTIVE,
+        )
+
+        client1 = Client()
+        r1 = client1.post(reverse('accounts:login'), {'username': 'booth-1-kiosk', 'password': self.kiosk_pw})
+        self.assertEqual(r1.status_code, 302)
+        sess1 = DeviceSession.objects.filter(device=self.kiosk_dev, is_active=True).first()
+        self.assertIsNotNone(sess1)
+
+        # Kiosk view renders with unlocked active_auth
+        res1 = client1.get(reverse('voting:kiosk'))
+        self.assertEqual(res1.status_code, 200)
+        self.assertFalse(res1.context['is_locked'])
+        self.assertEqual(res1.context['active_auth'].id, auth.id)
+
+        # Client 2 logs in (Takeover)
+        client2 = Client()
+        r2 = client2.post(reverse('accounts:login'), {'username': 'booth-1-kiosk', 'password': self.kiosk_pw})
+        self.assertEqual(r2.status_code, 302)
+
+        # Invariant: VoterAuthorization was NEVER modified, consumed, or reset
+        auth.refresh_from_db()
+        self.assertEqual(auth.status, AuthorizationStatus.ACTIVE)
+        self.assertFalse(auth.election_voter.has_voted)
+
+        # Old session is rejected on kiosk submit/view
+        sess1.refresh_from_db()
+        self.assertFalse(sess1.is_active)
+        res1_after = client1.get(reverse('voting:kiosk'))
+        self.assertIn(res1_after.status_code, (302, 403))
+        if res1_after.status_code == 302:
+            self.assertIn(reverse('accounts:login'), res1_after.url)
+
+        # New session restores the active authorization interface
+        res2_after = client2.get(reverse('voting:kiosk'))
+        self.assertEqual(res2_after.status_code, 200)
+        self.assertFalse(res2_after.context['is_locked'])
+        self.assertEqual(res2_after.context['active_auth'].id, auth.id)
+
+    def test_cross_identity_isolation(self):
+        """Takeover for one identity must not invalidate sessions belonging to other identities."""
+        c_admin = Client()
+        c_admin.post(reverse('accounts:login'), {'username': 'inst_admin', 'password': 'pass12345678'})
+
+        c_off = Client()
+        c_off.post(reverse('accounts:login'), {'username': 'booth-1-officer', 'password': self.officer_pw})
+
+        c_kio = Client()
+        c_kio.post(reverse('accounts:login'), {'username': 'booth-1-kiosk', 'password': self.kiosk_pw})
+
+        self.assertEqual(c_admin.get(reverse('elections:dashboard')).status_code, 200)
+        self.assertEqual(c_off.get(reverse('voting:officer_dashboard')).status_code, 200)
+        self.assertEqual(c_kio.get(reverse('voting:kiosk')).status_code, 200)
+
+        # Takeover Officer session with new client
+        c_off2 = Client()
+        c_off2.post(reverse('accounts:login'), {'username': 'booth-1-officer', 'password': self.officer_pw})
+
+        # Admin and Kiosk MUST remain active
+        self.assertEqual(c_admin.get(reverse('elections:dashboard')).status_code, 200)
+        self.assertEqual(c_kio.get(reverse('voting:kiosk')).status_code, 200)
+        # New officer is active
+        self.assertEqual(c_off2.get(reverse('voting:officer_dashboard')).status_code, 200)
+
+    def test_delayed_logout_cannot_revoke_newer_session(self):
+        """A delayed logout from an old browser cannot revoke the newer taken-over session."""
+        c1 = Client()
+        c1.post(reverse('accounts:login'), {'username': 'inst_admin', 'password': 'pass12345678'})
+
+        c2 = Client()
+        c2.post(reverse('accounts:login'), {'username': 'inst_admin', 'password': 'pass12345678'})
+
+        sess2 = AdminSession.objects.filter(user=self.admin, is_active=True).first()
+        self.assertIsNotNone(sess2)
+
+        # Client 1 sends a delayed logout request
+        c1.get(reverse('accounts:logout'))
+
+        # Invariant: Client 2 session remains active!
+        sess2.refresh_from_db()
+        self.assertTrue(sess2.is_active)
+        self.assertEqual(c2.get(reverse('elections:dashboard')).status_code, 200)
+
+    def test_websocket_superseded_session_rejected(self):
+        """WebSocket connection with superseded session key is rejected."""
+        from asgiref.sync import async_to_sync, sync_to_async
+
+        async def _run():
+            def _setup_sessions():
+                s_old = DeviceSession.objects.create(
+                    device=self.kiosk_dev,
+                    session_key="old-kiosk-ws-key",
+                    is_active=False
+                )
+                s_new = DeviceSession.objects.create(
+                    device=self.kiosk_dev,
+                    session_key="new-kiosk-ws-key",
+                    is_active=True
+                )
+                return s_old, s_new
+
+            await sync_to_async(_setup_sessions)()
+
+            # Old session communicator
+            comm_old = WebsocketCommunicator(
+                KioskConsumer.as_asgi(),
+                "/ws/kiosk/",
+            )
+            comm_old.scope["user"] = self.kiosk_dev.user
+            comm_old.scope["session"] = type("SessionMock", (), {"session_key": "old-kiosk-ws-key"})()
+
+            connected_old, code_old = await comm_old.connect()
+            self.assertFalse(connected_old)
+            self.assertEqual(code_old, 4003)
+
+            # New session communicator
+            comm_new = WebsocketCommunicator(
+                KioskConsumer.as_asgi(),
+                "/ws/kiosk/",
+            )
+            comm_new.scope["user"] = self.kiosk_dev.user
+            comm_new.scope["session"] = type("SessionMock", (), {"session_key": "new-kiosk-ws-key"})()
+
+            connected_new, _ = await comm_new.connect()
+            self.assertTrue(connected_new)
+            await comm_new.disconnect()
+
+        async_to_sync(_run)()
+
 
 

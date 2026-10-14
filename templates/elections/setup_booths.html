@@ -26,8 +26,13 @@
             <div class="setup-top-nav-row">
                 <div class="setup-nav-left">
                     <button type="button" class="setup-btn-exit" id="btn-trigger-exit-modal" aria-label="Exit setup">
-                        &times; Exit
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                        <span>Exit</span>
                     </button>
+
                 </div>
                 <div class="setup-nav-center">
                     <h1 class="setup-nav-headline">Booths and voter allocation</h1>
@@ -527,7 +532,7 @@
                     </label>
                     {% empty %}
                     <p style="font-size: 13px; color: #9CA3AF; grid-column: 1 / -1; text-align: center; padding: 20px;">
-                        No cohorts found in this registry.
+                        No cohorts found in this voter list.
                     </p>
                     {% endfor %}
                 </div>
@@ -718,6 +723,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 4. Helper: Show Toast Notification
     function showToast(message, type = 'success') {
+        if (typeof window.showElectraToast === 'function') {
+            window.showElectraToast(message, type);
+            return;
+        }
         let toastContainer = document.querySelector('.setup-toast-container');
         if (!toastContainer) {
             toastContainer = document.createElement('div');
@@ -990,36 +999,47 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnClearAllocation = document.getElementById('btn-trigger-clear-allocation');
     if (btnClearAllocation) {
         btnClearAllocation.addEventListener('click', function () {
-            if (!confirm('Are you sure you want to clear all voter allocations across all booths?')) {
-                return;
-            }
+            window.electraConfirm({
+                title: 'Clear voter allocations?',
+                message: 'Are you sure you want to clear all voter allocations across all booths?',
+                confirmText: 'Clear allocations',
+                cancelText: 'Cancel',
+                isDanger: true,
+                onConfirm: () => {
+                    const formData = new FormData();
+                    formData.append('action', 'clear_allocation');
+                    formData.append('is_ajax', '1');
+                    formData.append('csrfmiddlewaretoken', getCsrfToken());
 
-            const formData = new FormData();
-            formData.append('action', 'clear_allocation');
-            formData.append('is_ajax', '1');
-            formData.append('csrfmiddlewaretoken', getCsrfToken());
-
-            fetch(window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(res => res.json())
-            .then(data => {
-                slipsDownloaded = false;
-                window.location.reload();
-            })
-            .catch(() => {
-                // Fallback to standard form submit
-                const f = document.createElement('form');
-                f.method = 'POST';
-                f.action = window.location.href;
-                f.innerHTML = `
-                    <input type="hidden" name="csrfmiddlewaretoken" value="${getCsrfToken()}">
-                    <input type="hidden" name="action" value="clear_allocation">
-                `;
-                document.body.appendChild(f);
-                f.submit();
+                    fetch(window.location.href, {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        slipsDownloaded = false;
+                        window.location.reload();
+                    })
+                    .catch(() => {
+                        // Fallback to standard form submit
+                        const f = document.createElement('form');
+                        f.method = 'POST';
+                        f.action = window.location.href;
+                        const csrfInput = document.createElement('input');
+                        csrfInput.type = 'hidden';
+                        csrfInput.name = 'csrfmiddlewaretoken';
+                        csrfInput.value = getCsrfToken();
+                        f.appendChild(csrfInput);
+                        const actInput = document.createElement('input');
+                        actInput.type = 'hidden';
+                        actInput.name = 'action';
+                        actInput.value = 'clear_allocation';
+                        f.appendChild(actInput);
+                        document.body.appendChild(f);
+                        f.submit();
+                    });
+                }
             });
         });
     }
@@ -1068,15 +1088,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (formCustomizeAllocation) {
         formCustomizeAllocation.addEventListener('submit', function () {
             slipsDownloaded = false;
-        });
-    }
-
-    // 11. Auto-expiring Toast Notifications from Django Messages
-    const messagesData = document.querySelectorAll('#django-messages-data [data-django-message]');
-    if (messagesData.length > 0) {
-        messagesData.forEach(msg => {
-            const isError = msg.getAttribute('data-type') === 'error';
-            showToast(msg.textContent, isError ? 'error' : 'success');
         });
     }
 });

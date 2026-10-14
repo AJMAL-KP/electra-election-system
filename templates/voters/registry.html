@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Master Voter Registry — Electra{% endblock %}
+{% block title %}Voter List — {{ registry.name|default:"Voters" }} — Electra{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'css/registry.css' %}">
@@ -17,9 +17,9 @@
     <div class="registry-top-bar">
         <a href="{% url 'voters:registries' %}" class="registry-back-btn">
             <svg viewBox="0 0 24 24" fill="none"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            <span>Back to Registries</span>
+            <span>Back to voter lists</span>
         </a>
-        <span class="sr-only" style="display:none;" aria-hidden="true">Central Voter Registry</span>
+        <span class="sr-only" style="display:none;" aria-hidden="true">Voter List</span>
     </div>
 
     <!-- Hidden Django Messages Container for Toast Rendering -->
@@ -34,18 +34,18 @@
     <!-- Page Header & Action Buttons Row -->
     <div class="registry-header-row">
         <div class="registry-title-area">
-            <h1 class="registry-title">{{ registry.name|default:"Master voter registry" }}</h1>
+            <h1 class="registry-title">{{ registry.name|default:"Voter list" }}</h1>
             <p class="registry-subtitle">
                 {% if registry %}
                 <span class="registry-schema-text" style="color: #6B7280; font-size: 13.5px; letter-spacing: 0.01em;">{{ registry.schema_display }}</span>
                 {% else %}
-                Manage the master list of voters. Add, edit details and assign groups.
+                Manage the voter list. Add, edit details and assign groups.
                 {% endif %}
             </p>
         </div>
         <div class="registry-actions-area">
             {% if is_linked_to_election %}
-            <div class="registry-locked-pill" title="This registry is locked because it is used in an election. Its contents cannot be modified.">
+            <div class="registry-locked-pill" title="This voter list is locked because it is used in an election. Its contents cannot be modified.">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 <span>Locked &middot; In Use by Election{% if linked_elections %} ({{ linked_elections.0.name }}){% endif %}</span>
             </div>
@@ -55,9 +55,9 @@
                 <span>Import</span>
             </a>
             {% if registry %}
-            <form method="post" action="{% url 'voters:registry_delete' registry.id %}" style="display:inline; margin:0;" onsubmit="return electraConfirmSubmit(event, this, 'Delete Registry', 'Are you sure you want to delete the \'{{ registry.name|escapejs }}\' registry? This action cannot be undone and will permanently remove all associated voter and department records.');">
+            <form method="post" action="{% url 'voters:registry_delete' registry.id %}" style="display:inline; margin:0;" onsubmit="return electraConfirmSubmit(event, this, 'Delete Voter List', 'Are you sure you want to delete the \'{{ registry.name|escapejs }}\' voter list? This action cannot be undone and will permanently remove all associated voter records.');">
                 {% csrf_token %}
-                <button type="submit" class="registry-btn-action registry-btn-danger" title="Delete registry {{ registry.name }}">
+                <button type="submit" class="registry-btn-action registry-btn-danger" title="Delete voter list {{ registry.name }}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     <span>Delete</span>
                 </button>

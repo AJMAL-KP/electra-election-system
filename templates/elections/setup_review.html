@@ -27,8 +27,13 @@
             <div class="setup-top-nav-row">
                 <div class="setup-nav-left">
                     <button type="button" class="setup-btn-exit" id="btn-trigger-exit-modal" aria-label="Exit setup">
-                        &times; Exit
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                        <span>Exit</span>
                     </button>
+
                 </div>
                 <div class="setup-nav-center">
                     <h1 class="setup-nav-headline">Review and start election</h1>
@@ -148,7 +153,7 @@
                             <div class="review-details-grid">
                                 {% if election.voter_registry %}
                                 <div class="review-detail-row">
-                                    <span class="review-detail-label">Registry</span>
+                                    <span class="review-detail-label">Voter list</span>
                                     <span class="review-detail-val">{{ election.voter_registry.name }}</span>
                                 </div>
                                 {% endif %}
@@ -600,30 +605,6 @@ document.addEventListener('DOMContentLoaded', function () {
             closeStartModal();
         }
     });
-
-    // 4. Auto-expiring Toast Notifications
-    const messagesData = document.querySelectorAll('#django-messages-data [data-django-message]');
-    if (messagesData.length > 0) {
-        let toastContainer = document.querySelector('.setup-toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.className = 'setup-toast-container';
-            document.body.appendChild(toastContainer);
-        }
-
-        messagesData.forEach(msg => {
-            const toast = document.createElement('div');
-            const isError = msg.getAttribute('data-type') === 'error';
-            toast.className = `setup-toast ${isError ? 'is-error' : 'is-success'}`;
-            toast.textContent = msg.textContent;
-            toastContainer.appendChild(toast);
-
-            setTimeout(() => {
-                toast.classList.add('is-hiding');
-                setTimeout(() => toast.remove(), 300);
-            }, 4000);
-        });
-    }
 
     // -------------------------------------------------------------------------
     // 5. Real-Time Validation Checks via WebSocket

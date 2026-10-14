@@ -141,3 +141,41 @@ class DeviceSession(models.Model):
         status = "Active" if self.is_active else "Terminated"
         return f"Session {self.session_key[:8]}... on {self.device.identifier} ({status})"
 
+
+class AdminSession(models.Model):
+    """Tracks active authenticated session for the human Administrator.
+    
+    Enforces the single active session invariant per Admin user.
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='admin_sessions'
+    )
+    session_key = models.CharField(
+        max_length=40,
+        unique=True,
+        help_text="Django session key."
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this session is currently active."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_activity = models.DateTimeField(auto_now=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(is_active=True),
+                name='unique_active_session_per_admin'
+            )
+        ]
+
+    def __str__(self):
+        status = "Active" if self.is_active else "Terminated"
+        return f"Admin Session {self.session_key[:8]}... for {self.user.username} ({status})"
+
+

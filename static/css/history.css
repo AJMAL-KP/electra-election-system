@@ -11,7 +11,15 @@ html, body.history-body {
     padding: 0;
     height: 100vh;
     overflow: hidden;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+body.history-body .main-content {
+    height: 100vh;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
 }
 
 .history-layout {
@@ -169,18 +177,17 @@ html, body.history-body {
     background: #F3F4F6;
 }
 
-/* Dropdown Select Filters */
-.history-select-wrap {
+/* Custom Electra-Themed Year Filter Dropdown */
+.history-year-dropdown {
     position: relative;
-    min-width: 130px;
+    min-width: 140px;
+    flex-shrink: 0;
 }
 
-.history-select {
-    appearance: none;
-    -webkit-appearance: none;
+.history-year-dropdown .electra-dropdown-trigger {
     width: 100%;
     height: 42px;
-    padding: 0 32px 0 14px;
+    padding: 0 14px;
     font-size: 13.5px;
     font-weight: 500;
     color: #111827;
@@ -190,22 +197,28 @@ html, body.history-body {
     cursor: pointer;
     outline: none;
     box-sizing: border-box;
-    transition: border-color 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.15s ease;
+    user-select: none;
 }
 
-.history-select:focus {
+.history-year-dropdown .electra-dropdown-trigger:hover {
+    border-color: #D1D5DB;
+    background-color: #F9FAFB;
+}
+
+.history-year-dropdown.is-open .electra-dropdown-trigger,
+.history-year-dropdown .electra-dropdown-trigger:focus {
     border-color: #111827;
+    box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.08);
 }
 
-.history-select-chevron {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 14px;
-    height: 14px;
-    color: #6B7280;
-    pointer-events: none;
+.history-year-dropdown .electra-dropdown-menu {
+    right: 0;
+    left: auto;
+    min-width: 150px;
 }
 
 /* ==========================================================================
@@ -249,8 +262,9 @@ html, body.history-body {
 
 /* Column 1: Info (Title, Desc, Date) */
 .history-col-info {
-    flex: 1.4;
+    flex: 1;
     min-width: 0;
+    padding-right: 24px;
 }
 
 .history-item-name {
@@ -283,47 +297,24 @@ html, body.history-body {
     font-feature-settings: "tnum";
 }
 
-/* Column 2: Stats + Status Badge */
+/* Column 2: Stats (Total voters, Voted, Positions) — Strict UI Consistency */
 .history-col-stats {
-    flex: 1.1;
+    flex: 0 0 310px;
+    width: 310px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-}
-
-.history-status-badge {
-    display: inline-flex;
-    align-items: center;
-    width: fit-content;
-    padding: 3px 10px;
-    font-size: 12px;
-    font-weight: 500;
-    border-radius: 9999px;
-    background-color: #DCFCE7;
-    color: #166534;
-    line-height: 1.3;
-}
-
-.history-status-badge.status-results-published {
-    background-color: #E0E7FF;
-    color: #3730A3;
-}
-
-.history-status-badge.status-archived {
-    background-color: #F3F4F6;
-    color: #4B5563;
 }
 
 .history-stats-group {
-    display: flex;
+    display: grid;
+    grid-template-columns: 88px 115px 75px;
+    gap: 16px;
     align-items: flex-start;
-    gap: 28px;
 }
 
 .history-stat-box {
     display: flex;
     flex-direction: column;
-    min-width: 68px;
 }
 
 .history-stat-number {
@@ -686,7 +677,8 @@ html, body.history-body {
     }
 
     .history-search-wrap,
-    .history-select-wrap {
+    .history-select-wrap,
+    .history-year-dropdown {
         width: 100%;
     }
 

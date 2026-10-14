@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Initial import configuration — Electra{% endblock %}
+{% block title %}Initial voter list configuration — Electra{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'css/registry_create.css' %}">
@@ -15,7 +15,7 @@
 <div class="registry-create-layout">
     <!-- Top Bar: Cancel navigation -->
     <header class="create-top-bar">
-        <a href="{% url 'voters:registries' %}?reset=1" class="btn-cancel" aria-label="Cancel and return to registries">
+        <a href="{% url 'voters:registries' %}?reset=1" class="btn-cancel" aria-label="Cancel and return to voter lists">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
             <span>Cancel</span>
         </a>
@@ -35,9 +35,9 @@
          ==================================================================== -->
     <div id="state-upload-screen" class="state-upload-screen" style="{% if pending_file %}display: none;{% endif %}">
         <div class="upload-hero">
-            <h1 class="upload-hero-title">Create voter registry</h1>
+            <h1 class="upload-hero-title">Create voter list</h1>
             <p class="upload-hero-subtitle">
-                Upload your institution's voter file (CSV or Excel) to configure the registry schema and import voter records.
+                Upload your institution's voter file (CSV or Excel) to configure the voter list schema and import voter records.
             </p>
         </div>
 
@@ -70,29 +70,11 @@
          ==================================================================== -->
     <div id="state-config-screen" class="state-config-screen" style="{% if not pending_file %}display: none;{% endif %}">
         <div class="config-hero">
-            <h1 class="config-title">Initial import configuration</h1>
+            <h1 class="config-title">Initial voter list configuration</h1>
             <p class="config-subtitle">
-                Configure the schema for this registry using the uploaded file. This schema will be used for all future imports and cannot be changed.
+                Configure the schema for this voter list using the uploaded file. This schema will be used for all future imports and cannot be changed.
             </p>
         </div>
-
-        <!-- In-page Error Banner -->
-        {% if messages %}
-        <div class="config-error-banner" role="alert" id="config-error-banner">
-            <div class="error-banner-icon-box">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-            </div>
-            <div class="error-banner-body">
-                {% for message in messages %}
-                <div class="error-banner-msg">{{ message }}</div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
 
         <form id="registry-create-form" method="POST" action="{% url 'voters:registry_create' %}" novalidate>
             {% csrf_token %}
@@ -123,13 +105,17 @@
                 </div>
             </div>
 
-            <!-- Section 1: Registry details -->
+            <!-- Section 1: Voter list details -->
             <section class="config-section">
-                <h2 class="config-section-title">Registry details</h2>
+                <h2 class="config-section-title">Voter list details</h2>
                 <div class="registry-details-grid" style="grid-template-columns: 1fr; max-width: 520px;">
                     <div class="form-group">
-                        <label for="reg-name" class="form-label">Registry name <span class="req-star">*</span></label>
+                        <label for="reg-name" class="form-label">Voter list name <span class="req-star">*</span></label>
                         <input type="text" id="reg-name" name="name" class="form-input" placeholder="e.g. CET Students" value="{{ name|default:'' }}" required autocomplete="off">
+                        <div class="setup-field-inline-error" id="reg-name-error" style="display: none;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            Voter list name is required.
+                        </div>
                     </div>
                 </div>
             </section>
@@ -139,7 +125,7 @@
             <!-- Section 2: Map columns from file -->
             <section class="config-section">
                 <h2 class="config-section-title">Map columns from file</h2>
-                <p class="config-section-desc">Select the column from your file that corresponds to each field in the registry schema.</p>
+                <p class="config-section-desc">Select the column from your file that corresponds to each field in the voter list schema.</p>
 
                 <div class="column-mapping-grid">
                     <!-- Column 1: Voter ID / Student ID -->
@@ -148,7 +134,7 @@
                             Student ID / Voter ID <span class="req-star">*</span>
                         </label>
                         <div class="select-wrapper">
-                            <select id="col-primary-id" name="primary_id_source" class="form-select" required aria-label="Select Student ID column"></select>
+                            <select id="col-primary-id" name="primary_id_source" class="form-select electra-select" required aria-label="Select Student ID column"></select>
                             <span class="select-arrow" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
                             </span>
@@ -161,7 +147,7 @@
                             Full Name <span class="req-star">*</span>
                         </label>
                         <div class="select-wrapper">
-                            <select id="col-name" name="name_source" class="form-select" required aria-label="Select Full Name column"></select>
+                            <select id="col-name" name="name_source" class="form-select electra-select" required aria-label="Select Full Name column"></select>
                             <span class="select-arrow" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
                             </span>
@@ -174,7 +160,7 @@
                             Department / Class <span class="req-star">*</span>
                         </label>
                         <div class="select-wrapper">
-                            <select id="col-group" name="group_source" class="form-select" required aria-label="Select Department column"></select>
+                            <select id="col-group" name="group_source" class="form-select electra-select" required aria-label="Select Department column"></select>
                             <span class="select-arrow" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
                             </span>
@@ -188,13 +174,13 @@
                                 Sub-group <span class="subgroup-subtext">(Semester / Division)</span>
                             </label>
                             <div class="segmented-toggle" role="radiogroup" aria-label="Include sub-groups">
-                                <button type="button" class="toggle-pill active" id="toggle-subgroup-yes" data-val="yes" title="Registry includes sub-groups">Yes</button>
+                                <button type="button" class="toggle-pill active" id="toggle-subgroup-yes" data-val="yes" title="Voter list includes sub-groups">Yes</button>
                                 <button type="button" class="toggle-pill" id="toggle-subgroup-no" data-val="no" title="No sub-groups; organize directly under department">No</button>
                             </div>
                             <input type="hidden" name="has_subgroups_toggle" id="has-subgroups-toggle" value="yes">
                         </div>
                         <div class="select-wrapper" id="subgroup-select-wrapper">
-                            <select id="col-subgroup" name="subgroup_source" class="form-select" aria-label="Select Sub-group column"></select>
+                            <select id="col-subgroup" name="subgroup_source" class="form-select electra-select" aria-label="Select Sub-group column"></select>
                             <span class="select-arrow" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
                             </span>
@@ -210,7 +196,7 @@
                             Gender <span class="req-star">*</span>
                         </label>
                         <div class="select-wrapper">
-                            <select id="col-gender" name="gender_source" class="form-select" required aria-label="Select Gender column"></select>
+                            <select id="col-gender" name="gender_source" class="form-select electra-select" required aria-label="Select Gender column"></select>
                             <span class="select-arrow" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9"/></svg>
                             </span>

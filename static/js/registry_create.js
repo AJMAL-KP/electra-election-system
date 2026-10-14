@@ -88,6 +88,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!includeNone && !selectEl.value && selectEl.options.length > 0) {
             selectEl.selectedIndex = 0;
         }
+
+        if (typeof window.enhanceElectraSelect === 'function') {
+            window.enhanceElectraSelect(selectEl);
+        }
+        if (typeof window.refreshElectraSelect === 'function') {
+            window.refreshElectraSelect(selectEl);
+        }
     }
 
     const toggleSubgroupYes = document.getElementById('toggle-subgroup-yes');
@@ -109,6 +116,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!selectSubgroup.value && selectSubgroup.options.length > 0) {
                     selectSubgroup.selectedIndex = 0;
                 }
+                if (typeof window.refreshElectraSelect === 'function') {
+                    window.refreshElectraSelect(selectSubgroup);
+                }
             }
         } else {
             if (toggleSubgroupYes) toggleSubgroupYes.classList.remove('active');
@@ -118,6 +128,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (subgroupOffHint) subgroupOffHint.style.display = 'flex';
             if (selectSubgroup) {
                 selectSubgroup.value = '';
+                if (typeof window.refreshElectraSelect === 'function') {
+                    window.refreshElectraSelect(selectSubgroup);
+                }
             }
         }
         renderPreviewTable();
@@ -336,6 +349,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Form submission validation
+    const regNameError = document.getElementById('reg-name-error');
+    if (regNameInput) {
+        regNameInput.addEventListener('input', () => {
+            if (regNameError) regNameError.style.display = 'none';
+            regNameInput.classList.remove('is-invalid');
+        });
+    }
+
     if (form) {
         form.addEventListener('submit', function (e) {
             const nameVal = regNameInput.value.trim();
@@ -344,7 +365,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!nameVal) {
                 e.preventDefault();
-                showAlert('Please provide a name for this registry.');
+                if (regNameError) regNameError.style.display = 'flex';
+                regNameInput.classList.add('is-invalid');
+                showAlert('Please provide a name for this voter list.');
                 regNameInput.focus();
                 return;
             }
@@ -371,6 +394,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            // Check for duplicate column selections
+            const cols = [idCol, nameCol, groupCol];
+            if (new Set(cols).size < cols.length) {
+                e.preventDefault();
+                showAlert('Columns cannot be mapped to the same field.');
+                return;
+            }
+
             // If subgroup is toggled off, ensure empty value is sent
             if (hasSubgroupsToggleInput && hasSubgroupsToggleInput.value === 'no') {
                 if (selectSubgroup) {
@@ -393,3 +424,4 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 });
+

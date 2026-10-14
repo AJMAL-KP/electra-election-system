@@ -4,19 +4,31 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
 from accounts.models import CredentialStatus, Role
-from accounts.selectors import get_active_session_by_key
+from accounts.selectors import get_active_session_by_key, is_user_session_active
 
 
 def admin_required(view_func):
-    """Ensure the authenticated user has the ADMIN role."""
+    """Ensure the authenticated user has the ADMIN role and an active session."""
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('accounts:login')
         if request.user.role != Role.ADMIN:
             raise PermissionDenied("Administrative privileges required.")
+
+        session_obj = getattr(request, "session", None)
+        if session_obj is not None:
+            session_key = getattr(session_obj, "session_key", None)
+            if not session_key or not is_user_session_active(request.user, session_key):
+                from django.contrib.auth import logout as auth_logout
+                auth_logout(request)
+                if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.content_type == "application/json":
+                    return HttpResponseForbidden("Admin session is inactive or has been superseded.")
+                return redirect('accounts:login')
+
         return view_func(request, *args, **kwargs)
     return _wrapped_view
+
 
 
 def officer_required(view_func):

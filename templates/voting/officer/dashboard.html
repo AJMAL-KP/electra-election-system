@@ -930,13 +930,21 @@ document.addEventListener('DOMContentLoaded', function () {
                         handleRemoteAuthUpdate(prevVoterId, 'not_voted');
                         unlockOfficer();
                     } else {
-                        alert(data.error || 'Failed to cancel authorization.');
+                        if (window.showElectraToast) {
+                            showElectraToast(data.error || 'Failed to cancel authorization.', 'error');
+                        } else if (window.electraAlert) {
+                            electraAlert('Authorization Error', data.error || 'Failed to cancel authorization.');
+                        }
                         btnAuthorize.disabled = false;
                         btnAuthorize.textContent = 'Cancel authorization';
                     }
                 } catch (err) {
                     console.error('Cancel authorization failed:', err);
-                    alert('A network error occurred while cancelling authorization.');
+                    if (window.showElectraToast) {
+                        showElectraToast('A network error occurred while cancelling authorization.', 'error');
+                    } else if (window.electraAlert) {
+                        electraAlert('Network Error', 'A network error occurred while cancelling authorization.');
+                    }
                     btnAuthorize.disabled = false;
                     btnAuthorize.textContent = 'Cancel authorization';
                 }
@@ -945,7 +953,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Scenario 2: No active authorization -> Authorize Selected Voter
             if (isElectionEnded) {
-                alert('Election has ended. New authorizations are no longer permitted.');
+                if (window.electraAlert) {
+                    electraAlert('Election Concluded', 'Election has ended. New authorizations are no longer permitted.');
+                } else if (window.showElectraToast) {
+                    showElectraToast('Election has ended. New authorizations are no longer permitted.', 'error');
+                }
                 return;
             }
 
@@ -972,16 +984,25 @@ document.addEventListener('DOMContentLoaded', function () {
                     lockOfficer(authId, authVoterId);
                     handleRemoteAuthUpdate(authVoterId, 'in_progress');
                 } else {
-                    alert(data.error || 'Failed to issue authorization.');
+                    if (window.showElectraToast) {
+                        showElectraToast(data.error || 'Failed to issue authorization.', 'error');
+                    } else if (window.electraAlert) {
+                        electraAlert('Authorization Error', data.error || 'Failed to issue authorization.');
+                    }
                     btnAuthorize.disabled = false;
                     btnAuthorize.textContent = 'Authorize voter';
                 }
             } catch (err) {
                 console.error('Authorization request failed:', err);
-                alert('A network error occurred while contacting the voting server.');
+                if (window.showElectraToast) {
+                    showElectraToast('A network error occurred while contacting the voting server.', 'error');
+                } else if (window.electraAlert) {
+                    electraAlert('Network Error', 'A network error occurred while contacting the voting server.');
+                }
                 btnAuthorize.disabled = false;
                 btnAuthorize.textContent = 'Authorize voter';
             }
+
         });
     }
 

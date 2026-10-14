@@ -83,10 +83,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function showUploadError(msg) {
         showAlert(msg, true);
-        if (uploadErrorBox && uploadErrorMessage) {
-            uploadErrorMessage.textContent = msg;
-            uploadErrorBox.style.display = 'flex';
-        }
         if (uploadGroupPrompt) {
             uploadGroupPrompt.style.display = 'none';
         }

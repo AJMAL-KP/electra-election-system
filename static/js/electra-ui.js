@@ -22,7 +22,28 @@
     return container;
   }
 
+  // Cache of recent toasts to prevent duplicate messages across templates/scripts
+  const recentToasts = new Map();
+
   window.showElectraToast = function(message, type = 'info', duration = 4000) {
+    if (!message || typeof message !== 'string') return;
+    const cleanMsg = message.trim();
+    if (!cleanMsg) return;
+
+    const now = Date.now();
+    // Clean up older entries (> 5 seconds)
+    for (const [msg, ts] of recentToasts.entries()) {
+      if (now - ts > 5000) {
+        recentToasts.delete(msg);
+      }
+    }
+
+    // Suppress duplicate identical toast text fired within 2 seconds
+    if (recentToasts.has(cleanMsg) && (now - recentToasts.get(cleanMsg) < 2000)) {
+      return;
+    }
+    recentToasts.set(cleanMsg, now);
+
     const container = ensureToastContainer();
     const toast = document.createElement('div');
     const toastType = (type === 'error' || type === 'danger') ? 'error' : (type === 'success' ? 'success' : 'info');
@@ -30,7 +51,7 @@
 
     toast.innerHTML = `
       <span class="electra-toast-dot"></span>
-      <span class="electra-toast-content">${message}</span>
+      <span class="electra-toast-content">${cleanMsg}</span>
       <button type="button" class="electra-toast-close" aria-label="Dismiss">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
@@ -53,6 +74,8 @@
     }
 
     container.appendChild(toast);
+  };
+
   // Universal copy-to-clipboard helper supporting HTTP LAN deployment
   window.copyElectraText = function(text, cb) {
     if (!text) return;
@@ -90,6 +113,9 @@
     // Check for message elements that templates might have rendered
     const messageElements = document.querySelectorAll('.registry-msg, .import-msg, .popover-msg, [data-django-message]');
     messageElements.forEach(el => {
+      if (el.dataset.electraToastShown === 'true') return;
+      el.dataset.electraToastShown = 'true';
+
       const typeStr = (el.dataset.type || '').toLowerCase();
       const isError = el.classList.contains('registry-msg--error') || 
                       el.classList.contains('import-msg--error') || 
@@ -134,6 +160,12 @@
     } = opts;
 
     return new Promise((resolve) => {
+      // Ensure only one modal is visible at a time: close any existing modal overlays
+      document.querySelectorAll('.modal-overlay.active').forEach(m => {
+        m.classList.remove('active');
+        m.setAttribute('aria-hidden', 'true');
+      });
+
       let modal = document.getElementById('electra-confirm-modal');
       if (!modal) {
         modal = document.createElement('div');
@@ -159,7 +191,12 @@
 
       titleEl.textContent = title;
       descEl.textContent = message;
-      cancelBtn.textContent = cancelText;
+      if (cancelText) {
+        cancelBtn.textContent = cancelText;
+        cancelBtn.style.display = 'inline-flex';
+      } else {
+        cancelBtn.style.display = 'none';
+      }
       submitBtn.textContent = confirmText;
 
       if (isDanger) {
@@ -167,6 +204,7 @@
       } else {
         submitBtn.classList.remove('is-danger');
       }
+
 
       function close(confirmed) {
         modal.classList.remove('is-active');
@@ -222,6 +260,19 @@
     });
     return false;
   };
+
+  window.electraAlert = function(arg1, arg2, btnText = 'OK') {
+    const title = arg2 ? arg1 : 'Notice';
+    const message = arg2 ? arg2 : arg1;
+    return window.electraConfirm({
+      title: title,
+      message: message,
+      confirmText: btnText,
+      cancelText: '',
+      isDanger: false,
+    });
+  };
+
 
   // --------------------------------------------------------------------------
   // 2. CUSTOM ELECTRA FORM VALIDATION (No HTML default validation bubbles)
@@ -372,9 +423,18 @@
     selectEl.style.width = '0';
     selectEl.style.height = '0';
 
+    // Hide any existing static arrow in parent wrapper if present
+    const parentWrapper = selectEl.closest('.select-wrapper, .direct-select-wrapper');
+    if (parentWrapper) {
+      const existingArrow = parentWrapper.querySelector('.select-arrow, .direct-select-arrow');
+      if (existingArrow) existingArrow.style.display = 'none';
+    }
+
     const isFullWidth = selectEl.classList.contains('full-width') || 
                         selectEl.classList.contains('registry-form-select') || 
-                        selectEl.classList.contains('config-select');
+                        selectEl.classList.contains('config-select') ||
+                        selectEl.classList.contains('direct-form-select') ||
+                        selectEl.classList.contains('form-select');
 
     const wrapper = document.createElement('div');
     wrapper.className = `electra-dropdown-wrap ${isFullWidth ? 'full-width' : ''}`;
@@ -501,8 +561,8 @@
   };
 
   function initElectraDropdowns() {
-    // Enhance all selects in registry and import forms
-    const selects = document.querySelectorAll('select.electra-select, select.registry-select, select.registry-form-select, select.config-select');
+    // Enhance all selects in voter list and import forms
+    const selects = document.querySelectorAll('select.electra-select, select.registry-select, select.registry-form-select, select.config-select, select.direct-form-select, select.form-select');
     selects.forEach(select => {
       enhanceElectraSelect(select);
     });

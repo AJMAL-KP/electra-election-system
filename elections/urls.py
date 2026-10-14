@@ -55,7 +55,8 @@ urlpatterns = [
     # Station Credential Rotation endpoint
     path("devices/<int:device_id>/rotate-credentials/", views.device_rotate_credentials_view, name="device_rotate_credentials"),
 
-    # Results endpoint
+    # Results endpoints
     path("<int:election_id>/results/", views.election_results_view, name="results"),
+    path("<int:election_id>/results/pdf/", views.election_results_pdf_view, name="results_pdf"),
 ]
 
